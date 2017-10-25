@@ -20,7 +20,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
-import com.google.common.annotations.VisibleForTesting;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -42,9 +41,9 @@ import javax.annotation.Nullable;
 @SuppressWarnings("serial")
 final class RegularImmutableSortedSet<E> extends ImmutableSortedSet<E> {
   static final RegularImmutableSortedSet<Comparable> NATURAL_EMPTY_SET =
-      new RegularImmutableSortedSet<Comparable>(ImmutableList.<Comparable>of(), Ordering.natural());
+      new RegularImmutableSortedSet<>(ImmutableList.<Comparable>of(), Ordering.natural());
 
-  @VisibleForTesting final transient ImmutableList<E> elements;
+  private final transient ImmutableList<E> elements;
 
   RegularImmutableSortedSet(ImmutableList<E> elements, Comparator<? super E> comparator) {
     super(comparator);
@@ -133,9 +132,7 @@ final class RegularImmutableSortedSet<E> extends ImmutableSortedSet<E> {
           return false;
         }
       }
-    } catch (NullPointerException e) {
-      return false;
-    } catch (ClassCastException e) {
+    } catch (NullPointerException | ClassCastException e) {
       return false;
     }
   }
@@ -305,7 +302,7 @@ final class RegularImmutableSortedSet<E> extends ImmutableSortedSet<E> {
 
   @Override
   ImmutableSortedSet<E> createDescendingSet() {
-    Ordering<E> reversedOrder = Ordering.from(comparator).reverse();
+    Comparator<? super E> reversedOrder = Collections.reverseOrder(comparator);
     return isEmpty()
         ? emptySet(reversedOrder)
         : new RegularImmutableSortedSet<E>(elements.reverse(), reversedOrder);

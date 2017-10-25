@@ -84,49 +84,58 @@ public class ImmutableMultisetTest extends TestCase {
             CollectionFeature.ALLOWS_NULL_QUERIES)
         .createTestSuite());
 
-    suite.addTest(ListTestSuiteBuilder.using(new TestStringListGenerator() {
-          @Override protected List<String> create(String[] elements) {
-            return ImmutableMultiset.copyOf(elements).asList();
-          }
+    suite.addTest(
+        ListTestSuiteBuilder.using(
+                new TestStringListGenerator() {
+                  @Override
+                  protected List<String> create(String[] elements) {
+                    return ImmutableMultiset.copyOf(elements).asList();
+                  }
 
-          @Override
-          public List<String> order(List<String> insertionOrder) {
-            List<String> order = new ArrayList<String>();
-            for (String s : insertionOrder) {
-              int index = order.indexOf(s);
-              if (index == -1) {
-                order.add(s);
-              } else {
-                order.add(index, s);
-              }
-            }
-            return order;
-          }
-        })
-        .named("ImmutableMultiset.asList")
-        .withFeatures(CollectionSize.ANY,
-            CollectionFeature.SERIALIZABLE,
-            CollectionFeature.ALLOWS_NULL_QUERIES)
-        .createTestSuite());
+                  @Override
+                  public List<String> order(List<String> insertionOrder) {
+                    List<String> order = new ArrayList<>();
+                    for (String s : insertionOrder) {
+                      int index = order.indexOf(s);
+                      if (index == -1) {
+                        order.add(s);
+                      } else {
+                        order.add(index, s);
+                      }
+                    }
+                    return order;
+                  }
+                })
+            .named("ImmutableMultiset.asList")
+            .withFeatures(
+                CollectionSize.ANY,
+                CollectionFeature.SERIALIZABLE,
+                CollectionFeature.ALLOWS_NULL_QUERIES)
+            .createTestSuite());
 
-    suite.addTest(ListTestSuiteBuilder.using(new TestStringListGenerator() {
-          @Override protected List<String> create(String[] elements) {
-            Set<String> set = new HashSet<String>();
-            ImmutableMultiset.Builder<String> builder = ImmutableMultiset.builder();
-            for (String s : elements) {
-              checkArgument(set.add(s));
-              builder.addCopies(s, 2);
-            }
-            ImmutableSet<String> elementSet = (ImmutableSet<String>) builder.build().elementSet();
-            return elementSet.asList();
-          }
-        })
-        .named("ImmutableMultiset.elementSet.asList")
-        .withFeatures(CollectionSize.ANY,
-            CollectionFeature.REJECTS_DUPLICATES_AT_CREATION,
-            CollectionFeature.SERIALIZABLE,
-            CollectionFeature.ALLOWS_NULL_QUERIES)
-        .createTestSuite());
+    suite.addTest(
+        ListTestSuiteBuilder.using(
+                new TestStringListGenerator() {
+                  @Override
+                  protected List<String> create(String[] elements) {
+                    Set<String> set = new HashSet<>();
+                    ImmutableMultiset.Builder<String> builder = ImmutableMultiset.builder();
+                    for (String s : elements) {
+                      checkArgument(set.add(s));
+                      builder.addCopies(s, 2);
+                    }
+                    ImmutableSet<String> elementSet =
+                        (ImmutableSet<String>) builder.build().elementSet();
+                    return elementSet.asList();
+                  }
+                })
+            .named("ImmutableMultiset.elementSet.asList")
+            .withFeatures(
+                CollectionSize.ANY,
+                CollectionFeature.REJECTS_DUPLICATES_AT_CREATION,
+                CollectionFeature.SERIALIZABLE,
+                CollectionFeature.ALLOWS_NULL_QUERIES)
+            .createTestSuite());
 
     return suite;
   }
@@ -570,6 +579,9 @@ public class ImmutableMultisetTest extends TestCase {
   public void testIterationOrder() {
     Collection<String> c = ImmutableMultiset.of("a", "b", "a");
     assertThat(c).containsExactly("a", "a", "b").inOrder();
+    assertThat(ImmutableMultiset.of("c", "b", "a", "c").elementSet())
+        .containsExactly("c", "b", "a")
+        .inOrder();
   }
 
   public void testMultisetWrites() {
@@ -600,5 +612,18 @@ public class ImmutableMultisetTest extends TestCase {
         .addEqualityGroup(ImmutableMultiset.of(1, 1), ImmutableMultiset.of(1, 1))
         .addEqualityGroup(ImmutableMultiset.of(1, 2, 1), ImmutableMultiset.of(2, 1, 1))
         .testEquals();
+  }
+
+  public void testIterationOrderThroughBuilderRemovals() {
+    ImmutableMultiset.Builder<String> builder = ImmutableMultiset.builder();
+    builder.addCopies("a", 2);
+    builder.add("b");
+    builder.add("c");
+    builder.setCount("b", 0);
+    ImmutableMultiset<String> multiset = builder.build();
+    assertThat(multiset.elementSet()).containsExactly("a", "c").inOrder();
+    builder.add("b");
+    assertThat(builder.build().elementSet()).containsExactly("a", "c", "b").inOrder();
+    assertThat(multiset.elementSet()).containsExactly("a", "c").inOrder();
   }
 }

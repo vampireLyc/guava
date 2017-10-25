@@ -58,7 +58,7 @@ public class ImmutableListMultimap<K, V> extends ImmutableMultimap<K, V>
    * elements.
    *
    * <p>For streams with {@linkplain java.util.stream#Ordering defined encounter order}, that order
-   * is preserved, but entries are {@linkplain ImmutableMultimap#iteration grouped by key}.
+   * is preserved, but entries are <a href="ImmutableMultimap.html#iteration">grouped by key</a>.
    *
    * Example:
    * <pre>   {@code
@@ -208,7 +208,7 @@ public class ImmutableListMultimap<K, V> extends ImmutableMultimap<K, V>
    * created by the {@link Builder} constructor.
    */
   public static <K, V> Builder<K, V> builder() {
-    return new Builder<K, V>();
+    return new Builder<>();
   }
 
   /**
@@ -357,7 +357,7 @@ public class ImmutableListMultimap<K, V> extends ImmutableMultimap<K, V>
     }
 
     ImmutableMap.Builder<K, ImmutableList<V>> builder =
-        new ImmutableMap.Builder<K, ImmutableList<V>>(multimap.asMap().size());
+        new ImmutableMap.Builder<>(multimap.asMap().size());
     int size = 0;
 
     for (Entry<? extends K, ? extends Collection<? extends V>> entry :
@@ -369,7 +369,7 @@ public class ImmutableListMultimap<K, V> extends ImmutableMultimap<K, V>
       }
     }
 
-    return new ImmutableListMultimap<K, V>(builder.build(), size);
+    return new ImmutableListMultimap<>(builder.build(), size);
   }
 
   /**

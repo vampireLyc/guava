@@ -60,9 +60,10 @@ import javax.annotation.Nullable;
  *     collection is modified.
  * <li><b>Null-hostility.</b> This collection will never contain a null element.
  * <li><b>Deterministic iteration.</b> The iteration order is always well-defined, depending on how
- *     the collection was created (see the appropriate factory method for details). View collections
- *     such as {@link ImmutableMultiset#elementSet} iterate in the same order as the parent, except
- *     as noted.
+ *     the collection was created. Typically this is insertion order unless an explicit ordering is
+ *     otherwise specified (e.g. {@link ImmutableSortedSet#naturalOrder}).  See the appropriate
+ *     factory method for details. View collections such as {@link ImmutableMultiset#elementSet}
+ *     iterate in the same order as the parent, except as noted.
  * <li><b>Thread safety.</b> It is safe to access this collection concurrently from multiple
  *     threads.
  * <li><b>Integrity.</b> This type cannot be subclassed outside this package (which would allow
@@ -462,7 +463,7 @@ public abstract class ImmutableCollection<E> extends AbstractCollection<E> imple
       this.size = 0;
     }
 
-    /**
+    /*
      * Expand the absolute capacity of the builder so it can accept at least the specified number of
      * elements without being resized. Also, if we've already built a collection backed by the
      * current array, create a new array.
@@ -497,7 +498,7 @@ public abstract class ImmutableCollection<E> extends AbstractCollection<E> imple
       size += elements.length;
       return this;
     }
-
+    
     @CanIgnoreReturnValue
     @Override
     public Builder<E> addAll(Iterable<? extends E> elements) {

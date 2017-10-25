@@ -80,7 +80,7 @@ public class AbstractFutureFallbackAtomicHelperTest extends TestCase {
 
   @Override
   public void runTest() throws Exception {
-    // First ensure that our classloaders are intializing the correct helper versions
+    // First ensure that our classloaders are initializing the correct helper versions
     checkHelperVersion(getClass().getClassLoader(), "UnsafeAtomicHelper");
     checkHelperVersion(NO_UNSAFE, "SafeAtomicHelper");
     checkHelperVersion(NO_ATOMIC_REFERENCE_FIELD_UPDATER, "SynchronizedHelper");
@@ -121,9 +121,8 @@ public class AbstractFutureFallbackAtomicHelperTest extends TestCase {
   private static ClassLoader getClassLoader(final Set<String> blacklist) {
     final String concurrentPackage = SettableFuture.class.getPackage().getName();
     ClassLoader classLoader = AbstractFutureFallbackAtomicHelperTest.class.getClassLoader();
-    return
     // we delegate to the current classloader so both loaders agree on classes like TestCase
-    new URLClassLoader(((URLClassLoader) classLoader).getURLs(), classLoader) {
+    return new URLClassLoader(ClassPathUtil.getClassPathUrls(), classLoader) {
       @Override
       public Class<?> loadClass(String name) throws ClassNotFoundException {
         if (blacklist.contains(name)) {
@@ -140,4 +139,5 @@ public class AbstractFutureFallbackAtomicHelperTest extends TestCase {
       }
     };
   }
+
 }

@@ -72,7 +72,7 @@ public final class HashBiMap<K, V> extends IteratorBasedAbstractMap<K, V>
    * @throws IllegalArgumentException if the specified expected size is negative
    */
   public static <K, V> HashBiMap<K, V> create(int expectedSize) {
-    return new HashBiMap<K, V>(expectedSize);
+    return new HashBiMap<>(expectedSize);
   }
 
   /**
@@ -288,7 +288,7 @@ public final class HashBiMap<K, V> extends IteratorBasedAbstractMap<K, V>
       }
     }
 
-    BiEntry<K, V> newEntry = new BiEntry<K, V>(key, keyHash, value, valueHash);
+    BiEntry<K, V> newEntry = new BiEntry<>(key, keyHash, value, valueHash);
     if (oldEntryForKey != null) {
       delete(oldEntryForKey);
       insert(newEntry, oldEntryForKey);
@@ -309,29 +309,40 @@ public final class HashBiMap<K, V> extends IteratorBasedAbstractMap<K, V>
     int keyHash = smearedHash(key);
 
     BiEntry<K, V> oldEntryForValue = seekByValue(value, valueHash);
+    BiEntry<K, V> oldEntryForKey = seekByKey(key, keyHash);
     if (oldEntryForValue != null
         && keyHash == oldEntryForValue.keyHash
         && Objects.equal(key, oldEntryForValue.key)) {
       return key;
+    } else if (oldEntryForKey != null && !force) {
+      throw new IllegalArgumentException("key already present: " + key);
     }
 
-    BiEntry<K, V> oldEntryForKey = seekByKey(key, keyHash);
-    if (oldEntryForKey != null) {
-      if (force) {
-        delete(oldEntryForKey);
-      } else {
-        throw new IllegalArgumentException("value already present: " + key);
-      }
-    }
+    /*
+     * The ordering here is important: if we deleted the key entry and then the value entry,
+     * the key entry's prev or next pointer might point to the dead value entry, and when we
+     * put the new entry in the key entry's position in iteration order, it might invalidate
+     * the linked list.
+     */
 
     if (oldEntryForValue != null) {
       delete(oldEntryForValue);
     }
-    BiEntry<K, V> newEntry = new BiEntry<K, V>(key, keyHash, value, valueHash);
+
+    if (oldEntryForKey != null) {
+      delete(oldEntryForKey);
+    }
+
+    BiEntry<K, V> newEntry = new BiEntry<>(key, keyHash, value, valueHash);
     insert(newEntry, oldEntryForKey);
+
     if (oldEntryForKey != null) {
       oldEntryForKey.prevInKeyInsertionOrder = null;
       oldEntryForKey.nextInKeyInsertionOrder = null;
+    }
+    if (oldEntryForValue != null) {
+      oldEntryForValue.prevInKeyInsertionOrder = null;
+      oldEntryForValue.nextInKeyInsertionOrder = null;
     }
     rehashIfNecessary();
     return Maps.keyOrNull(oldEntryForValue);
@@ -503,8 +514,7 @@ public final class HashBiMap<K, V> extends IteratorBasedAbstractMap<K, V>
           }
           checkArgument(seekByValue(value, valueHash) == null, "value already present: %s", value);
           delete(delegate);
-          BiEntry<K, V> newEntry =
-              new BiEntry<K, V>(delegate.key, delegate.keyHash, value, valueHash);
+          BiEntry<K, V> newEntry = new BiEntry<>(delegate.key, delegate.keyHash, value, valueHash);
           insert(newEntry, delegate);
           delegate.prevInKeyInsertionOrder = null;
           delegate.nextInKeyInsertionOrder = null;
@@ -675,7 +685,7 @@ public final class HashBiMap<K, V> extends IteratorBasedAbstractMap<K, V>
             checkArgument(seekByKey(key, keyHash) == null, "value already present: %s", key);
             delete(delegate);
             BiEntry<K, V> newEntry =
-                new BiEntry<K, V>(key, keyHash, delegate.value, delegate.valueHash);
+                new BiEntry<>(key, keyHash, delegate.value, delegate.valueHash);
             delegate = newEntry;
             insert(newEntry, null);
             expectedModCount = modCount;
@@ -704,7 +714,7 @@ public final class HashBiMap<K, V> extends IteratorBasedAbstractMap<K, V>
     }
 
     Object writeReplace() {
-      return new InverseSerializedForm<K, V>(HashBiMap.this);
+      return new InverseSerializedForm<>(HashBiMap.this);
     }
   }
 

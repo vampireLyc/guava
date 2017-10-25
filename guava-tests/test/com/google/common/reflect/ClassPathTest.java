@@ -17,14 +17,17 @@
 package com.google.common.reflect;
 
 import static com.google.common.base.Charsets.US_ASCII;
+import static com.google.common.base.StandardSystemProperty.JAVA_CLASS_PATH;
+import static com.google.common.base.StandardSystemProperty.PATH_SEPARATOR;
 import static com.google.common.io.MoreFiles.deleteRecursively;
 import static com.google.common.truth.Truth.assertThat;
 import static java.nio.file.Files.createDirectory;
 import static java.nio.file.Files.createFile;
 import static java.nio.file.Files.createSymbolicLink;
 import static java.nio.file.Files.createTempDirectory;
+import static java.util.logging.Level.WARNING;
 
-import com.google.common.base.Charsets;
+import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Closer;
@@ -46,6 +49,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.security.Permission;
+import java.security.PermissionCollection;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
@@ -54,6 +58,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
+import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import junit.framework.TestCase;
 import org.junit.Test;
@@ -62,6 +67,7 @@ import org.junit.Test;
  * Functional tests of {@link ClassPath}.
  */
 public class ClassPathTest extends TestCase {
+  private static final Logger log = Logger.getLogger(ClassPathTest.class.getName());
 
   public void testEquals() {
     new EqualsTester()
@@ -231,7 +237,7 @@ public class ClassPathTest extends TestCase {
               new ResourceInfo("right/sibling/some.txt", loader)),
           scanner.getResources());
     } finally {
-      deleteRecursively(root);
+      deleteRecursivelyOrLog(root);
     }
   }
 
@@ -254,7 +260,7 @@ public class ClassPathTest extends TestCase {
 
       assertEquals(ImmutableSet.of(new ResourceInfo("some.txt", loader)), scanner.getResources());
     } finally {
-      deleteRecursively(root);
+      deleteRecursivelyOrLog(root);
     }
   }
 
@@ -423,6 +429,40 @@ public class ClassPathTest extends TestCase {
 
   // Test that ResourceInfo.urls() returns identical content to ClassLoader.getResources()
 
+  public void testGetClassPathUrls() throws Exception {
+    String oldPathSeparator = PATH_SEPARATOR.value();
+    String oldClassPath = JAVA_CLASS_PATH.value();
+    System.setProperty(PATH_SEPARATOR.key(), ":");
+    System.setProperty(
+        JAVA_CLASS_PATH.key(),
+        Joiner.on(":")
+            .join(
+                "relative/path/to/some.jar",
+                "/absolute/path/to/some.jar",
+                "relative/path/to/class/root",
+                "/absolute/path/to/class/root"));
+    try {
+      ImmutableList<URL> urls = ClassPath.Scanner.parseJavaClassPath();
+
+      assertThat(urls.get(0).getProtocol()).isEqualTo("file");
+      assertThat(urls.get(0).getAuthority()).isNull();
+      assertThat(urls.get(0).getPath()).endsWith("/relative/path/to/some.jar");
+
+      assertThat(urls.get(1)).isEqualTo(new URL("file:///absolute/path/to/some.jar"));
+
+      assertThat(urls.get(2).getProtocol()).isEqualTo("file");
+      assertThat(urls.get(2).getAuthority()).isNull();
+      assertThat(urls.get(2).getPath()).endsWith("/relative/path/to/class/root");
+
+      assertThat(urls.get(3)).isEqualTo(new URL("file:///absolute/path/to/class/root"));
+
+      assertThat(urls).hasSize(4);
+    } finally {
+      System.setProperty(PATH_SEPARATOR.key(), oldPathSeparator);
+      System.setProperty(JAVA_CLASS_PATH.key(), oldClassPath);
+    }
+  }
+
   private static boolean contentEquals(URL left, URL right) throws IOException {
     return Resources.asByteSource(left).contentEquals(Resources.asByteSource(right));
   }
@@ -451,32 +491,37 @@ public class ClassPathTest extends TestCase {
   }
 
   private void doTestExistsThrowsSecurityException() throws IOException, URISyntaxException {
-    URLClassLoader myLoader = (URLClassLoader) getClass().getClassLoader();
-    URL[] urls = myLoader.getURLs();
-    ImmutableList.Builder<File> filesBuilder = ImmutableList.builder();
-    for (URL url : urls) {
+    File file = null;
+    // In Java 9, Logger may read the TZ database. Only disallow reading the class path URLs.
+    final PermissionCollection readClassPathFiles =
+        new FilePermission("", "read").newPermissionCollection();
+    for (URL url : ClassPath.Scanner.parseJavaClassPath()) {
       if (url.getProtocol().equalsIgnoreCase("file")) {
-        filesBuilder.add(new File(url.toURI()));
+        file = new File(url.toURI());
+        readClassPathFiles.add(new FilePermission(file.getAbsolutePath(), "read"));
       }
     }
-    ImmutableList<File> files = filesBuilder.build();
-    assertThat(files).isNotEmpty();
-    SecurityManager disallowFilesSecurityManager = new SecurityManager() {
-      @Override
-      public void checkPermission(Permission p) {
-        if (p instanceof FilePermission) {
-          throw new SecurityException("Disallowed: " + p);
-        }
-      }
-    };
+    assertThat(file).isNotNull();
+    SecurityManager disallowFilesSecurityManager =
+        new SecurityManager() {
+          @Override
+          public void checkPermission(Permission p) {
+            if (readClassPathFiles.implies(p)) {
+              throw new SecurityException("Disallowed: " + p);
+            }
+          }
+        };
     System.setSecurityManager(disallowFilesSecurityManager);
     try {
-      files.get(0).exists();
+      file.exists();
       fail("Did not get expected SecurityException");
     } catch (SecurityException expected) {
     }
-    ClassPath classPath = ClassPath.from(myLoader);
-    assertThat(classPath.getResources()).isEmpty();
+    ClassPath classPath = ClassPath.from(getClass().getClassLoader());
+    // ClassPath may contain resources from the boot class loader; just not from the class path.
+    for (ResourceInfo resource : classPath.getResources()) {
+      assertThat(resource.getResourceName()).doesNotContain("com/google/common/reflect/");
+    }
   }
 
   private static ClassPath.ClassInfo findClass(
@@ -532,7 +577,7 @@ public class ClassPathTest extends TestCase {
   }
 
   private static Manifest manifest(String content) throws IOException {
-    InputStream in = new ByteArrayInputStream(content.getBytes(Charsets.US_ASCII));
+    InputStream in = new ByteArrayInputStream(content.getBytes(US_ASCII));
     Manifest manifest = new Manifest();
     manifest.read(in);
     return manifest;
@@ -543,7 +588,7 @@ public class ClassPathTest extends TestCase {
   }
 
   private static class ResourceScanner extends ClassPath.Scanner {
-    final Set<String> resources = new HashSet<String>();
+    final Set<String> resources = new HashSet<>();
 
     @Override protected void scanDirectory(ClassLoader loader, File root) throws IOException {
       URI base = root.toURI();
@@ -591,5 +636,14 @@ public class ClassPathTest extends TestCase {
 
     // Special exception just to terminate the scanning when we get any jar file to use.
     private static final class StopScanningException extends RuntimeException {}
+  }
+
+  @AndroidIncompatible // Path (for symlink creation)
+  private static void deleteRecursivelyOrLog(java.nio.file.Path path) {
+    try {
+      deleteRecursively(path);
+    } catch (IOException e) {
+      log.log(WARNING, "Failure cleaning up test directory", e);
+    }
   }
 }

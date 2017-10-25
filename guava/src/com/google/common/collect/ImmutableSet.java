@@ -18,6 +18,7 @@ package com.google.common.collect;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.CollectPreconditions.checkNonnegative;
 import static com.google.common.collect.ObjectArrays.checkElementNotNull;
 
 import com.google.common.annotations.Beta;
@@ -53,10 +54,10 @@ public abstract class ImmutableSet<E> extends ImmutableCollection<E> implements 
       ImmutableCollection.SPLITERATOR_CHARACTERISTICS | Spliterator.DISTINCT;
 
   /**
-   * Returns a {@code Collector} that accumulates the input elements into a new
-   * {@code ImmutableSet}.  Elements are added in encounter order; if the
-   * elements contain duplicates (according to {@link Object#equals(Object)}),
-   * only the first duplicate in encounter order will appear in the result.
+   * Returns a {@code Collector} that accumulates the input elements into a new {@code
+   * ImmutableSet}. Elements appear in the resulting set in the encounter order of the stream; if
+   * the stream contains duplicates (according to {@link Object#equals(Object)}), only the first
+   * duplicate in encounter order will appear in the result.
    *
    * @since 21.0
    */
@@ -141,17 +142,19 @@ public abstract class ImmutableSet<E> extends ImmutableCollection<E> implements 
   }
 
   /**
-   * Constructs an {@code ImmutableSet} from the first {@code n} elements of the specified array. If
-   * {@code k} is the size of the returned {@code ImmutableSet}, then the unique elements of {@code
-   * elements} will be in the first {@code k} positions, and {@code elements[i] == null} for {@code
-   * k <= i < n}.
+   * Constructs an {@code ImmutableSet} from the first {@code n} elements of the specified array.
+   * If {@code k} is the size of the returned {@code ImmutableSet}, then the unique elements of
+   * {@code elements} will be in the first {@code k} positions, and {@code elements[i] == null} for
+   * {@code k <= i < n}.
    *
-   * <p>After this method returns, {@code elements} will contain no duplicates, but {@code elements}
-   * may be the real array backing the returned set, so do not modify it further.
+   * <p>This may modify {@code elements}.  Additionally, if {@code n == elements.length} and
+   * {@code elements} contains no duplicates, {@code elements} may be used without copying in the
+   * returned {@code ImmutableSet}, in which case it may no longer be modified.
    *
    * <p>{@code elements} may contain only values of type {@code E}.
    *
-   * @throws NullPointerException if any of the first {@code n} elements of {@code elements} is null
+   * @throws NullPointerException if any of the first {@code n} elements of {@code elements} is
+   *          null
    */
   private static <E> ImmutableSet<E> construct(int n, Object... elements) {
     switch (n) {
@@ -192,13 +195,14 @@ public abstract class ImmutableSet<E> extends ImmutableCollection<E> implements 
       @SuppressWarnings("unchecked") // we are careful to only pass in E
       E element = (E) elements[0];
       return new SingletonImmutableSet<E>(element, hashCode);
-    } else if (chooseTableSize(uniques) < tableSize / 2) {
+    } else if (tableSize != chooseTableSize(uniques)) {
       // Resize the table when the array includes too many duplicates.
+      // when this happens, we have already made a copy
       return construct(uniques, elements);
     } else {
       Object[] uniqueElements =
-          (uniques < elements.length / 2) ? Arrays.copyOf(elements, uniques) : elements;
-      return new RegularImmutableSet<E>(uniqueElements, hashCode, table, mask, uniques);
+          (uniques < elements.length) ? Arrays.copyOf(elements, uniques) : elements;
+      return new RegularImmutableSet<E>(uniqueElements, hashCode, table, mask);
     }
   }
 
@@ -214,12 +218,11 @@ public abstract class ImmutableSet<E> extends ImmutableCollection<E> implements 
   /**
    * Returns an array size suitable for the backing array of a hash table that uses open addressing
    * with linear probing in its implementation. The returned size is the smallest power of two that
-   * can hold setSize elements with the desired load factor.
-   *
-   * <p>Do not call this method with setSize less than 2.
+   * can hold setSize elements with the desired load factor.  Always returns at least setSize + 2.
    */
   @VisibleForTesting
   static int chooseTableSize(int setSize) {
+    setSize = Math.max(setSize, 2);
     // Correct the size for open addressing to match desired load factor.
     if (setSize < CUTOFF) {
       // Round up to the next highest power of 2.
@@ -443,6 +446,24 @@ public abstract class ImmutableSet<E> extends ImmutableCollection<E> implements 
   }
 
   /**
+   * Returns a new builder, expecting the specified number of distinct elements to be added.
+   *
+   * <p>If {@code expectedSize} is exactly the number of distinct elements added to the builder
+   * before {@link Builder#build} is called, the builder is likely to perform better than an unsized
+   * {@link #builder()} would have.
+   *
+   * <p>It is not specified if any performance benefits apply if {@code expectedSize} is close to,
+   * but not exactly, the number of distinct elements added to the builder.
+   *
+   * @since 23.1
+   */
+  @Beta
+  public static <E> Builder<E> builderWithExpectedSize(int expectedSize) {
+    checkNonnegative(expectedSize, "expectedSize");
+    return new Builder<E>(expectedSize);
+  }
+
+  /**
    * A builder for creating {@code ImmutableSet} instances. Example: <pre>   {@code
    *
    *   static final ImmutableSet<Color> GOOGLE_COLORS =
@@ -451,23 +472,29 @@ public abstract class ImmutableSet<E> extends ImmutableCollection<E> implements 
    *           .add(new Color(0, 191, 255))
    *           .build();}</pre>
    *
+   * <p>Elements appear in the resulting set in the same order they were first added to the builder.
+   *
    * <p>Building does not change the state of the builder, so it is still possible to add more
    * elements and to build again.
    *
    * @since 2.0
    */
   public static class Builder<E> extends ImmutableCollection.ArrayBasedBuilder<E> {
-
+    @VisibleForTesting
+    Object[] hashTable;
+    private int hashCode;
+    
     /**
      * Creates a new builder. The returned builder is equivalent to the builder
      * generated by {@link ImmutableSet#builder}.
      */
     public Builder() {
-      this(DEFAULT_INITIAL_CAPACITY);
+      super(DEFAULT_INITIAL_CAPACITY);
     }
 
     Builder(int capacity) {
       super(capacity);
+      this.hashTable = new Object[chooseTableSize(capacity)];
     }
 
     /**
@@ -482,8 +509,32 @@ public abstract class ImmutableSet<E> extends ImmutableCollection<E> implements 
     @CanIgnoreReturnValue
     @Override
     public Builder<E> add(E element) {
-      super.add(element);
-      return this;
+      checkNotNull(element);
+      if (hashTable != null && chooseTableSize(size) <= hashTable.length) {
+        addDeduping(element);
+        return this;
+      } else {
+        hashTable = null;
+        super.add(element);
+        return this;
+      }
+    }
+    
+    private void addDeduping(E element) {
+      int mask = hashTable.length - 1;
+      int hash = element.hashCode();
+      for (int i = Hashing.smear(hash); ; i++) {
+        i &= mask;
+        Object previous = hashTable[i];
+        if (previous == null) {
+          hashTable[i] = element;
+          hashCode += hash;
+          super.add(element);
+          return;
+        } else if (previous.equals(element)) {
+          return;
+        }
+      }
     }
 
     /**
@@ -498,7 +549,13 @@ public abstract class ImmutableSet<E> extends ImmutableCollection<E> implements 
     @CanIgnoreReturnValue
     @Override
     public Builder<E> add(E... elements) {
-      super.add(elements);
+      if (hashTable != null) {
+        for (E e : elements) {
+          add(e);
+        }
+      } else {
+        super.add(elements);
+      }
       return this;
     }
 
@@ -514,7 +571,14 @@ public abstract class ImmutableSet<E> extends ImmutableCollection<E> implements 
     @CanIgnoreReturnValue
     @Override
     public Builder<E> addAll(Iterable<? extends E> elements) {
-      super.addAll(elements);
+      checkNotNull(elements);
+      if (hashTable != null) {
+        for (E e : elements) {
+          add(e);
+        }
+      } else {
+        super.addAll(elements);
+      }
       return this;
     }
 
@@ -530,14 +594,25 @@ public abstract class ImmutableSet<E> extends ImmutableCollection<E> implements 
     @CanIgnoreReturnValue
     @Override
     public Builder<E> addAll(Iterator<? extends E> elements) {
-      super.addAll(elements);
+      checkNotNull(elements);
+      while (elements.hasNext()) {
+        add(elements.next());
+      }
       return this;
     }
 
+    @SuppressWarnings("unchecked")
     @CanIgnoreReturnValue
     @Override
     Builder<E> combine(ArrayBasedBuilder<E> builder) {
-      super.combine(builder);
+      if (hashTable != null
+          && builder instanceof Builder) {
+        for (int i = 0; i < builder.size; i++) {
+          addDeduping((E) builder.contents[i]);
+        }
+      } else {
+        super.combine(builder);
+      }
       return this;
     }
 
@@ -545,14 +620,29 @@ public abstract class ImmutableSet<E> extends ImmutableCollection<E> implements 
      * Returns a newly-created {@code ImmutableSet} based on the contents of
      * the {@code Builder}.
      */
+    @SuppressWarnings("unchecked")
     @Override
     public ImmutableSet<E> build() {
-      ImmutableSet<E> result = construct(size, contents);
-      // construct has the side effect of deduping contents, so we update size
-      // accordingly.
-      size = result.size();
-      forceCopy = true;
-      return result;
+      switch (size) {
+        case 0:
+          return of();
+        case 1:
+          return (ImmutableSet<E>) of(contents[0]);
+        default:
+          ImmutableSet<E> result;
+          if (hashTable != null && size == contents.length) {
+            result =
+                new RegularImmutableSet<E>(contents, hashCode, hashTable, hashTable.length - 1);
+          } else {
+            result = construct(size, contents);
+            // construct has the side effect of deduping contents, so we update size
+            // accordingly.
+            size = result.size();
+          }
+          forceCopy = true;
+          hashTable = null;
+          return result;
+      }
     }
   }
 }

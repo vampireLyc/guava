@@ -19,7 +19,6 @@ package com.google.common.collect;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.CollectPreconditions.checkNonnegative;
-import static com.google.common.math.LongMath.binomial;
 
 import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtCompatible;
@@ -108,9 +107,7 @@ public final class Collections2 {
     checkNotNull(collection);
     try {
       return collection.contains(object);
-    } catch (ClassCastException e) {
-      return false;
-    } catch (NullPointerException e) {
+    } catch (ClassCastException | NullPointerException e) {
       return false;
     }
   }
@@ -124,9 +121,7 @@ public final class Collections2 {
     checkNotNull(collection);
     try {
       return collection.remove(object);
-    } catch (ClassCastException e) {
-      return false;
-    } catch (NullPointerException e) {
+    } catch (ClassCastException | NullPointerException e) {
       return false;
     }
   }
@@ -228,7 +223,13 @@ public final class Collections2 {
 
     @Override
     public int size() {
-      return Iterators.size(iterator());
+      int size = 0;
+      for (E e : unfiltered) {
+        if (predicate.apply(e)) {
+          size++;
+        }
+      }
+      return size;
     }
 
     @Override
@@ -266,7 +267,7 @@ public final class Collections2 {
    */
   public static <F, T> Collection<T> transform(
       Collection<F> fromCollection, Function<? super F, T> function) {
-    return new TransformedCollection<F, T>(fromCollection, function);
+    return new TransformedCollection<>(fromCollection, function);
   }
 
   static class TransformedCollection<F, T> extends AbstractCollection<T> {
@@ -329,7 +330,12 @@ public final class Collections2 {
    * @param c a collection whose elements might be contained by {@code self}
    */
   static boolean containsAllImpl(Collection<?> self, Collection<?> c) {
-    return Iterables.all(c, Predicates.in(self));
+    for (Object o : c) {
+      if (!self.contains(o)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -459,7 +465,7 @@ public final class Collections2 {
     final int size;
 
     OrderedPermutationCollection(Iterable<E> input, Comparator<? super E> comparator) {
-      this.inputList = Ordering.from(comparator).immutableSortedCopy(input);
+      this.inputList = ImmutableList.sortedCopyOf(comparator, input);
       this.comparator = comparator;
       this.size = calculateSize(inputList, comparator);
     }
@@ -475,27 +481,23 @@ public final class Collections2 {
      */
     private static <E> int calculateSize(
         List<E> sortedInputList, Comparator<? super E> comparator) {
-      long permutations = 1;
+      int permutations = 1;
       int n = 1;
       int r = 1;
       while (n < sortedInputList.size()) {
         int comparison = comparator.compare(sortedInputList.get(n - 1), sortedInputList.get(n));
         if (comparison < 0) {
           // We move to the next non-repeated element.
-          permutations *= binomial(n, r);
+          permutations = IntMath.saturatedMultiply(permutations, IntMath.binomial(n, r));
           r = 0;
-          if (!isPositiveInt(permutations)) {
+          if (permutations == Integer.MAX_VALUE) {
             return Integer.MAX_VALUE;
           }
         }
         n++;
         r++;
       }
-      permutations *= binomial(n, r);
-      if (!isPositiveInt(permutations)) {
-        return Integer.MAX_VALUE;
-      }
-      return (int) permutations;
+      return IntMath.saturatedMultiply(permutations, IntMath.binomial(n, r));
     }
 
     @Override
@@ -716,9 +718,5 @@ public final class Collections2 {
     Multiset<?> firstMultiset = HashMultiset.create(first);
     Multiset<?> secondMultiset = HashMultiset.create(second);
     return firstMultiset.equals(secondMultiset);
-  }
-
-  private static boolean isPositiveInt(long n) {
-    return n >= 0 && n <= Integer.MAX_VALUE;
   }
 }

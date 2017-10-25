@@ -57,8 +57,7 @@ public abstract class ImmutableList<E> extends ImmutableCollection<E>
   }
 
   public static <E> ImmutableList<E> of(E element) {
-    return new RegularImmutableList<E>(
-        ImmutableList.<E>nullCheckedList(element));
+    return new SingletonImmutableList<E>(checkNotNull(element));
   }
 
   public static <E> ImmutableList<E> of(E e1, E e2) {
@@ -162,20 +161,29 @@ public abstract class ImmutableList<E> extends ImmutableCollection<E>
   private static <E> ImmutableList<E> copyFromCollection(
       Collection<? extends E> collection) {
     Object[] elements = collection.toArray();
-    return (elements.length == 0)
-        ? ImmutableList.<E>of()
-        : new RegularImmutableList<E>(ImmutableList.<E>nullCheckedList(elements));
+    switch (elements.length) {
+      case 0:
+        return of();
+      case 1:
+        return of((E) elements[0]);
+      default:
+        return new RegularImmutableList<E>(ImmutableList.<E>nullCheckedList(elements));
+    }
   }
 
   // Factory method that skips the null checks.  Used only when the elements
   // are guaranteed to be non-null.
   static <E> ImmutableList<E> unsafeDelegateList(List<? extends E> list) {
-    if (list.isEmpty()) {
-      return of();
+    switch (list.size()) {
+      case 0:
+        return of();
+      case 1:
+        return of(list.get(0));
+      default:
+        @SuppressWarnings("unchecked")
+        List<E> castedList = (List<E>) list;
+        return new RegularImmutableList<E>(castedList);
     }
-    @SuppressWarnings("unchecked")
-    List<E> castedList = (List<E>) list;
-    return new RegularImmutableList<E>(castedList);
   }
 
   /**
@@ -186,16 +194,6 @@ public abstract class ImmutableList<E> extends ImmutableCollection<E>
   @SuppressWarnings("unchecked") // caller is reponsible for getting this right
   static <E> ImmutableList<E> asImmutableList(Object[] elements) {
     return unsafeDelegateList((List) Arrays.asList(elements));
-  }
-
-  /**
-   * Views the array as an immutable list.  The array must have only {@code E} elements.
-   *
-   * <p>The array must be internally created.
-   */
-  @SuppressWarnings("unchecked") // caller is reponsible for getting this right
-  static <E> ImmutableList<E> asImmutableList(Object[] elements, int length) {
-    return unsafeDelegateList((List) Arrays.asList(elements).subList(0, length));
   }
 
   public static <E extends Comparable<? super E>> ImmutableList<E> sortedCopyOf(
@@ -296,6 +294,10 @@ public abstract class ImmutableList<E> extends ImmutableCollection<E>
 
   public static <E> Builder<E> builder() {
     return new Builder<E>();
+  }
+
+  public static <E> Builder<E> builderWithExpectedSize(int expectedSize) {
+    return new Builder<E>(expectedSize);
   }
 
   public static final class Builder<E> extends ImmutableCollection.Builder<E> {

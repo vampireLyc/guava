@@ -16,21 +16,20 @@
 
 package com.google.common.graph;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.graph.GraphConstants.EDGE_CONNECTING_NOT_IN_GRAPH;
-import static com.google.common.graph.GraphConstants.GRAPH_STRING_FORMAT;
-import static com.google.common.graph.GraphConstants.NODE_NOT_IN_GRAPH;
-
 import com.google.common.annotations.Beta;
 import com.google.common.base.Function;
 import com.google.common.collect.Maps;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nullable;
 
 /**
  * This class provides a skeletal implementation of {@link ValueGraph}. It is recommended to extend
  * this class rather than implement {@link ValueGraph} directly.
+ *
+ * <p>The methods implemented in this class should not be overridden unless the subclass admits a
+ * more efficient implementation.
  *
  * @author James Sexton
  * @param <N> Node parameter type
@@ -70,46 +69,40 @@ public abstract class AbstractValueGraph<N, V> extends AbstractBaseGraph<N>
       }
 
       @Override
-      public Set<N> adjacentNodes(Object node) {
+      public Set<N> adjacentNodes(N node) {
         return AbstractValueGraph.this.adjacentNodes(node);
       }
 
       @Override
-      public Set<N> predecessors(Object node) {
+      public Set<N> predecessors(N node) {
         return AbstractValueGraph.this.predecessors(node);
       }
 
       @Override
-      public Set<N> successors(Object node) {
+      public Set<N> successors(N node) {
         return AbstractValueGraph.this.successors(node);
       }
 
       @Override
-      public int degree(Object node) {
+      public int degree(N node) {
         return AbstractValueGraph.this.degree(node);
       }
 
       @Override
-      public int inDegree(Object node) {
+      public int inDegree(N node) {
         return AbstractValueGraph.this.inDegree(node);
       }
 
       @Override
-      public int outDegree(Object node) {
+      public int outDegree(N node) {
         return AbstractValueGraph.this.outDegree(node);
       }
     };
   }
 
   @Override
-  public V edgeValue(Object nodeU, Object nodeV) {
-    V value = edgeValueOrDefault(nodeU, nodeV, null);
-    if (value == null) {
-      checkArgument(nodes().contains(nodeU), NODE_NOT_IN_GRAPH, nodeU);
-      checkArgument(nodes().contains(nodeV), NODE_NOT_IN_GRAPH, nodeV);
-      throw new IllegalArgumentException(String.format(EDGE_CONNECTING_NOT_IN_GRAPH, nodeU, nodeV));
-    }
-    return value;
+  public Optional<V> edgeValue(N nodeU, N nodeV) {
+    return Optional.ofNullable(edgeValueOrDefault(nodeU, nodeV, null));
   }
 
   @Override
@@ -135,9 +128,14 @@ public abstract class AbstractValueGraph<N, V> extends AbstractBaseGraph<N>
   /** Returns a string representation of this graph. */
   @Override
   public String toString() {
-    String propertiesString =
-        String.format("isDirected: %s, allowsSelfLoops: %s", isDirected(), allowsSelfLoops());
-    return String.format(GRAPH_STRING_FORMAT, propertiesString, nodes(), edgeValueMap(this));
+    return "isDirected: "
+        + isDirected()
+        + ", allowsSelfLoops: "
+        + allowsSelfLoops()
+        + ", nodes: "
+        + nodes()
+        + ", edges: "
+        + edgeValueMap(this);
   }
 
   private static <N, V> Map<EndpointPair<N>, V> edgeValueMap(final ValueGraph<N, V> graph) {
@@ -145,7 +143,7 @@ public abstract class AbstractValueGraph<N, V> extends AbstractBaseGraph<N>
         new Function<EndpointPair<N>, V>() {
           @Override
           public V apply(EndpointPair<N> edge) {
-            return graph.edgeValue(edge.nodeU(), edge.nodeV());
+            return graph.edgeValueOrDefault(edge.nodeU(), edge.nodeV(), null);
           }
         };
     return Maps.asMap(graph.edges(), edgeToValueFn);

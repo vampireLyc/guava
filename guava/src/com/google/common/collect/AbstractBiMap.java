@@ -102,7 +102,7 @@ abstract class AbstractBiMap<K, V> extends ForwardingMap<K, V>
   }
 
   AbstractBiMap<V, K> makeInverse(Map<V, K> backward) {
-    return new Inverse<V, K>(backward, this);
+    return new Inverse<>(backward, this);
   }
 
   void setInverse(AbstractBiMap<V, K> inverse) {
@@ -325,6 +325,7 @@ abstract class AbstractBiMap<K, V> extends ForwardingMap<K, V>
 
     @Override
     public V setValue(V value) {
+      checkValue(value);
       // Preconditions keep the map and inverse consistent.
       checkState(entrySet().contains(this), "entry no longer in map");
       // similar to putInBothMaps, but set via entry

@@ -46,6 +46,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.BiPredicate;
 import java.util.stream.Collector;
 import java.util.stream.Stream;
@@ -368,11 +369,11 @@ public class ImmutableSortedMapTest extends TestCase {
     }
 
     public void testBuilderPutAll() {
-      Map<String, Integer> toPut = new LinkedHashMap<String, Integer>();
+      Map<String, Integer> toPut = new LinkedHashMap<>();
       toPut.put("one", 1);
       toPut.put("two", 2);
       toPut.put("three", 3);
-      Map<String, Integer> moreToPut = new LinkedHashMap<String, Integer>();
+      Map<String, Integer> moreToPut = new LinkedHashMap<>();
       moreToPut.put("four", 4);
       moreToPut.put("five", 5);
 
@@ -522,7 +523,7 @@ public class ImmutableSortedMapTest extends TestCase {
     }
 
     public void testCopyOf() {
-      Map<String, Integer> original = new LinkedHashMap<String, Integer>();
+      Map<String, Integer> original = new LinkedHashMap<>();
       original.put("one", 1);
       original.put("two", 2);
       original.put("three", 3);
@@ -536,7 +537,7 @@ public class ImmutableSortedMapTest extends TestCase {
 
     public void testCopyOfExplicitComparator() {
       Comparator<String> comparator = Ordering.natural().reverse();
-      Map<String, Integer> original = new LinkedHashMap<String, Integer>();
+      Map<String, Integer> original = new LinkedHashMap<>();
       original.put("one", 1);
       original.put("two", 2);
       original.put("three", 3);
@@ -723,6 +724,40 @@ public class ImmutableSortedMapTest extends TestCase {
     tester.testAllPublicInstanceMethods(ImmutableSortedMap.of("one", 1));
     tester.testAllPublicInstanceMethods(
         ImmutableSortedMap.of("one", 1, "two", 2, "three", 3));
+  }
+
+  public void testNullValuesInCopyOfMap() {
+    for (int i = 1; i <= 10; i++) {
+      for (int j = 0; j < i; j++) {
+        Map<Integer, Integer> source = new TreeMap<>();
+        for (int k = 0; k < i; k++) {
+          source.put(k, k);
+        }
+        source.put(j, null);
+        try {
+          ImmutableSortedMap.copyOf(source);
+          fail("Expected NullPointerException in copyOf(" + source + ")");
+        } catch (NullPointerException expected) {
+        }
+      }
+    }
+  }
+
+  public void testNullValuesInCopyOfEntries() {
+    for (int i = 1; i <= 10; i++) {
+      for (int j = 0; j < i; j++) {
+        Map<Integer, Integer> source = new TreeMap<>();
+        for (int k = 0; k < i; k++) {
+          source.put(k, k);
+        }
+        source.put(j, null);
+        try {
+          ImmutableSortedMap.copyOf(source.entrySet());
+          fail("Expected NullPointerException in copyOf(" + source.entrySet() + ")");
+        } catch (NullPointerException expected) {
+        }
+      }
+    }
   }
 
   private static <K, V> void assertMapEquals(Map<K, V> map,

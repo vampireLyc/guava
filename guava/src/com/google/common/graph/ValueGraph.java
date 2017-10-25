@@ -17,7 +17,7 @@
 package com.google.common.graph;
 
 import com.google.common.annotations.Beta;
-import com.google.errorprone.annotations.CompatibleWith;
+import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nullable;
 
@@ -28,7 +28,7 @@ import javax.annotation.Nullable;
  *
  * <p>A graph is composed of a set of nodes and a set of edges connecting pairs of nodes.
  *
- * <p>There are three main interfaces provided to represent graphs. In order of increasing
+ * <p>There are three primary interfaces provided to represent graphs. In order of increasing
  * complexity they are: {@link Graph}, {@link ValueGraph}, and {@link Network}. You should generally
  * prefer the simplest interface that satisfies your use case. See the <a
  * href="https://github.com/google/guava/wiki/GraphsExplained#choosing-the-right-graph-type">
@@ -56,9 +56,9 @@ import javax.annotation.Nullable;
  *
  * <h3>Building a {@code ValueGraph}</h3>
  *
- * <p>The implementation classes that `common.graph` provides are not public, by design. To create
- * an instance of one of the built-in implementations of {@code ValueGraph}, use the {@link
- * ValueGraphBuilder} class:
+ * <p>The implementation classes that {@code common.graph} provides are not public, by design. To
+ * create an instance of one of the built-in implementations of {@code ValueGraph}, use the
+ * {@link ValueGraphBuilder} class:
  *
  * <pre>{@code
  *   MutableValueGraph<Integer, Double> graph = ValueGraphBuilder.directed().build();
@@ -106,7 +106,6 @@ import javax.annotation.Nullable;
  * @param <V> Value parameter type
  * @since 20.0
  */
-// TODO(b/35456940): Update the documentation to reflect the new interfaces
 @Beta
 public interface ValueGraph<N, V> extends BaseGraph<N> {
   //
@@ -149,51 +148,56 @@ public interface ValueGraph<N, V> extends BaseGraph<N> {
 
   /** {@inheritDoc} */
   @Override
-  Set<N> adjacentNodes(Object node);
+  Set<N> adjacentNodes(N node);
 
   /** {@inheritDoc} */
   @Override
-  Set<N> predecessors(Object node);
+  Set<N> predecessors(N node);
 
   /** {@inheritDoc} */
   @Override
-  Set<N> successors(Object node);
+  Set<N> successors(N node);
 
   /** {@inheritDoc} */
   @Override
-  int degree(Object node);
+  int degree(N node);
 
   /** {@inheritDoc} */
   @Override
-  int inDegree(Object node);
+  int inDegree(N node);
 
   /** {@inheritDoc} */
   @Override
-  int outDegree(Object node);
+  int outDegree(N node);
 
   /** {@inheritDoc} */
   @Override
-  boolean hasEdge(Object nodeU, Object nodeV);
+  boolean hasEdgeConnecting(N nodeU, N nodeV);
 
   /**
-   * If there is an edge connecting {@code nodeU} to {@code nodeV}, returns the non-null value
-   * associated with that edge.
+   * Returns the value of the edge connecting {@code nodeU} to {@code nodeV}, if one is present;
+   * otherwise, returns {@code Optional.empty()}.
    *
    * <p>In an undirected graph, this is equal to {@code edgeValue(nodeV, nodeU)}.
    *
-   * @throws IllegalArgumentException if there is no edge connecting {@code nodeU} to {@code nodeV}.
+   * @throws IllegalArgumentException if {@code nodeU} or {@code nodeV} is not an element of this
+   *     graph
+   * @since 23.0 (since 20.0 with return type {@code V})
    */
-  V edgeValue(@CompatibleWith("N") Object nodeU, @CompatibleWith("N") Object nodeV);
+  Optional<V> edgeValue(N nodeU, N nodeV);
 
   /**
-   * If there is an edge connecting {@code nodeU} to {@code nodeV}, returns the non-null value
-   * associated with that edge; otherwise, returns {@code defaultValue}.
+   * Returns the value of the edge connecting {@code nodeU} to {@code nodeV}, if one is present;
+   * otherwise, returns {@code defaultValue}.
    *
    * <p>In an undirected graph, this is equal to {@code edgeValueOrDefault(nodeV, nodeU,
    * defaultValue)}.
+   *
+   * @throws IllegalArgumentException if {@code nodeU} or {@code nodeV} is not an element of this
+   *     graph
    */
-  V edgeValueOrDefault(@CompatibleWith("N") Object nodeU, @CompatibleWith("N") Object nodeV,
-      @Nullable V defaultValue);
+  @Nullable
+  V edgeValueOrDefault(N nodeU, N nodeV, @Nullable V defaultValue);
 
   //
   // ValueGraph identity
@@ -209,7 +213,7 @@ public interface ValueGraph<N, V> extends BaseGraph<N> {
    * <li>A and B have equal {@link #isDirected() directedness}.
    * <li>A and B have equal {@link #nodes() node sets}.
    * <li>A and B have equal {@link #edges() edge sets}.
-   * <li>Every edge in A and B are associated with equal {@link #edgeValue(Object, Object) values}.
+   * <li>The {@link #edgeValue(Object, Object) value} of a given edge is the same in both A and B.
    * </ul>
    *
    * <p>Graph properties besides {@link #isDirected() directedness} do <b>not</b> affect equality.

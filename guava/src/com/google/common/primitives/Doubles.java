@@ -33,6 +33,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.RandomAccess;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.regex.Pattern;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
@@ -103,7 +105,7 @@ public final class Doubles {
    * @since 10.0
    */
   public static boolean isFinite(double value) {
-    return NEGATIVE_INFINITY < value & value < POSITIVE_INFINITY;
+    return NEGATIVE_INFINITY < value && value < POSITIVE_INFINITY;
   }
 
   /**
@@ -401,6 +403,66 @@ public final class Doubles {
   }
 
   /**
+   * Sorts the elements of {@code array} in descending order.
+   *
+   * <p>Note that this method uses the total order imposed by {@link Double#compare}, which treats
+   * all NaN values as equal and 0.0 as greater than -0.0.
+   *
+   * @since 23.1
+   */
+  public static void sortDescending(double[] array) {
+    checkNotNull(array);
+    sortDescending(array, 0, array.length);
+  }
+
+  /**
+   * Sorts the elements of {@code array} between {@code fromIndex} inclusive and {@code toIndex}
+   * exclusive in descending order.
+   *
+   * <p>Note that this method uses the total order imposed by {@link Double#compare}, which treats
+   * all NaN values as equal and 0.0 as greater than -0.0.
+   *
+   * @since 23.1
+   */
+  public static void sortDescending(double[] array, int fromIndex, int toIndex) {
+    checkNotNull(array);
+    checkPositionIndexes(fromIndex, toIndex, array.length);
+    Arrays.sort(array, fromIndex, toIndex);
+    reverse(array, fromIndex, toIndex);
+  }
+
+  /**
+   * Reverses the elements of {@code array}. This is equivalent to {@code
+   * Collections.reverse(Doubles.asList(array))}, but is likely to be more efficient.
+   *
+   * @since 23.1
+   */
+  public static void reverse(double[] array) {
+    checkNotNull(array);
+    reverse(array, 0, array.length);
+  }
+
+  /**
+   * Reverses the elements of {@code array} between {@code fromIndex} inclusive and {@code toIndex}
+   * exclusive. This is equivalent to {@code
+   * Collections.reverse(Doubles.asList(array).subList(fromIndex, toIndex))}, but is likely to be
+   * more efficient.
+   *
+   * @throws IndexOutOfBoundsException if {@code fromIndex < 0}, {@code toIndex > array.length}, or
+   *     {@code toIndex > fromIndex}
+   * @since 23.1
+   */
+  public static void reverse(double[] array, int fromIndex, int toIndex) {
+    checkNotNull(array);
+    checkPositionIndexes(fromIndex, toIndex, array.length);
+    for (int i = fromIndex, j = toIndex - 1; i < j; i++, j--) {
+      double tmp = array[i];
+      array[i] = array[j];
+      array[j] = tmp;
+    }
+  }
+
+  /**
    * Returns an array containing each value of {@code collection}, converted to a {@code double}
    * value in the manner of {@link Number#doubleValue}.
    *
@@ -429,16 +491,19 @@ public final class Doubles {
   }
 
   /**
-   * Returns a fixed-size list backed by the specified array, similar to
-   * {@link Arrays#asList(Object[])}. The list supports {@link List#set(int, Object)}, but any
-   * attempt to set a value to {@code null} will result in a {@link NullPointerException}.
+   * Returns a fixed-size list backed by the specified array, similar to {@link
+   * Arrays#asList(Object[])}. The list supports {@link List#set(int, Object)}, but any attempt to
+   * set a value to {@code null} will result in a {@link NullPointerException}.
    *
    * <p>The returned list maintains the values, but not the identities, of {@code Double} objects
    * written to or read from it. For example, whether {@code list.get(0) == list.get(0)} is true for
    * the returned list is unspecified.
    *
-   * <p>The returned list may have unexpected behavior if it contains {@code
-   * NaN}, or if {@code NaN} is used as a parameter to any of its methods.
+   * <p>The returned list may have unexpected behavior if it contains {@code NaN}, or if {@code NaN}
+   * is used as a parameter to any of its methods.
+   *
+   * <p><b>Note:</b> when possible, you should represent your data as an {@link
+   * ImmutableDoubleArray} instead, which has an {@link ImmutableDoubleArray#asList asList} view.
    *
    * @param backingArray the array to back the list
    * @return a list view of the array
@@ -481,6 +546,11 @@ public final class Doubles {
     public Double get(int index) {
       checkElementIndex(index, size());
       return array[start + index];
+    }
+
+    @Override
+    public Spliterator.OfDouble spliterator() {
+      return Spliterators.spliterator(array, start, end, 0);
     }
 
     @Override

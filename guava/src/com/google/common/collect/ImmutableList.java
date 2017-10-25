@@ -19,6 +19,7 @@ package com.google.common.collect;
 import static com.google.common.base.Preconditions.checkElementIndex;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkPositionIndexes;
+import static com.google.common.collect.CollectPreconditions.checkNonnegative;
 import static com.google.common.collect.ObjectArrays.checkElementsNotNull;
 import static com.google.common.collect.RegularImmutableList.EMPTY;
 
@@ -90,7 +91,7 @@ public abstract class ImmutableList<E> extends ImmutableCollection<E>
    * @throws NullPointerException if {@code element} is null
    */
   public static <E> ImmutableList<E> of(E element) {
-    return construct(element);
+    return new SingletonImmutableList<E>(element);
   }
 
   /**
@@ -282,9 +283,14 @@ public abstract class ImmutableList<E> extends ImmutableCollection<E>
    * @since 3.0
    */
   public static <E> ImmutableList<E> copyOf(E[] elements) {
-    return (elements.length == 0)
-        ? ImmutableList.<E>of()
-        : construct(elements.clone());
+    switch (elements.length) {
+      case 0:
+        return of();
+      case 1:
+        return of(elements[0]);
+      default:
+        return construct(elements.clone());
+    }
   }
 
   /**
@@ -351,12 +357,22 @@ public abstract class ImmutableList<E> extends ImmutableCollection<E>
     return asImmutableList(elements, elements.length);
   }
 
-  /** Views the array as an immutable list. Does not check for nulls. */
+  /**
+   * Views the array as an immutable list. Copies if the specified range does not cover the complete
+   * array. Does not check for nulls.
+   */
   static <E> ImmutableList<E> asImmutableList(Object[] elements, int length) {
-    if (length == 0) {
-      return of();
+    switch (length) {
+      case 0:
+        return of();
+      case 1:
+        return of((E) elements[0]);
+      default:
+        if (length < elements.length) {
+          elements = Arrays.copyOf(elements, length);
+        }
+        return new RegularImmutableList<E>(elements);
     }
-    return new RegularImmutableList<E>(elements, length);
   }
 
   ImmutableList() {}
@@ -421,14 +437,12 @@ public abstract class ImmutableList<E> extends ImmutableCollection<E>
     int length = toIndex - fromIndex;
     if (length == size()) {
       return this;
-    }
-    switch (length) {
-      case 0:
-        return of();
-      case 1:
-        return of(get(fromIndex));
-      default:
-        return subListUnchecked(fromIndex, toIndex);
+    } else if (length == 0) {
+      return of();
+    } else if (length == 1) {
+      return of(get(fromIndex));
+    } else {
+      return subListUnchecked(fromIndex, toIndex);
     }
   }
 
@@ -699,6 +713,24 @@ public abstract class ImmutableList<E> extends ImmutableCollection<E>
   }
 
   /**
+   * Returns a new builder, expecting the specified number of elements to be added.
+   *
+   * <p>If {@code expectedSize} is exactly the number of elements added to the builder before {@link
+   * Builder#build} is called, the builder is likely to perform better than an unsized {@link
+   * #builder()} would have.
+   *
+   * <p>It is not specified if any performance benefits apply if {@code expectedSize} is close to,
+   * but not exactly, the number of elements added to the builder.
+   *
+   * @since 23.1
+   */
+  @Beta
+  public static <E> Builder<E> builderWithExpectedSize(int expectedSize) {
+    checkNonnegative(expectedSize, "expectedSize");
+    return new ImmutableList.Builder<E>(expectedSize);
+  }
+
+  /**
    * A builder for creating immutable list instances, especially {@code public
    * static final} lists ("constant lists"). Example: <pre>   {@code
    *
@@ -707,6 +739,9 @@ public abstract class ImmutableList<E> extends ImmutableCollection<E>
    *           .addAll(WEBSAFE_COLORS)
    *           .add(new Color(0, 191, 255))
    *           .build();}</pre>
+   *
+   * <p>Elements appear in the resulting list in the same order they were added
+   * to the builder.
    *
    * <p>Builder instances can be reused; it is safe to call {@link #build} multiple
    * times to build multiple lists in series. Each new list contains all the
@@ -723,7 +758,6 @@ public abstract class ImmutableList<E> extends ImmutableCollection<E>
       this(DEFAULT_INITIAL_CAPACITY);
     }
 
-    // TODO(lowasser): consider exposing this
     Builder(int capacity) {
       super(capacity);
     }

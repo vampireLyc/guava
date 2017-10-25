@@ -81,7 +81,15 @@ public final class SpliteratorTester<E> {
             prefix = trySplitTestingSize(spliterator)) {
           forEach(prefix, consumer);
         }
-        spliterator.forEachRemaining(consumer);
+        long size = spliterator.getExactSizeIfKnown();
+        long[] counter = {0};
+        spliterator.forEachRemaining(e -> {
+          consumer.accept(e);
+          counter[0]++;
+        });
+        if (size >= 0) {
+          assertEquals(size, counter[0]);
+        }
       }
     },
     ALTERNATE_ADVANCE_AND_SPLIT {
@@ -158,7 +166,7 @@ public final class SpliteratorTester<E> {
     long estimatedSize = spliterator.estimateSize();
     for (SpliteratorDecompositionStrategy strategy :
         EnumSet.allOf(SpliteratorDecompositionStrategy.class)) {
-      List<E> resultsForStrategy = new ArrayList<E>();
+      List<E> resultsForStrategy = new ArrayList<>();
       strategy.forEach(spliteratorSupplier.get(), resultsForStrategy::add);
 
       // TODO(cpovirk): better failure messages

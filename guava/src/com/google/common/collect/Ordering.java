@@ -28,14 +28,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nullable;
@@ -55,10 +52,10 @@ import javax.annotation.Nullable;
  * <p>The common ways to get an instance of {@code Ordering} are:
  *
  * <ul>
- * <li>Subclass it and implement {@link #compare} instead of implementing {@link Comparator}
- *     directly
- * <li>Pass a <i>pre-existing</i> {@link Comparator} instance to {@link #from(Comparator)}
- * <li>Use the natural ordering, {@link Ordering#natural}
+ *   <li>Subclass it and implement {@link #compare} instead of implementing {@link Comparator}
+ *       directly
+ *   <li>Pass a <i>pre-existing</i> {@link Comparator} instance to {@link #from(Comparator)}
+ *   <li>Use the natural ordering, {@link Ordering#natural}
  * </ul>
  *
  * <h4>Chaining</h4>
@@ -67,10 +64,10 @@ import javax.annotation.Nullable;
  * Ordering}, including:
  *
  * <ul>
- * <li>{@link #reverse}
- * <li>{@link #compound(Comparator)}
- * <li>{@link #onResultOf(Function)}
- * <li>{@link #nullsFirst} / {@link #nullsLast}
+ *   <li>{@link #reverse}
+ *   <li>{@link #compound(Comparator)}
+ *   <li>{@link #onResultOf(Function)}
+ *   <li>{@link #nullsFirst} / {@link #nullsLast}
  * </ul>
  *
  * <h4>Using</h4>
@@ -79,9 +76,9 @@ import javax.annotation.Nullable;
  * any of its special operations, such as:
  *
  * <ul>
- * <li>{@link #immutableSortedCopy}
- * <li>{@link #isOrdered} / {@link #isStrictlyOrdered}
- * <li>{@link #min} / {@link #max}
+ *   <li>{@link #immutableSortedCopy}
+ *   <li>{@link #isOrdered} / {@link #isStrictlyOrdered}
+ *   <li>{@link #min} / {@link #max}
  * </ul>
  *
  * <h3>Understanding complex orderings</h3>
@@ -102,11 +99,12 @@ import javax.annotation.Nullable;
  * when {@code compare} is called on the above ordering:
  *
  * <ol>
- * <li>First, if only one {@code Foo} is null, that null value is treated as <i>greater</i>
- * <li>Next, non-null {@code Foo} values are passed to {@code getBarFunction} (we will be comparing
- *     {@code Bar} values from now on)
- * <li>Next, if only one {@code Bar} is null, that null value is treated as <i>lesser</i>
- * <li>Finally, natural ordering is used (i.e. the result of {@code Bar.compareTo(Bar)} is returned)
+ *   <li>First, if only one {@code Foo} is null, that null value is treated as <i>greater</i>
+ *   <li>Next, non-null {@code Foo} values are passed to {@code getBarFunction} (we will be
+ *       comparing {@code Bar} values from now on)
+ *   <li>Next, if only one {@code Bar} is null, that null value is treated as <i>lesser</i>
+ *   <li>Finally, natural ordering is used (i.e. the result of {@code Bar.compareTo(Bar)} is
+ *       returned)
  * </ol>
  *
  * <p>Alas, {@link #reverse} is a little different. As you read backwards through a chain and
@@ -122,12 +120,12 @@ import javax.annotation.Nullable;
  *
  * <h3>For Java 8 users</h3>
  *
- * <p>If you are using Java 8, this class is now obsolete <i>(pending a few August 2016
- * updates)</i>. Most of its functionality is now provided by {@link java.util.stream.Stream Stream}
- * and by {@link Comparator} itself, and the rest can now be found as static methods in our new
- * {@link Comparators} class. See each method below for further instructions. Whenever possible, you
- * should change any references of type {@code Ordering} to be of type {@code Comparator} instead.
- * However, at this time we have no plan to <i>deprecate</i> this class.
+ * <p>If you are using Java 8, this class is now obsolete. Most of its functionality is now provided
+ * by {@link java.util.stream.Stream Stream} and by {@link Comparator} itself, and the rest can now
+ * be found as static methods in our new {@link Comparators} class. See each method below for
+ * further instructions. Whenever possible, you should change any references of type {@code
+ * Ordering} to be of type {@code Comparator} instead. However, at this time we have no plan to
+ * <i>deprecate</i> this class.
  *
  * <p>Many replacements involve adopting {@code Stream}, and these changes can sometimes make your
  * code verbose. Whenever following this advice, you should check whether {@code Stream} could be
@@ -445,7 +443,7 @@ public abstract class Ordering<T> implements Comparator<T> {
    */
   @GwtCompatible(serializable = true)
   public <F> Ordering<F> onResultOf(Function<F, ? extends T> function) {
-    return new ByFunctionOrdering<F, T>(function, this);
+    return new ByFunctionOrdering<>(function, this);
   }
 
   <T2 extends T> Ordering<Map.Entry<T2, ?>> onKeys() {
@@ -772,7 +770,7 @@ public abstract class Ordering<T> implements Comparator<T> {
     checkNonnegative(k, "k");
 
     if (k == 0 || !iterator.hasNext()) {
-      return ImmutableList.of();
+      return Collections.emptyList();
     } else if (k >= Integer.MAX_VALUE / 2) {
       // k is really large; just do a straightforward sorted-copy-and-sublist
       ArrayList<E> list = Lists.newArrayList(iterator);
@@ -867,7 +865,7 @@ public abstract class Ordering<T> implements Comparator<T> {
    * benchmarking
    * on Open JDK 7, this method is the most efficient way to make a sorted copy of a collection.
    *
-   * @throws NullPointerException if any of {@code elements} (or {@code elements} itself) is null
+   * @throws NullPointerException if any element of {@code elements} is {@code null}
    * @since 3.0
    */
   // TODO(kevinb): rerun benchmarks including new options
@@ -931,8 +929,7 @@ public abstract class Ordering<T> implements Comparator<T> {
    *
    * @param sortedList the list to be searched
    * @param key the key to be searched for
-   * @deprecated Use {@link Collections#binarySearch(List, Object, Comparator)} directly. This
-   * method is scheduled for deletion in June 2018.
+   * @deprecated Use {@link Collections#binarySearch(List, Object, Comparator)} directly.
    */
   @Deprecated
   public int binarySearch(List<? extends T> sortedList, @Nullable T key) {
