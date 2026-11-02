@@ -16,11 +16,15 @@
 
 package com.google.common.math;
 
+import static java.util.Arrays.sort;
+
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.ImmutableMap;
 import java.math.RoundingMode;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Enumerates several algorithms providing equivalent functionality to {@link Quantiles}, for use in
@@ -31,35 +35,35 @@ import java.util.Map;
  * @author Pete Gillin
  * @since 20.0
  */
+@GwtIncompatible
+@J2ktIncompatible
+@NullUnmarked
 enum QuantilesAlgorithm {
 
   /**
    * Sorts the dataset, and picks values from it. When computing multiple quantiles, we sort once
    * and pick multiple values.
-   *
-   * <p>This is basically equivalent to the legacy {@code com.google.math.Sample}, except that does
-   * a copy whereas this is in-place.
    */
   SORTING {
 
     @Override
     double singleQuantile(int index, int scale, double[] dataset) {
-      Arrays.sort(dataset);
+      sort(dataset);
       return singleQuantileFromSorted(index, scale, dataset);
     }
 
     @Override
     Map<Integer, Double> multipleQuantiles(
         Collection<Integer> indexes, int scale, double[] dataset) {
-      Arrays.sort(dataset);
+      sort(dataset);
       ImmutableMap.Builder<Integer, Double> builder = ImmutableMap.builder();
       for (int index : indexes) {
         builder.put(index, singleQuantileFromSorted(index, scale, dataset));
       }
-      return builder.build();
+      return builder.buildOrThrow();
     }
 
-    private double singleQuantileFromSorted(int index, int scale, double[] dataset) {
+    double singleQuantileFromSorted(int index, int scale, double[] dataset) {
       long numerator = (long) index * (dataset.length - 1);
       int positionFloor = (int) LongMath.divide(numerator, scale, RoundingMode.DOWN);
       int remainder = (int) (numerator - positionFloor * scale);
@@ -75,8 +79,6 @@ enum QuantilesAlgorithm {
 
   /**
    * Uses quickselect. When calculating multiple quantiles, each quickselect starts from scratch.
-   *
-   * <p>This is basically equivalent to the legacy {@code com.google.math.Rank}.
    */
   QUICKSELECT {
 
@@ -91,8 +93,7 @@ enum QuantilesAlgorithm {
       } else {
         double percentileCeiling = getMinValue(dataset, positionFloor + 1);
         double positionFrac = (double) remainder / scale;
-        return percentileFloor
-            + positionFrac * (percentileCeiling - percentileFloor);
+        return percentileFloor + positionFrac * (percentileCeiling - percentileFloor);
       }
     }
 
@@ -103,13 +104,11 @@ enum QuantilesAlgorithm {
       for (int index : indexes) {
         builder.put(index, singleQuantile(index, scale, dataset));
       }
-      return builder.build();
+      return builder.buildOrThrow();
     }
   },
 
-  /**
-   * Uses {@link Quantiles}.
-   */
+  /** Uses {@link Quantiles}. */
   TARGET {
 
     @Override
@@ -126,14 +125,14 @@ enum QuantilesAlgorithm {
   ;
 
   /**
-   * Calculates a single quantile. Equivalent to
-   * {@code Quantiles.scale(scale).index(index).computeInPlace(dataset)}.
+   * Calculates a single quantile. Equivalent to {@code
+   * Quantiles.scale(scale).index(index).computeInPlace(dataset)}.
    */
   abstract double singleQuantile(int index, int scale, double[] dataset);
 
   /**
-   * Calculates multiple quantiles. Equivalent to
-   * {@code Quantiles.scale(scale).indexes(indexes).computeInPlace(dataset)}.
+   * Calculates multiple quantiles. Equivalent to {@code
+   * Quantiles.scale(scale).indexes(indexes).computeInPlace(dataset)}.
    */
   abstract Map<Integer, Double> multipleQuantiles(
       Collection<Integer> indexes, int scale, double[] dataset);

@@ -16,20 +16,20 @@
 
 package com.google.common.collect.testing.testers;
 
+import static com.google.common.collect.testing.Helpers.assertEqualIgnoringOrder;
+import static com.google.common.collect.testing.Helpers.copyToList;
 import static com.google.common.collect.testing.features.CollectionFeature.KNOWN_ORDER;
+import static java.util.Arrays.asList;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.testing.AbstractCollectionTester;
-import com.google.common.collect.testing.Helpers;
 import com.google.common.collect.testing.features.CollectionFeature;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
- * A generic JUnit test which tests {@code forEach} operations on a collection.
- * Can't be invoked directly; please see
- * {@link com.google.common.collect.testing.CollectionTestSuiteBuilder}.
+ * A generic JUnit test which tests {@code forEach} operations on a collection. Can't be invoked
+ * directly; please see {@link com.google.common.collect.testing.CollectionTestSuiteBuilder}.
  *
  * @author Louis Wasserman
  */
@@ -37,17 +37,16 @@ import java.util.List;
 public class CollectionForEachTester<E> extends AbstractCollectionTester<E> {
   @CollectionFeature.Require(absent = KNOWN_ORDER)
   public void testForEachUnknownOrder() {
-    List<E> elements = new ArrayList<E>();
+    List<E> elements = new ArrayList<>();
     collection.forEach(elements::add);
-    Helpers.assertEqualIgnoringOrder(
-        Arrays.asList(createSamplesArray()), elements);
+    assertEqualIgnoringOrder(asList(createSamplesArray()), elements);
   }
 
   @CollectionFeature.Require(KNOWN_ORDER)
   public void testForEachKnownOrder() {
-    List<E> elements = new ArrayList<E>();
+    List<E> elements = new ArrayList<>();
     collection.forEach(elements::add);
-    List<E> expected = Helpers.copyToList(getOrderedElements());
+    List<E> expected = copyToList(getOrderedElements());
     assertEquals("Different ordered iteration", expected, elements);
   }
 }

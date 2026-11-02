@@ -15,22 +15,27 @@
 package com.google.common.collect;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.testing.features.CollectionFeature;
 import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.collect.testing.google.MultisetTestSuiteBuilder;
 import com.google.common.collect.testing.google.TestStringMultisetGenerator;
 import java.io.Serializable;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-import javax.annotation.Nullable;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Unit test for {@link AbstractMultiset}.
@@ -39,62 +44,89 @@ import junit.framework.TestSuite;
  * @author Louis Wasserman
  */
 @SuppressWarnings("serial") // No serialization is used in this test
-@GwtCompatible(emulated = true)
+@GwtCompatible
+@NullMarked
 public class SimpleAbstractMultisetTest extends TestCase {
+  @J2ktIncompatible
   @GwtIncompatible // suite
+  @AndroidIncompatible // test-suite builders
   public static Test suite() {
     TestSuite suite = new TestSuite();
     suite.addTestSuite(SimpleAbstractMultisetTest.class);
-    suite.addTest(MultisetTestSuiteBuilder.using(new TestStringMultisetGenerator() {
-          @Override
-          protected Multiset<String> create(String[] elements) {
-            Multiset<String> ms = new NoRemoveMultiset<String>();
-            Collections.addAll(ms, elements);
-            return ms;
-          }
-        })
-        .named("NoRemoveMultiset")
-        .withFeatures(CollectionSize.ANY, CollectionFeature.ALLOWS_NULL_VALUES,
-            CollectionFeature.SUPPORTS_ADD)
-        .createTestSuite());
+    suite.addTest(
+        MultisetTestSuiteBuilder.using(
+                new TestStringMultisetGenerator() {
+                  @Override
+                  protected Multiset<String> create(String[] elements) {
+                    Multiset<String> ms = new NoRemoveMultiset<>();
+                    Collections.addAll(ms, elements);
+                    return ms;
+                  }
+                })
+            .named("NoRemoveMultiset")
+            .withFeatures(
+                CollectionSize.ANY,
+                CollectionFeature.ALLOWS_NULL_VALUES,
+                CollectionFeature.SUPPORTS_ADD)
+            .createTestSuite());
     return suite;
   }
 
+  @SuppressWarnings("ModifiedButNotUsed")
   public void testFastAddAllMultiset() {
-    final AtomicInteger addCalls = new AtomicInteger();
-    Multiset<String> multiset = new NoRemoveMultiset<String>() {
-      @Override
-      public int add(String element, int occurrences) {
-        addCalls.incrementAndGet();
-        return super.add(element, occurrences);
-      }
-    };
+    AtomicInteger addCalls = new AtomicInteger();
+    Multiset<String> multiset =
+        new NoRemoveMultiset<String>() {
+          @Override
+          public int add(String element, int occurrences) {
+            addCalls.incrementAndGet();
+            return super.add(element, occurrences);
+          }
+        };
     ImmutableMultiset<String> adds =
         new ImmutableMultiset.Builder<String>().addCopies("x", 10).build();
     multiset.addAll(adds);
-    assertEquals(addCalls.get(), 1);
+    assertEquals(1, addCalls.get());
   }
 
   public void testRemoveUnsupported() {
-    Multiset<String> multiset = new NoRemoveMultiset<String>();
+    Multiset<String> multiset = new NoRemoveMultiset<>();
     multiset.add("a");
-    try {
-      multiset.remove("a");
-      fail();
-    } catch (UnsupportedOperationException expected) {}
+    assertThrows(UnsupportedOperationException.class, () -> multiset.remove("a"));
     assertTrue(multiset.contains("a"));
   }
 
-  private static class NoRemoveMultiset<E> extends AbstractMultiset<E>
+  // Subclasses production AbstractMultiset and overrides package-private (internal)
+  // abstract methods across library boundaries, which causes a Kotlin/Native
+  // fake override dispatch crash.
+  private static class NoRemoveMultiset<E extends @Nullable Object> extends AbstractMultiset<E>
       implements Serializable {
-    final Map<E, Integer> backingMap = Maps.newHashMap();
+    final Map<E, Integer> backingMap = new HashMap<>();
 
-    @Override public int add(@Nullable E element, int occurrences) {
-      checkArgument(occurrences >= 0);
-      Integer frequency = backingMap.get(element);
-      if (frequency == null) {
-        frequency = 0;
+    @Override
+    public int size() {
+      return Multisets.linearTimeSizeImpl(this);
+    }
+
+    @Override
+    public void clear() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int count(@Nullable Object element) {
+      for (Entry<E> entry : entrySet()) {
+        if (Objects.equals(entry.getElement(), element)) {
+          return entry.getCount();
+        }
       }
+      return 0;
+    }
+
+    @Override
+    public int add(E element, int occurrences) {
+      checkArgument(occurrences >= 0);
+      Integer frequency = backingMap.getOrDefault(element, 0);
       if (occurrences == 0) {
         return frequency;
       }
@@ -104,8 +136,13 @@ public class SimpleAbstractMultisetTest extends TestCase {
     }
 
     @Override
-    Iterator<Entry<E>> entryIterator() {
-      final Iterator<Map.Entry<E, Integer>> backingEntries = backingMap.entrySet().iterator();
+    Iterator<E> elementIterator() {
+      return Multisets.elementIterator(internalEntryIterator());
+    }
+
+    @Override
+    Iterator<Entry<E>> internalEntryIterator() {
+      Iterator<Map.Entry<E, Integer>> backingEntries = backingMap.entrySet().iterator();
       return new UnmodifiableIterator<Multiset.Entry<E>>() {
         @Override
         public boolean hasNext() {
@@ -114,7 +151,7 @@ public class SimpleAbstractMultisetTest extends TestCase {
 
         @Override
         public Multiset.Entry<E> next() {
-          final Map.Entry<E, Integer> mapEntry = backingEntries.next();
+          Map.Entry<E, Integer> mapEntry = backingEntries.next();
           return new Multisets.AbstractEntry<E>() {
             @Override
             public E getElement() {
@@ -132,7 +169,12 @@ public class SimpleAbstractMultisetTest extends TestCase {
     }
 
     @Override
-    int distinctElements() {
+    public Iterator<E> iterator() {
+      return Multisets.iteratorImpl(this);
+    }
+
+    @Override
+    int internalDistinctElements() {
       return backingMap.size();
     }
   }

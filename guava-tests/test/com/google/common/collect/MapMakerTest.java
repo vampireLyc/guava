@@ -17,24 +17,30 @@
 package com.google.common.collect;
 
 import static com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly;
+import static java.util.Objects.requireNonNull;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Function;
 import com.google.common.testing.NullPointerTester;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * @author Charles Fry
  */
-@GwtCompatible(emulated = true)
+@GwtCompatible
+@J2ktIncompatible // MapMaker
+@NullUnmarked
 public class MapMakerTest extends TestCase {
-
   @GwtIncompatible // NullPointerTester
-  public void testNullParameters() throws Exception {
+  public void testNullParameters() {
     NullPointerTester tester = new NullPointerTester();
     tester.testAllPublicInstanceMethods(new MapMaker());
   }
@@ -47,7 +53,9 @@ public class MapMakerTest extends TestCase {
       this.delayLatch = delayLatch;
     }
 
-    @Override public T apply(T key) {
+    @CanIgnoreReturnValue // Sure, why not?
+    @Override
+    public T apply(T key) {
       awaitUninterruptibly(delayLatch);
       return key;
     }
@@ -58,33 +66,24 @@ public class MapMakerTest extends TestCase {
    * anywhere else
    */
 
-  /** Tests for the builder. */
-  public static class MakerTest extends TestCase {
-    public void testInitialCapacity_negative() {
-      MapMaker maker = new MapMaker();
-      try {
-        maker.initialCapacity(-1);
-        fail();
-      } catch (IllegalArgumentException expected) {
-      }
-    }
+  public void testInitialCapacity_negative() {
+    MapMaker maker = new MapMaker();
+    assertThrows(IllegalArgumentException.class, () -> maker.initialCapacity(-1));
+  }
 
-    // TODO(cpovirk): enable when ready
-    public void xtestInitialCapacity_setTwice() {
-      MapMaker maker = new MapMaker().initialCapacity(16);
-      try {
-        // even to the same value is not allowed
-        maker.initialCapacity(16);
-        fail();
-      } catch (IllegalArgumentException expected) {
-      }
-    }
+  // TODO(cpovirk): enable when ready (apparently after a change to our GWT emulation)
+  public void xtestInitialCapacity_setTwice() {
+    MapMaker maker = new MapMaker().initialCapacity(16);
+    // even to the same value is not allowed
+    assertThrows(IllegalStateException.class, () -> maker.initialCapacity(16));
+  }
 
-    public void testReturnsPlainConcurrentHashMapWhenPossible() {
-      Map<?, ?> map = new MapMaker()
-          .initialCapacity(5)
-          .makeMap();
-      assertTrue(map instanceof ConcurrentHashMap);
-    }
+  public void testReturnsPlainConcurrentHashMapWhenPossible() {
+    Map<?, ?> map = new MapMaker().initialCapacity(5).makeMap();
+    assertTrue(map instanceof ConcurrentHashMap);
+  }
+
+  private static boolean isAndroid() {
+    return requireNonNull(System.getProperty("java.runtime.name", "")).contains("Android");
   }
 }

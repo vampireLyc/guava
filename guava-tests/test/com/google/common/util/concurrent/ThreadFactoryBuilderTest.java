@@ -17,13 +17,18 @@
 package com.google.common.util.concurrent;
 
 import static com.google.common.truth.Truth.assertThat;
+import static java.util.concurrent.Executors.defaultThreadFactory;
+import static org.junit.Assert.assertThrows;
 
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.testing.NullPointerTester;
+import com.google.errorprone.annotations.FormatMethod;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.Locale;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Tests for ThreadFactoryBuilder.
@@ -31,24 +36,20 @@ import junit.framework.TestCase;
  * @author Kurt Alfred Kluever
  * @author Martin Buchholz
  */
+@NullUnmarked
+@GwtIncompatible
+@J2ktIncompatible
 public class ThreadFactoryBuilderTest extends TestCase {
-  private final Runnable monitoredRunnable = new Runnable() {
-    @Override public void run() {
-      completed = true;
-    }
-  };
+  private final Runnable monitoredRunnable = () -> completed = true;
 
   private static final UncaughtExceptionHandler UNCAUGHT_EXCEPTION_HANDLER =
-      new UncaughtExceptionHandler() {
-        @Override public void uncaughtException(Thread t, Throwable e) {
-          // No-op
-        }
-      };
+      (thread, throwable) -> {};
 
   private ThreadFactoryBuilder builder;
   private volatile boolean completed = false;
 
-  @Override public void setUp() {
+  @Override
+  protected void setUp() {
     builder = new ThreadFactoryBuilder();
   }
 
@@ -57,13 +58,12 @@ public class ThreadFactoryBuilderTest extends TestCase {
     Thread thread = threadFactory.newThread(monitoredRunnable);
     checkThreadPoolName(thread, 1);
 
-    Thread defaultThread =
-        Executors.defaultThreadFactory().newThread(monitoredRunnable);
+    Thread defaultThread = defaultThreadFactory().newThread(monitoredRunnable);
     assertEquals(defaultThread.isDaemon(), thread.isDaemon());
     assertEquals(defaultThread.getPriority(), thread.getPriority());
-    assertSame(defaultThread.getThreadGroup(), thread.getThreadGroup());
-    assertSame(defaultThread.getUncaughtExceptionHandler(),
-        thread.getUncaughtExceptionHandler());
+    assertThat(thread.getThreadGroup()).isEqualTo(defaultThread.getThreadGroup());
+    assertThat(thread.getUncaughtExceptionHandler())
+        .isEqualTo(defaultThread.getUncaughtExceptionHandler());
 
     assertFalse(completed);
     thread.start();
@@ -74,18 +74,15 @@ public class ThreadFactoryBuilderTest extends TestCase {
     // pool ID but a thread ID of 2.
     Thread thread2 = threadFactory.newThread(monitoredRunnable);
     checkThreadPoolName(thread2, 2);
-    assertEquals(
-        thread.getName().substring(0, thread.getName().lastIndexOf('-')),
-        thread2.getName().substring(0, thread.getName().lastIndexOf('-')));
+    assertThat(thread2.getName().substring(0, thread.getName().lastIndexOf('-')))
+        .isEqualTo(thread.getName().substring(0, thread.getName().lastIndexOf('-')));
 
     // Building again should give us a different pool ID.
     ThreadFactory threadFactory2 = builder.build();
     Thread thread3 = threadFactory2.newThread(monitoredRunnable);
     checkThreadPoolName(thread3, 1);
-    assertThat(
-        thread2.getName().substring(0, thread.getName().lastIndexOf('-')))
-        .isNotEqualTo(
-            thread3.getName().substring(0, thread.getName().lastIndexOf('-')));
+    assertThat(thread2.getName().substring(0, thread.getName().lastIndexOf('-')))
+        .isNotEqualTo(thread3.getName().substring(0, thread.getName().lastIndexOf('-')));
   }
 
   private static void checkThreadPoolName(Thread thread, int threadId) {
@@ -96,8 +93,8 @@ public class ThreadFactoryBuilderTest extends TestCase {
     String format = "super-duper-thread-%s";
     ThreadFactory factory = builder.setNameFormat(format).build();
     for (int i = 0; i < 11; i++) {
-      assertEquals(rootLocaleFormat(format, i),
-          factory.newThread(monitoredRunnable).getName());
+      assertThat(factory.newThread(monitoredRunnable).getName())
+          .isEqualTo(rootLocaleFormat(format, i));
     }
   }
 
@@ -105,8 +102,8 @@ public class ThreadFactoryBuilderTest extends TestCase {
     String format = "super-duper-thread-%d";
     ThreadFactory factory = builder.setNameFormat(format).build();
     for (int i = 0; i < 11; i++) {
-      assertEquals(rootLocaleFormat(format, i),
-          factory.newThread(monitoredRunnable).getName());
+      assertThat(factory.newThread(monitoredRunnable).getName())
+          .isEqualTo(rootLocaleFormat(format, i));
     }
   }
 
@@ -131,25 +128,23 @@ public class ThreadFactoryBuilderTest extends TestCase {
   }
 
   public void testPriority_tooLow() {
-    try {
-      builder.setPriority(Thread.MIN_PRIORITY - 1);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(
+        IllegalArgumentException.class, () -> builder.setPriority(Thread.MIN_PRIORITY - 1));
   }
 
   public void testPriority_tooHigh() {
-    try {
-      builder.setPriority(Thread.MAX_PRIORITY + 1);
-      fail();
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(
+        IllegalArgumentException.class, () -> builder.setPriority(Thread.MAX_PRIORITY + 1));
   }
 
   public void testUncaughtExceptionHandler_custom() {
-    assertEquals(UNCAUGHT_EXCEPTION_HANDLER,
-        builder.setUncaughtExceptionHandler(UNCAUGHT_EXCEPTION_HANDLER).build()
-        .newThread(monitoredRunnable).getUncaughtExceptionHandler());
+    assertEquals(
+        UNCAUGHT_EXCEPTION_HANDLER,
+        builder
+            .setUncaughtExceptionHandler(UNCAUGHT_EXCEPTION_HANDLER)
+            .build()
+            .newThread(monitoredRunnable)
+            .getUncaughtExceptionHandler());
   }
 
   public void testBuildMutateBuild() {
@@ -163,47 +158,64 @@ public class ThreadFactoryBuilderTest extends TestCase {
 
   public void testBuildTwice() {
     ThreadFactory unused;
-    unused = builder.build();  // this is allowed
-    unused = builder.build();  // this is *also* allowed
+    unused = builder.build(); // this is allowed
+    unused = builder.build(); // this is *also* allowed
   }
 
   public void testBuildMutate() {
     ThreadFactory factory1 = builder.setPriority(1).build();
     assertEquals(1, factory1.newThread(monitoredRunnable).getPriority());
 
-    builder.setPriority(2);  // change the state of the builder
+    builder.setPriority(2); // change the state of the builder
     assertEquals(1, factory1.newThread(monitoredRunnable).getPriority());
   }
 
   public void testThreadFactory() throws InterruptedException {
-    final String THREAD_NAME = "ludicrous speed";
-    final int THREAD_PRIORITY = 1;
-    final boolean THREAD_DAEMON = false;
-    ThreadFactory backingThreadFactory = new ThreadFactory() {
-      @Override public Thread newThread(Runnable r) {
-        Thread thread = new Thread(r);
-        thread.setName(THREAD_NAME);
-        thread.setPriority(THREAD_PRIORITY);
-        thread.setDaemon(THREAD_DAEMON);
-        thread.setUncaughtExceptionHandler(UNCAUGHT_EXCEPTION_HANDLER);
-        return thread;
-      }
-    };
+    String THREAD_NAME = "ludicrous speed";
+    int THREAD_PRIORITY = 1;
+    boolean THREAD_DAEMON = false;
+    ThreadFactory backingThreadFactory =
+        new ThreadFactory() {
+          // We need to test that we don't override the value set by the factory.
+          @SuppressWarnings("ThreadPriorityCheck")
+          @Override
+          public Thread newThread(Runnable r) {
+            Thread thread = new Thread(r);
+            thread.setName(THREAD_NAME);
+            thread.setPriority(THREAD_PRIORITY);
+            thread.setDaemon(THREAD_DAEMON);
+            thread.setUncaughtExceptionHandler(UNCAUGHT_EXCEPTION_HANDLER);
+            return thread;
+          }
+        };
 
-    Thread thread = builder.setThreadFactory(backingThreadFactory).build()
-        .newThread(monitoredRunnable);
+    Thread thread =
+        builder.setThreadFactory(backingThreadFactory).build().newThread(monitoredRunnable);
 
-    assertEquals(THREAD_NAME, thread.getName());
+    assertThat(thread.getName()).isEqualTo(THREAD_NAME);
     assertEquals(THREAD_PRIORITY, thread.getPriority());
     assertEquals(THREAD_DAEMON, thread.isDaemon());
-    assertSame(UNCAUGHT_EXCEPTION_HANDLER,
-        thread.getUncaughtExceptionHandler());
-    assertSame(Thread.State.NEW, thread.getState());
+    assertThat(thread.getUncaughtExceptionHandler()).isEqualTo(UNCAUGHT_EXCEPTION_HANDLER);
+    assertThat(thread.getState()).isEqualTo(Thread.State.NEW);
 
     assertFalse(completed);
     thread.start();
     thread.join();
     assertTrue(completed);
+  }
+
+  // We need to test that we don't try to set the priority of a null thread.
+  @SuppressWarnings("ThreadPriorityCheck")
+  public void testThreadFactory_null() {
+    ThreadFactory factory =
+        builder
+            .setNameFormat("custom-thread-%d")
+            .setDaemon(true)
+            .setPriority(Thread.MIN_PRIORITY)
+            .setUncaughtExceptionHandler(UNCAUGHT_EXCEPTION_HANDLER)
+            .setThreadFactory(r -> null)
+            .build();
+    assertThat(factory.newThread(monitoredRunnable)).isNull();
   }
 
   public void testNulls() {
@@ -213,6 +225,7 @@ public class ThreadFactoryBuilderTest extends TestCase {
     npTester.testAllPublicInstanceMethods(builder);
   }
 
+  @FormatMethod
   private static String rootLocaleFormat(String format, Object... args) {
     return String.format(Locale.ROOT, format, args);
   }

@@ -16,6 +16,8 @@
 
 package com.google.common.collect.testing;
 
+import static java.util.Objects.requireNonNull;
+
 import com.google.common.collect.testing.features.CollectionFeature;
 import com.google.common.collect.testing.features.CollectionSize;
 import java.util.Collection;
@@ -27,24 +29,22 @@ import junit.framework.TestCase;
  *
  * @author Kevin Bourrillion
  */
+@AndroidIncompatible // test-suite builders
 public class MinimalCollectionTest extends TestCase {
   public static Test suite() {
-    return CollectionTestSuiteBuilder
-        .using(new TestStringCollectionGenerator() {
-            @Override public Collection<String> create(String[] elements) {
-              // TODO: MinimalCollection should perhaps throw
-              for (Object element : elements) {
-                if (element == null) {
-                  throw new NullPointerException();
+    return CollectionTestSuiteBuilder.using(
+            new TestStringCollectionGenerator() {
+              @Override
+              protected Collection<String> create(String[] elements) {
+                // TODO: MinimalCollection should perhaps throw
+                for (Object element : elements) {
+                  requireNonNull(element);
                 }
+                return MinimalCollection.of(elements);
               }
-              return MinimalCollection.of(elements);
-            }
-          })
+            })
         .named("MinimalCollection")
-        .withFeatures(
-            CollectionFeature.NONE,
-            CollectionSize.ANY)
+        .withFeatures(CollectionFeature.NONE, CollectionSize.ANY)
         .createTestSuite();
   }
 }

@@ -15,18 +15,17 @@
 package com.google.common.escape;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Collections.max;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.VisibleForTesting;
-import java.util.Collections;
 import java.util.Map;
 
 /**
- * An implementation-specific parameter class suitable for initializing
- * {@link ArrayBasedCharEscaper} or {@link ArrayBasedUnicodeEscaper} instances. This class should be
- * used when more than one escaper is created using the same character replacement mapping to allow
- * the underlying (implementation specific) data structures to be shared.
+ * An implementation-specific parameter class suitable for initializing {@link
+ * ArrayBasedCharEscaper} or {@link ArrayBasedUnicodeEscaper} instances. This class should be used
+ * when more than one escaper is created using the same character replacement mapping to allow the
+ * underlying (implementation specific) data structures to be shared.
  *
  * <p>The size of the data structure used by ArrayBasedCharEscaper and ArrayBasedUnicodeEscaper is
  * proportional to the highest valued character that has a replacement. For example a replacement
@@ -36,7 +35,6 @@ import java.util.Map;
  * @author David Beaumont
  * @since 15.0
  */
-@Beta
 @GwtCompatible
 public final class ArrayBasedEscaperMap {
   /**
@@ -71,14 +69,15 @@ public final class ArrayBasedEscaperMap {
     if (map.isEmpty()) {
       return EMPTY_REPLACEMENT_ARRAY;
     }
-    char max = Collections.max(map.keySet());
+    char max = max(map.keySet());
     char[][] replacements = new char[max + 1][];
-    for (char c : map.keySet()) {
+    for (Character c : map.keySet()) {
       replacements[c] = map.get(c).toCharArray();
     }
     return replacements;
   }
 
   // Immutable empty array for when there are no replacements.
+  @SuppressWarnings("ConstantCaseForConstants") // An empty array is a constant.
   private static final char[][] EMPTY_REPLACEMENT_ARRAY = new char[0][0];
 }

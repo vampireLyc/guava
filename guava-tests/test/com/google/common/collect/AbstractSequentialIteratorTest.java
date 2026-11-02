@@ -18,22 +18,27 @@ package com.google.common.collect;
 
 import static com.google.common.collect.testing.IteratorFeature.UNMODIFIABLE;
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.collect.TestExceptions.SomeUncheckedException;
 import com.google.common.collect.testing.IteratorTester;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import junit.framework.AssertionFailedError;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 /** Tests for {@link AbstractSequentialIterator}. */
-@GwtCompatible(emulated = true)
+@GwtCompatible
+@NullMarked
 public class AbstractSequentialIteratorTest extends TestCase {
   @GwtIncompatible // Too slow
   public void testDoublerExhaustive() {
-    new IteratorTester<Integer>(3, UNMODIFIABLE, ImmutableList.of(1, 2),
-        IteratorTester.KnownOrder.KNOWN_ORDER) {
+    new IteratorTester<Integer>(
+        3, UNMODIFIABLE, ImmutableList.of(1, 2), IteratorTester.KnownOrder.KNOWN_ORDER) {
       @Override
       protected Iterator<Integer> newTargetIterator() {
         return newDoubler(1, 2);
@@ -42,91 +47,113 @@ public class AbstractSequentialIteratorTest extends TestCase {
   }
 
   public void testDoubler() {
-    Iterable<Integer> doubled = new Iterable<Integer>() {
-      @Override
-      public Iterator<Integer> iterator() {
-        return newDoubler(2, 32);
-      }
-    };
+    Iterable<Integer> doubled =
+        new Iterable<Integer>() {
+          @Override
+          public Iterator<Integer> iterator() {
+            return newDoubler(2, 32);
+          }
+        };
     assertThat(doubled).containsExactly(2, 4, 8, 16, 32).inOrder();
   }
 
   public void testSampleCode() {
-    Iterable<Integer> actual = new Iterable<Integer>() {
-      @Override
-      public Iterator<Integer> iterator() {
-        Iterator<Integer> powersOfTwo = new AbstractSequentialIterator<Integer>(1) {
-          protected Integer computeNext(Integer previous) {
-            return (previous == 1 << 30) ? null : previous * 2;
+    Iterable<Integer> actual =
+        new Iterable<Integer>() {
+          @Override
+          public Iterator<Integer> iterator() {
+            Iterator<Integer> powersOfTwo =
+                new AbstractSequentialIterator<Integer>(1) {
+                  @Override
+                  protected @Nullable Integer computeNext(Integer previous) {
+                    return (previous == 1 << 30) ? null : previous * 2;
+                  }
+                };
+            return powersOfTwo;
           }
         };
-        return powersOfTwo;
-      }
-    };
     assertThat(actual)
-        .containsExactly(1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384,
-            32768, 65536, 131072, 262144, 524288, 1048576, 2097152, 4194304, 8388608, 16777216,
-            33554432, 67108864, 134217728, 268435456, 536870912, 1073741824)
+        .containsExactly(
+            1,
+            2,
+            4,
+            8,
+            16,
+            32,
+            64,
+            128,
+            256,
+            512,
+            1024,
+            2048,
+            4096,
+            8192,
+            16384,
+            32768,
+            65536,
+            131072,
+            262144,
+            524288,
+            1048576,
+            2097152,
+            4194304,
+            8388608,
+            16777216,
+            33554432,
+            67108864,
+            134217728,
+            268435456,
+            536870912,
+            1073741824)
         .inOrder();
   }
 
+  @SuppressWarnings("DoNotCall")
   public void testEmpty() {
-    Iterator<Object> empty = newEmpty();
+    Iterator<Object> empty = new EmptyAbstractSequentialIterator<>();
     assertFalse(empty.hasNext());
-    try {
-      empty.next();
-      fail();
-    } catch (NoSuchElementException expected) {
-    }
-    try {
-      empty.remove();
-      fail();
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(NoSuchElementException.class, empty::next);
+    assertThrows(UnsupportedOperationException.class, empty::remove);
   }
 
   public void testBroken() {
-    Iterator<Object> broken = newBroken();
+    Iterator<Object> broken = new BrokenAbstractSequentialIterator();
     assertTrue(broken.hasNext());
     // We can't retrieve even the known first element:
-    try {
-      broken.next();
-      fail();
-    } catch (MyException expected) {
-    }
-    try {
-      broken.next();
-      fail();
-    } catch (MyException expected) {
-    }
+    assertThrows(SomeUncheckedException.class, broken::next);
+    assertThrows(SomeUncheckedException.class, broken::next);
   }
 
-  private static Iterator<Integer> newDoubler(int first, final int last) {
+  private static Iterator<Integer> newDoubler(int first, int last) {
     return new AbstractSequentialIterator<Integer>(first) {
       @Override
-      protected Integer computeNext(Integer previous) {
+      protected @Nullable Integer computeNext(Integer previous) {
         return (previous == last) ? null : previous * 2;
       }
     };
   }
 
-  private static <T> Iterator<T> newEmpty() {
-    return new AbstractSequentialIterator<T>(null) {
-      @Override
-      protected T computeNext(T previous) {
-        throw new AssertionFailedError();
-      }
-    };
+  private static class EmptyAbstractSequentialIterator<T> extends AbstractSequentialIterator<T> {
+
+    EmptyAbstractSequentialIterator() {
+      super(null);
+    }
+
+    @Override
+    protected T computeNext(T previous) {
+      throw new AssertionFailedError();
+    }
   }
 
-  private static Iterator<Object> newBroken() {
-    return new AbstractSequentialIterator<Object>("UNUSED") {
-      @Override
-      protected Object computeNext(Object previous) {
-        throw new MyException();
-      }
-    };
-  }
+  private static class BrokenAbstractSequentialIterator extends AbstractSequentialIterator<Object> {
 
-  private static class MyException extends RuntimeException {}
+    BrokenAbstractSequentialIterator() {
+      super("UNUSED");
+    }
+
+    @Override
+    protected Object computeNext(Object previous) {
+      throw new SomeUncheckedException();
+    }
+  }
 }

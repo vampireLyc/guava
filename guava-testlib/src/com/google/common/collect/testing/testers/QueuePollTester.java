@@ -27,13 +27,11 @@ import com.google.common.collect.testing.features.CollectionFeature;
 import com.google.common.collect.testing.features.CollectionSize;
 
 /**
- * A generic JUnit test which tests {@code poll()} operations on a queue.
- * Can't be invoked directly; please see
- * {@link com.google.common.collect.testing.CollectionTestSuiteBuilder}.
+ * A generic JUnit test which tests {@code poll()} operations on a queue. Can't be invoked directly;
+ * please see {@link com.google.common.collect.testing.CollectionTestSuiteBuilder}.
  *
  * @author Jared Levy
  */
-@SuppressWarnings("unchecked") // too many "unchecked generic array creations"
 @GwtCompatible
 public class QueuePollTester<E> extends AbstractQueueTester<E> {
   @CollectionFeature.Require(SUPPORTS_REMOVE)

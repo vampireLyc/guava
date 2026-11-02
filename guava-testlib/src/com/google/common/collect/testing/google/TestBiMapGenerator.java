@@ -19,7 +19,9 @@ package com.google.common.collect.testing.google;
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.testing.TestContainerGenerator;
-import java.util.Map;
+import java.util.Map.Entry;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Creates bimaps, containing sample entries, to be tested.
@@ -27,8 +29,9 @@ import java.util.Map;
  * @author Louis Wasserman
  */
 @GwtCompatible
-public interface TestBiMapGenerator<K, V>
-    extends TestContainerGenerator<BiMap<K, V>, Map.Entry<K, V>> {
+@NullMarked
+public interface TestBiMapGenerator<K extends @Nullable Object, V extends @Nullable Object>
+    extends TestContainerGenerator<BiMap<K, V>, Entry<K, V>> {
   K[] createKeyArray(int length);
 
   V[] createValueArray(int length);

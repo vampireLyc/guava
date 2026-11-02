@@ -16,44 +16,53 @@
 
 package com.google.common.util.concurrent;
 
+import static com.google.common.util.concurrent.AbstractChainedListenableFutureTest.Input.EXCEPTION_DATA;
+import static com.google.common.util.concurrent.AbstractChainedListenableFutureTest.Input.VALID_INPUT_DATA;
 import static com.google.common.util.concurrent.Futures.transform;
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Function;
 import java.lang.reflect.UndeclaredThrowableException;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
- * Unit tests for {@link Futures#transform(ListenableFuture, Function)}.
+ * Unit tests for {@link Futures#transform(ListenableFuture, Function, Executor)}.
  *
  * @author Nishant Thakkar
  */
-public class FuturesTransformTest
-    extends AbstractChainedListenableFutureTest<String> {
+@NullUnmarked
+@GwtIncompatible
+@J2ktIncompatible
+public class FuturesTransformTest extends AbstractChainedListenableFutureTest<String> {
   private static final String RESULT_DATA = "SUCCESS";
+  private static final UndeclaredThrowableException WRAPPED_EXCEPTION =
+      new UndeclaredThrowableException(EXCEPTION);
 
-  @Override protected ListenableFuture<String> buildChainingFuture(
-      ListenableFuture<Integer> inputFuture) {
+  @Override
+  ListenableFuture<String> buildChainingFuture(ListenableFuture<Input> inputFuture) {
     return transform(inputFuture, new ComposeFunction(), directExecutor());
   }
 
-  @Override protected String getSuccessfulResult() {
+  @Override
+  String getSuccessfulResult() {
     return RESULT_DATA;
   }
 
-  private class ComposeFunction
-      implements Function<Integer, String> {
+  private static final class ComposeFunction implements Function<Input, String> {
     @Override
-    public String apply(Integer input) {
-      if (input.intValue() == VALID_INPUT_DATA) {
+    public String apply(Input input) {
+      if (input == VALID_INPUT_DATA) {
         return RESULT_DATA;
       } else {
-        throw new UndeclaredThrowableException(EXCEPTION);
+        throw WRAPPED_EXCEPTION;
       }
     }
   }
 
   public void testFutureGetThrowsFunctionException() throws Exception {
     inputFuture.set(EXCEPTION_DATA);
-    listener.assertException(EXCEPTION);
+    listener.assertException(WRAPPED_EXCEPTION);
   }
 }

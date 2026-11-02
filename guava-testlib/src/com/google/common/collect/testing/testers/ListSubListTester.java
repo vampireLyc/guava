@@ -16,6 +16,7 @@
 
 package com.google.common.collect.testing.testers;
 
+import static com.google.common.collect.testing.Helpers.copyToList;
 import static com.google.common.collect.testing.Helpers.getMethod;
 import static com.google.common.collect.testing.features.CollectionFeature.SERIALIZABLE_INCLUDING_VIEWS;
 import static com.google.common.collect.testing.features.CollectionSize.ONE;
@@ -23,62 +24,51 @@ import static com.google.common.collect.testing.features.CollectionSize.ZERO;
 import static com.google.common.collect.testing.features.ListFeature.SUPPORTS_ADD_WITH_INDEX;
 import static com.google.common.collect.testing.features.ListFeature.SUPPORTS_REMOVE_WITH_INDEX;
 import static com.google.common.collect.testing.features.ListFeature.SUPPORTS_SET;
+import static com.google.common.testing.SerializableTester.reserializeAndAssert;
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
-import com.google.common.collect.testing.Helpers;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.testing.features.CollectionFeature;
 import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.collect.testing.features.ListFeature;
-import com.google.common.testing.SerializableTester;
 import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * A generic JUnit test which tests {@code subList()} operations on a list.
- * Can't be invoked directly; please see
- * {@link com.google.common.collect.testing.ListTestSuiteBuilder}.
+ * A generic JUnit test which tests {@code subList()} operations on a list. Can't be invoked
+ * directly; please see {@link com.google.common.collect.testing.ListTestSuiteBuilder}.
  *
  * @author Chris Povirk
  */
-@SuppressWarnings("unchecked") // too many "unchecked generic array creations"
-@GwtCompatible(emulated = true)
+@GwtCompatible
 public class ListSubListTester<E> extends AbstractListTester<E> {
   public void testSubList_startNegative() {
-    try {
-      getList().subList(-1, 0);
-      fail("subList(-1, 0) should throw");
-    } catch (IndexOutOfBoundsException expected) {
-    }
+    assertThrows(IndexOutOfBoundsException.class, () -> getList().subList(-1, 0));
   }
 
   public void testSubList_endTooLarge() {
-    try {
-      getList().subList(0, getNumElements() + 1);
-      fail("subList(0, size + 1) should throw");
-    } catch (IndexOutOfBoundsException expected) {
-    }
+    assertThrows(IndexOutOfBoundsException.class, () -> getList().subList(0, getNumElements() + 1));
   }
 
   public void testSubList_startGreaterThanEnd() {
-    try {
-      getList().subList(1, 0);
-      fail("subList(1, 0) should throw");
-    } catch (IndexOutOfBoundsException expected) {
-    } catch (IllegalArgumentException expected) {
-      /*
-       * The subList() docs claim that this should be an
-       * IndexOutOfBoundsException, but many JDK implementations throw
-       * IllegalArgumentException:
-       * http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4506427
-       */
+    RuntimeException expected = assertThrows(RuntimeException.class, () -> getList().subList(1, 0));
+    /*
+     * The subList() docs claim that this should be an IndexOutOfBoundsException, but many JDK
+     * implementations throw IllegalArgumentException: https://bugs.openjdk.org/browse/JDK-4506427
+     */
+    if (!(expected instanceof IndexOutOfBoundsException
+        || expected instanceof IllegalArgumentException)) {
+      throw expected;
     }
   }
 
+  @SuppressWarnings("EmptyList") // ImmutableList doesn't support nullable element types
   public void testSubList_empty() {
     assertEquals("subList(0, 0) should be empty", emptyList(), getList().subList(0, 0));
   }
@@ -95,7 +85,7 @@ public class ListSubListTester<E> extends AbstractListTester<E> {
   public void testSubList_subListRemoveAffectsOriginal() {
     List<E> subList = getList().subList(0, 1);
     subList.remove(0);
-    List<E> expected = Arrays.asList(createSamplesArray()).subList(1, getNumElements());
+    List<E> expected = asList(createSamplesArray()).subList(1, getNumElements());
     expectContents(expected);
   }
 
@@ -104,7 +94,7 @@ public class ListSubListTester<E> extends AbstractListTester<E> {
   public void testSubList_subListClearAffectsOriginal() {
     List<E> subList = getList().subList(0, 1);
     subList.clear();
-    List<E> expected = Arrays.asList(createSamplesArray()).subList(1, getNumElements());
+    List<E> expected = asList(createSamplesArray()).subList(1, getNumElements());
     expectContents(expected);
   }
 
@@ -120,7 +110,7 @@ public class ListSubListTester<E> extends AbstractListTester<E> {
   public void testSubList_subListSetAffectsOriginal() {
     List<E> subList = getList().subList(0, 1);
     subList.set(0, e3());
-    List<E> expected = Helpers.copyToList(createSamplesArray());
+    List<E> expected = copyToList(createSamplesArray());
     expected.set(0, e3());
     expectContents(expected);
   }
@@ -133,7 +123,7 @@ public class ListSubListTester<E> extends AbstractListTester<E> {
     assertEquals(
         "A set() call to a list after a sublist has been created "
             + "should be reflected in the sublist",
-        Collections.singletonList(e3()),
+        singletonList(e3()),
         subList);
   }
 
@@ -142,7 +132,7 @@ public class ListSubListTester<E> extends AbstractListTester<E> {
   public void testSubList_subListRemoveAffectsOriginalLargeList() {
     List<E> subList = getList().subList(1, 3);
     subList.remove(e2());
-    List<E> expected = Helpers.copyToList(createSamplesArray());
+    List<E> expected = copyToList(createSamplesArray());
     expected.remove(2);
     expectContents(expected);
   }
@@ -160,7 +150,7 @@ public class ListSubListTester<E> extends AbstractListTester<E> {
   public void testSubList_subListSetAffectsOriginalLargeList() {
     List<E> subList = getList().subList(1, 2);
     subList.set(0, e3());
-    List<E> expected = Helpers.copyToList(createSamplesArray());
+    List<E> expected = copyToList(createSamplesArray());
     expected.set(1, e3());
     expectContents(expected);
   }
@@ -173,10 +163,11 @@ public class ListSubListTester<E> extends AbstractListTester<E> {
     assertEquals(
         "A set() call to a list after a sublist has been created "
             + "should be reflected in the sublist",
-        Arrays.asList(e3(), e2()),
+        asList(e3(), e2()),
         subList);
   }
 
+  @SuppressWarnings("EmptyList") // ImmutableList doesn't support nullable element types
   public void testSubList_ofSubListEmpty() {
     List<E> subList = getList().subList(0, 0).subList(0, 0);
     assertEquals("subList(0, 0).subList(0, 0) should be an empty list", emptyList(), subList);
@@ -188,7 +179,7 @@ public class ListSubListTester<E> extends AbstractListTester<E> {
     assertEquals(
         "subList(0, 2).subList(1, 2) "
             + "should be a single-element list of the element at index 1",
-        Collections.singletonList(getOrderedElements().get(1)),
+        singletonList(getOrderedElements().get(1)),
         subList);
   }
 
@@ -196,11 +187,11 @@ public class ListSubListTester<E> extends AbstractListTester<E> {
   public void testSubList_size() {
     List<E> list = getList();
     int size = getNumElements();
-    assertEquals(list.subList(0, size).size(), size);
-    assertEquals(list.subList(0, size - 1).size(), size - 1);
-    assertEquals(list.subList(1, size).size(), size - 1);
-    assertEquals(list.subList(size, size).size(), 0);
-    assertEquals(list.subList(0, 0).size(), 0);
+    assertEquals(size, list.subList(0, size).size());
+    assertEquals(size - 1, list.subList(0, size - 1).size());
+    assertEquals(size - 1, list.subList(1, size).size());
+    assertEquals(0, list.subList(size, size).size());
+    assertEquals(0, list.subList(0, 0).size());
   }
 
   @CollectionSize.Require(absent = {ZERO})
@@ -208,13 +199,13 @@ public class ListSubListTester<E> extends AbstractListTester<E> {
     List<E> list = getList();
     int size = getNumElements();
     for (List<E> subList :
-        Arrays.asList(
+        asList(
             list.subList(0, size),
             list.subList(0, size - 1),
             list.subList(1, size),
             list.subList(0, 0),
             list.subList(size, size))) {
-      assertEquals(subList.isEmpty(), subList.size() == 0);
+      assertEquals(subList.size() == 0, subList.isEmpty());
     }
   }
 
@@ -231,13 +222,9 @@ public class ListSubListTester<E> extends AbstractListTester<E> {
     assertEquals(list.get(size - 1), tail.get(size - 2));
     assertEquals(list.get(0), head.get(0));
     assertEquals(list.get(size - 2), head.get(size - 2));
-    for (List<E> subList : Arrays.asList(copy, head, tail)) {
-      for (int index : Arrays.asList(-1, subList.size())) {
-        try {
-          subList.get(index);
-          fail("expected IndexOutOfBoundsException");
-        } catch (IndexOutOfBoundsException expected) {
-        }
+    for (List<E> subList : asList(copy, head, tail)) {
+      for (int index : asList(-1, subList.size())) {
+        assertThrows(IndexOutOfBoundsException.class, () -> subList.get(index));
       }
     }
   }
@@ -267,15 +254,15 @@ public class ListSubListTester<E> extends AbstractListTester<E> {
     List<E> copy = list.subList(0, size);
     List<E> head = list.subList(0, size - 1);
     List<E> tail = list.subList(1, size);
-    assertEquals(copy.indexOf(list.get(0)), 0);
-    assertEquals(head.indexOf(list.get(0)), 0);
-    assertEquals(tail.indexOf(list.get(1)), 0);
+    assertEquals(0, copy.indexOf(list.get(0)));
+    assertEquals(0, head.indexOf(list.get(0)));
+    assertEquals(0, tail.indexOf(list.get(1)));
     // The following assumes all elements are distinct.
-    assertEquals(copy.indexOf(list.get(size - 1)), size - 1);
-    assertEquals(head.indexOf(list.get(size - 2)), size - 2);
-    assertEquals(tail.indexOf(list.get(size - 1)), size - 2);
-    assertEquals(head.indexOf(list.get(size - 1)), -1);
-    assertEquals(tail.indexOf(list.get(0)), -1);
+    assertEquals(size - 1, copy.indexOf(list.get(size - 1)));
+    assertEquals(size - 2, head.indexOf(list.get(size - 2)));
+    assertEquals(size - 2, tail.indexOf(list.get(size - 1)));
+    assertEquals(-1, head.indexOf(list.get(size - 1)));
+    assertEquals(-1, tail.indexOf(list.get(0)));
   }
 
   @CollectionSize.Require(absent = {ZERO, ONE})
@@ -285,67 +272,66 @@ public class ListSubListTester<E> extends AbstractListTester<E> {
     List<E> copy = list.subList(0, size);
     List<E> head = list.subList(0, size - 1);
     List<E> tail = list.subList(1, size);
-    assertEquals(copy.lastIndexOf(list.get(size - 1)), size - 1);
-    assertEquals(head.lastIndexOf(list.get(size - 2)), size - 2);
-    assertEquals(tail.lastIndexOf(list.get(size - 1)), size - 2);
+    assertEquals(size - 1, copy.lastIndexOf(list.get(size - 1)));
+    assertEquals(size - 2, head.lastIndexOf(list.get(size - 2)));
+    assertEquals(size - 2, tail.lastIndexOf(list.get(size - 1)));
     // The following assumes all elements are distinct.
-    assertEquals(copy.lastIndexOf(list.get(0)), 0);
-    assertEquals(head.lastIndexOf(list.get(0)), 0);
-    assertEquals(tail.lastIndexOf(list.get(1)), 0);
-    assertEquals(head.lastIndexOf(list.get(size - 1)), -1);
-    assertEquals(tail.lastIndexOf(list.get(0)), -1);
+    assertEquals(0, copy.lastIndexOf(list.get(0)));
+    assertEquals(0, head.lastIndexOf(list.get(0)));
+    assertEquals(0, tail.lastIndexOf(list.get(1)));
+    assertEquals(-1, head.lastIndexOf(list.get(size - 1)));
+    assertEquals(-1, tail.lastIndexOf(list.get(0)));
   }
 
   @CollectionFeature.Require(SERIALIZABLE_INCLUDING_VIEWS)
   public void testReserializeWholeSubList() {
-    SerializableTester.reserializeAndAssert(getList().subList(0, getNumElements()));
+    reserializeAndAssert(getList().subList(0, getNumElements()));
   }
 
   @CollectionFeature.Require(SERIALIZABLE_INCLUDING_VIEWS)
   public void testReserializeEmptySubList() {
-    SerializableTester.reserializeAndAssert(getList().subList(0, 0));
+    reserializeAndAssert(getList().subList(0, 0));
   }
 
   @CollectionFeature.Require(SERIALIZABLE_INCLUDING_VIEWS)
   @CollectionSize.Require(absent = {ZERO, ONE})
   public void testReserializeSubList() {
-    SerializableTester.reserializeAndAssert(getList().subList(0, 2));
+    reserializeAndAssert(getList().subList(0, 2));
   }
 
   /**
-   * Returns the {@link Method} instance for
-   * {@link #testSubList_originalListSetAffectsSubList()} so that tests
-   * of {@link CopyOnWriteArrayList} can suppress them with
-   * {@code FeatureSpecificTestSuiteBuilder.suppressing()} until <a
-   * href="http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6570631">Sun bug
-   * 6570631</a> is fixed.
+   * Returns the {@link Method} instance for {@link #testSubList_originalListSetAffectsSubList()} so
+   * that tests of {@link CopyOnWriteArrayList} can suppress them with {@code
+   * FeatureSpecificTestSuiteBuilder.suppressing()} until <a
+   * href="https://bugs.openjdk.org/browse/JDK-6570631">JDK-6570631</a> is fixed.
    */
+  @J2ktIncompatible
   @GwtIncompatible // reflection
   public static Method getSubListOriginalListSetAffectsSubListMethod() {
     return getMethod(ListSubListTester.class, "testSubList_originalListSetAffectsSubList");
   }
 
   /**
-   * Returns the {@link Method} instance for
-   * {@link #testSubList_originalListSetAffectsSubListLargeList()} ()} so that
-   * tests of {@link CopyOnWriteArrayList} can suppress them with
-   * {@code FeatureSpecificTestSuiteBuilder.suppressing()} until <a
-   * href="http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6570631">Sun bug
-   * 6570631</a> is fixed.
+   * Returns the {@link Method} instance for {@link
+   * #testSubList_originalListSetAffectsSubListLargeList()} so that tests of {@link
+   * CopyOnWriteArrayList} can suppress them with {@code
+   * FeatureSpecificTestSuiteBuilder.suppressing()} until <a
+   * href="https://bugs.openjdk.org/browse/JDK-6570631">JDK-6570631</a> is fixed.
    */
+  @J2ktIncompatible
   @GwtIncompatible // reflection
   public static Method getSubListOriginalListSetAffectsSubListLargeListMethod() {
     return getMethod(ListSubListTester.class, "testSubList_originalListSetAffectsSubListLargeList");
   }
 
   /**
-   * Returns the {@link Method} instance for
-   * {@link #testSubList_subListRemoveAffectsOriginalLargeList()} so that tests
-   * of {@link CopyOnWriteArrayList} can suppress it with
-   * {@code FeatureSpecificTestSuiteBuilder.suppressing()} until <a
-   * href="http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6570575">Sun bug
-   * 6570575</a> is fixed.
+   * Returns the {@link Method} instance for {@link
+   * #testSubList_subListRemoveAffectsOriginalLargeList()} so that tests of {@link
+   * CopyOnWriteArrayList} can suppress it with {@code
+   * FeatureSpecificTestSuiteBuilder.suppressing()} until <a
+   * href="https://bugs.openjdk.org/browse/JDK-6570575">JDK-6570575</a> is fixed.
    */
+  @J2ktIncompatible
   @GwtIncompatible // reflection
   public static Method getSubListSubListRemoveAffectsOriginalLargeListMethod() {
     return getMethod(ListSubListTester.class, "testSubList_subListRemoveAffectsOriginalLargeList");

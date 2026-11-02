@@ -19,16 +19,18 @@ package com.google.common.primitives;
 import com.google.caliper.BeforeExperiment;
 import com.google.caliper.Benchmark;
 import java.util.Random;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Benchmarks for certain methods of {@code UnsignedLongs}.
  *
  * @author Eamonn McManus
  */
+@NullUnmarked
 public class UnsignedLongsBenchmark {
   private static final int ARRAY_SIZE = 0x10000;
   private static final int ARRAY_MASK = 0x0ffff;
-  private static final Random RANDOM_SOURCE = new Random(314159265358979L);
+  private static final Random randomSource = new Random(314159265358979L);
   private static final long[] longs = new long[ARRAY_SIZE];
   private static final long[] divisors = new long[ARRAY_SIZE];
   private static final String[] decimalStrings = new String[ARRAY_SIZE];
@@ -48,7 +50,8 @@ public class UnsignedLongsBenchmark {
     }
   }
 
-  @Benchmark long divide(int reps) {
+  @Benchmark
+  long divide(int reps) {
     long tmp = 0;
     for (int i = 0; i < reps; i++) {
       int j = i & ARRAY_MASK;
@@ -57,7 +60,8 @@ public class UnsignedLongsBenchmark {
     return tmp;
   }
 
-  @Benchmark long remainder(int reps) {
+  @Benchmark
+  long remainder(int reps) {
     long tmp = 0;
     for (int i = 0; i < reps; i++) {
       int j = i & ARRAY_MASK;
@@ -66,7 +70,8 @@ public class UnsignedLongsBenchmark {
     return tmp;
   }
 
-  @Benchmark long parseUnsignedLong(int reps) {
+  @Benchmark
+  long parseUnsignedLong(int reps) {
     long tmp = 0;
     // Given that we make three calls per pass, we scale reps down in order
     // to do a comparable amount of work to other measurements.
@@ -80,7 +85,8 @@ public class UnsignedLongsBenchmark {
     return tmp;
   }
 
-  @Benchmark long parseDecode10(int reps) {
+  @Benchmark
+  long parseDecode10(int reps) {
     long tmp = 0;
     for (int i = 0; i < reps; i++) {
       int j = i & ARRAY_MASK;
@@ -89,7 +95,8 @@ public class UnsignedLongsBenchmark {
     return tmp;
   }
 
-  @Benchmark long parseDecode16(int reps) {
+  @Benchmark
+  long parseDecode16(int reps) {
     long tmp = 0;
     for (int i = 0; i < reps; i++) {
       int j = i & ARRAY_MASK;
@@ -98,7 +105,8 @@ public class UnsignedLongsBenchmark {
     return tmp;
   }
 
-  @Benchmark int toString(int reps) {
+  @Benchmark
+  int toString(int reps) {
     int tmp = 0;
     // Given that we make three calls per pass, we scale reps down in order
     // to do a comparable amount of work to other measurements.
@@ -114,7 +122,7 @@ public class UnsignedLongsBenchmark {
   }
 
   private static long random() {
-    return RANDOM_SOURCE.nextLong();
+    return randomSource.nextLong();
   }
 
   // A random value that cannot be 0 and that is unsigned-less-than or equal
@@ -123,7 +131,7 @@ public class UnsignedLongsBenchmark {
   // Using remainder here does not give us a uniform distribution but it should
   // not have a big impact on the measurement.
   private static long randomDivisor(long dividend) {
-    long r = RANDOM_SOURCE.nextLong();
+    long r = randomSource.nextLong();
     if (dividend == -1) {
       return r;
     } else {

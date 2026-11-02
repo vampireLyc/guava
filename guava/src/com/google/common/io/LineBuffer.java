@@ -15,13 +15,14 @@
 package com.google.common.io;
 
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.io.IOException;
 
 /**
- * Package-protected abstract class that implements the line reading algorithm used by
- * {@link LineReader}. Line separators are per {@link java.io.BufferedReader}: line feed, carriage
- * return, or carriage return followed immediately by a linefeed.
+ * Package-protected abstract class that implements the line reading algorithm used by {@link
+ * LineReader}. Line separators are per {@link java.io.BufferedReader}: line feed, carriage return,
+ * or carriage return followed immediately by a linefeed.
  *
  * <p>Subclasses must implement {@link #handleLine}, call {@link #add} to pass character data, and
  * call {@link #finish} at the end of stream.
@@ -29,10 +30,12 @@ import java.io.IOException;
  * @author Chris Nokleberg
  * @since 1.0
  */
+@J2ktIncompatible
 @GwtIncompatible
 abstract class LineBuffer {
   /** Holds partial line contents. */
   private StringBuilder line = new StringBuilder();
+
   /** Whether a line ending with a CR is pending processing. */
   private boolean sawReturn;
 
@@ -46,7 +49,7 @@ abstract class LineBuffer {
    * @throws IOException if an I/O error occurs
    * @see #finish
    */
-  protected void add(char[] cbuf, int off, int len) throws IOException {
+  final void add(char[] cbuf, int off, int len) throws IOException {
     int pos = off;
     if (sawReturn && len > 0) {
       // Last call to add ended with a CR; we can handle the line now.
@@ -85,9 +88,7 @@ abstract class LineBuffer {
   /** Called when a line is complete. */
   @CanIgnoreReturnValue
   private boolean finishLine(boolean sawNewline) throws IOException {
-    String separator = sawReturn
-        ? (sawNewline ? "\r\n" : "\r")
-        : (sawNewline ? "\n" : "");
+    String separator = sawReturn ? (sawNewline ? "\r\n" : "\r") : (sawNewline ? "\n" : "");
     handleLine(line.toString(), separator);
     line = new StringBuilder();
     sawReturn = false;
@@ -100,7 +101,7 @@ abstract class LineBuffer {
    *
    * @throws IOException if an I/O error occurs
    */
-  protected void finish() throws IOException {
+  final void finish() throws IOException {
     if (sawReturn || line.length() > 0) {
       finishLine(false);
     }
@@ -113,5 +114,5 @@ abstract class LineBuffer {
    * @param end the line separator; one of {@code "\r"}, {@code "\n"}, {@code "\r\n"}, or {@code ""}
    * @throws IOException if an I/O error occurs
    */
-  protected abstract void handleLine(String line, String end) throws IOException;
+  abstract void handleLine(String line, String end) throws IOException;
 }

@@ -16,23 +16,34 @@ package com.google.common.primitives;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkPositionIndexes;
+import static java.lang.Byte.toUnsignedInt;
+import static java.lang.Integer.parseInt;
+import static java.util.Objects.requireNonNull;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import com.google.errorprone.annotations.InlineMe;
+import com.google.j2objc.annotations.J2ObjCIncompatible;
+import java.lang.reflect.Field;
 import java.nio.ByteOrder;
+import java.security.PrivilegedExceptionAction;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 import sun.misc.Unsafe;
 
 /**
  * Static utility methods pertaining to {@code byte} primitives that interpret values as
- * <i>unsigned</i> (that is, any negative value {@code b} is treated as the positive value
- * {@code 256 + b}). The corresponding methods that treat the values as signed are found in
- * {@link SignedBytes}, and the methods for which signedness is not an issue are in {@link Bytes}.
+ * <i>unsigned</i> (that is, any negative value {@code b} is treated as the positive value {@code
+ * 256 + b}). The corresponding methods that treat the values as signed are found in {@link
+ * SignedBytes}, and the methods for which signedness is not an issue are in {@link Bytes}.
  *
- * <p>See the Guava User Guide article on
- * <a href="https://github.com/google/guava/wiki/PrimitivesExplained">primitive utilities</a>.
+ * <p>See the Guava User Guide article on <a
+ * href="https://github.com/google/guava/wiki/PrimitivesExplained">primitive utilities</a>.
  *
  * @author Kevin Bourrillion
  * @author Martin Buchholz
@@ -40,13 +51,13 @@ import sun.misc.Unsafe;
  * @author Louis Wasserman
  * @since 1.0
  */
+@J2ktIncompatible
 @GwtIncompatible
 public final class UnsignedBytes {
   private UnsignedBytes() {}
 
   /**
-   * The largest power of two that can be represented as an unsigned {@code
-   * byte}.
+   * The largest power of two that can be represented as an unsigned {@code byte}.
    *
    * @since 10.0
    */
@@ -65,10 +76,13 @@ public final class UnsignedBytes {
    * Returns the value of the given byte as an integer, when treated as unsigned. That is, returns
    * {@code value + 256} if {@code value} is negative; {@code value} itself otherwise.
    *
+   * <p>Prefer {@link Byte#toUnsignedInt(byte)} instead.
+   *
    * @since 6.0
    */
+  @InlineMe(replacement = "Byte.toUnsignedInt(value)")
   public static int toInt(byte value) {
-    return value & UNSIGNED_MASK;
+    return Byte.toUnsignedInt(value);
   }
 
   /**
@@ -86,15 +100,15 @@ public final class UnsignedBytes {
   }
 
   /**
-   * Returns the {@code byte} value that, when treated as unsigned, is nearest in value to
-   * {@code value}.
+   * Returns the {@code byte} value that, when treated as unsigned, is nearest in value to {@code
+   * value}.
    *
    * @param value any {@code long} value
    * @return {@code (byte) 255} if {@code value >= 255}, {@code (byte) 0} if {@code value <= 0}, and
    *     {@code value} cast to {@code byte} otherwise
    */
   public static byte saturatedCast(long value) {
-    if (value > toInt(MAX_VALUE)) {
+    if (value > toUnsignedInt(MAX_VALUE)) {
       return MAX_VALUE; // -1
     }
     if (value < 0) {
@@ -114,22 +128,22 @@ public final class UnsignedBytes {
    *     greater than {@code b}; or zero if they are equal
    */
   public static int compare(byte a, byte b) {
-    return toInt(a) - toInt(b);
+    return toUnsignedInt(a) - toUnsignedInt(b);
   }
 
   /**
-   * Returns the least value present in {@code array}.
+   * Returns the least value present in {@code array}, treating values as unsigned.
    *
    * @param array a <i>nonempty</i> array of {@code byte} values
    * @return the value present in {@code array} that is less than or equal to every other value in
-   *     the array
+   *     the array according to {@link #compare}
    * @throws IllegalArgumentException if {@code array} is empty
    */
   public static byte min(byte... array) {
     checkArgument(array.length > 0);
-    int min = toInt(array[0]);
+    int min = toUnsignedInt(array[0]);
     for (int i = 1; i < array.length; i++) {
-      int next = toInt(array[i]);
+      int next = toUnsignedInt(array[i]);
       if (next < min) {
         min = next;
       }
@@ -138,18 +152,18 @@ public final class UnsignedBytes {
   }
 
   /**
-   * Returns the greatest value present in {@code array}.
+   * Returns the greatest value present in {@code array}, treating values as unsigned.
    *
    * @param array a <i>nonempty</i> array of {@code byte} values
    * @return the value present in {@code array} that is greater than or equal to every other value
-   *     in the array
+   *     in the array according to {@link #compare}
    * @throws IllegalArgumentException if {@code array} is empty
    */
   public static byte max(byte... array) {
     checkArgument(array.length > 0);
-    int max = toInt(array[0]);
+    int max = toUnsignedInt(array[0]);
     for (int i = 1; i < array.length; i++) {
-      int next = toInt(array[i]);
+      int next = toUnsignedInt(array[i]);
       if (next > max) {
         max = next;
       }
@@ -162,7 +176,6 @@ public final class UnsignedBytes {
    *
    * @since 13.0
    */
-  @Beta
   public static String toString(byte x) {
     return toString(x, 10);
   }
@@ -177,14 +190,13 @@ public final class UnsignedBytes {
    *     and {@link Character#MAX_RADIX}.
    * @since 13.0
    */
-  @Beta
   public static String toString(byte x, int radix) {
     checkArgument(
         radix >= Character.MIN_RADIX && radix <= Character.MAX_RADIX,
         "radix (%s) must be between Character.MIN_RADIX and Character.MAX_RADIX",
         radix);
     // Benchmarks indicate this is probably not worth optimizing.
-    return Integer.toString(toInt(x), radix);
+    return Integer.toString(toUnsignedInt(x), radix);
   }
 
   /**
@@ -192,11 +204,10 @@ public final class UnsignedBytes {
    *
    * @throws NumberFormatException if the string does not contain a valid unsigned {@code byte}
    *     value
-   * @throws NullPointerException if {@code string} is null (in contrast to
-   *     {@link Byte#parseByte(String)})
+   * @throws NullPointerException if {@code string} is null (in contrast to {@link
+   *     Byte#parseByte(String)})
    * @since 13.0
    */
-  @Beta
   @CanIgnoreReturnValue
   public static byte parseUnsignedByte(String string) {
     return parseUnsignedByte(string, 10);
@@ -208,16 +219,15 @@ public final class UnsignedBytes {
    * @param string the string containing the unsigned {@code byte} representation to be parsed.
    * @param radix the radix to use while parsing {@code string}
    * @throws NumberFormatException if the string does not contain a valid unsigned {@code byte} with
-   *     the given radix, or if {@code radix} is not between {@link Character#MIN_RADIX} and
-   *     {@link Character#MAX_RADIX}.
-   * @throws NullPointerException if {@code string} is null (in contrast to
-   *     {@link Byte#parseByte(String)})
+   *     the given radix, or if {@code radix} is not between {@link Character#MIN_RADIX} and {@link
+   *     Character#MAX_RADIX}.
+   * @throws NullPointerException if {@code string} is null (in contrast to {@link
+   *     Byte#parseByte(String)})
    * @since 13.0
    */
-  @Beta
   @CanIgnoreReturnValue
   public static byte parseUnsignedByte(String string, int radix) {
-    int parse = Integer.parseInt(checkNotNull(string), radix);
+    int parse = parseInt(checkNotNull(string), radix);
     // We need to throw a NumberFormatException, so we have to duplicate checkedCast. =(
     if (parse >> Byte.SIZE == 0) {
       return (byte) parse;
@@ -228,8 +238,8 @@ public final class UnsignedBytes {
 
   /**
    * Returns a string containing the supplied {@code byte} values separated by {@code separator}.
-   * For example, {@code join(":", (byte) 1, (byte) 2,
-   * (byte) 255)} returns the string {@code "1:2:255"}.
+   * For example, {@code join(":", (byte) 1, (byte) 2, (byte) 255)} returns the string {@code
+   * "1:2:255"}.
    *
    * @param separator the text that should appear between consecutive values in the resulting string
    *     (but not at the start or end)
@@ -243,7 +253,7 @@ public final class UnsignedBytes {
 
     // For pre-sizing a builder, just get the right order of magnitude
     StringBuilder builder = new StringBuilder(array.length * (3 + separator.length()));
-    builder.append(toInt(array[0]));
+    builder.append(toUnsignedInt(array[0]));
     for (int i = 1; i < array.length; i++) {
       builder.append(separator).append(toString(array[i]));
     }
@@ -259,8 +269,11 @@ public final class UnsignedBytes {
    * unsigned.
    *
    * <p>The returned comparator is inconsistent with {@link Object#equals(Object)} (since arrays
-   * support only identity equality), but it is consistent with
-   * {@link java.util.Arrays#equals(byte[], byte[])}.
+   * support only identity equality), but it is consistent with {@link
+   * java.util.Arrays#equals(byte[], byte[])}.
+   *
+   * <p><b>Java 9+ users:</b> Use {@link Arrays#compareUnsigned(byte[], byte[])
+   * Arrays::compareUnsigned}.
    *
    * @since 2.0
    */
@@ -273,22 +286,33 @@ public final class UnsignedBytes {
     return LexicographicalComparatorHolder.PureJavaComparator.INSTANCE;
   }
 
-  /**
-   * Provides a lexicographical comparator implementation; either a Java implementation or a faster
-   * implementation based on {@link Unsafe}.
-   *
-   * <p>Uses reflection to gracefully fall back to the Java implementation if {@code Unsafe} isn't
-   * available.
-   */
+  /** Provides a lexicographical comparator implementation selected based on the current runtime. */
   @VisibleForTesting
-  static class LexicographicalComparatorHolder {
+  static final class LexicographicalComparatorHolder {
+    /**
+     * Interface implemented by {@link UnsafeComparator}, extracted so that we can refer to it
+     * without referring to {@link UnsafeComparator} itself.
+     */
+    interface LexicographicalComparator extends Comparator<byte[]> {
+      /** Returns whether this implementation is available for use on the current platform. */
+      boolean isFunctional();
+    }
+
     static final String UNSAFE_COMPARATOR_NAME =
         LexicographicalComparatorHolder.class.getName() + "$UnsafeComparator";
 
     static final Comparator<byte[]> BEST_COMPARATOR = getBestComparator();
 
+    @SuppressWarnings({
+      // b/345822163
+      "SunApi",
+      "deprecation",
+      "removal",
+      // The `deprecation` suppression is for Unsafe APIs that aren't deprecated under some versions
+      "UnnecessaryJavacSuppressWarnings"
+    })
     @VisibleForTesting
-    enum UnsafeComparator implements Comparator<byte[]> {
+    enum UnsafeComparator implements LexicographicalComparator {
       INSTANCE;
 
       static final boolean BIG_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.BIG_ENDIAN);
@@ -309,71 +333,100 @@ public final class UnsignedBytes {
        * them while (final or not) local variables are run time values.
        */
 
-      static final Unsafe theUnsafe;
+      /**
+       * Value stored in {@link #BYTE_ARRAY_BASE_OFFSET} to indicate that the current runtime does
+       * not support the {@link Unsafe} comparator.
+       */
+      static final int OFFSET_UNSAFE_APPROACH_IS_UNAVAILABLE = -1;
 
-      /** The offset to the first element in a byte array. */
-      static final int BYTE_ARRAY_BASE_OFFSET;
+      static final @Nullable Unsafe theUnsafe = getUnsafe();
 
-      static {
-        theUnsafe = getUnsafe();
+      /**
+       * The offset to the first element in a byte array, or {@link
+       * #OFFSET_UNSAFE_APPROACH_IS_UNAVAILABLE}.
+       */
+      static final int BYTE_ARRAY_BASE_OFFSET = getByteArrayBaseOffset();
 
-        BYTE_ARRAY_BASE_OFFSET = theUnsafe.arrayBaseOffset(byte[].class);
+      private static int getByteArrayBaseOffset() {
+        if (theUnsafe == null) {
+          return OFFSET_UNSAFE_APPROACH_IS_UNAVAILABLE;
+        }
 
-        // sanity check - this should never fail
-        if (theUnsafe.arrayIndexScale(byte[].class) != 1) {
-          throw new AssertionError();
+        try {
+          int offset = theUnsafe.arrayBaseOffset(byte[].class);
+          int scale = theUnsafe.arrayIndexScale(byte[].class);
+
+          // Use Unsafe only if we're in a 64-bit JVM with an 8-byte aligned field offset.
+          if (Objects.equals(System.getProperty("sun.arch.data.model"), "64")
+              && (offset % 8) == 0
+              // sanity check - this should never fail
+              && scale == 1) {
+            return offset;
+          }
+
+          return OFFSET_UNSAFE_APPROACH_IS_UNAVAILABLE;
+        } catch (UnsupportedOperationException e) {
+          return OFFSET_UNSAFE_APPROACH_IS_UNAVAILABLE;
         }
       }
 
-      /**
-       * Returns a sun.misc.Unsafe. Suitable for use in a 3rd party package. Replace with a simple
-       * call to Unsafe.getUnsafe when integrating into a jdk.
-       *
-       * @return a sun.misc.Unsafe
-       */
-      private static sun.misc.Unsafe getUnsafe() {
+      private static @Nullable Unsafe getUnsafe() {
         try {
-          return sun.misc.Unsafe.getUnsafe();
+          return Unsafe.getUnsafe();
         } catch (SecurityException e) {
           // that's okay; try reflection instead
         }
         try {
-          return java.security.AccessController.doPrivileged(
-              new java.security.PrivilegedExceptionAction<sun.misc.Unsafe>() {
-                @Override
-                public sun.misc.Unsafe run() throws Exception {
-                  Class<sun.misc.Unsafe> k = sun.misc.Unsafe.class;
-                  for (java.lang.reflect.Field f : k.getDeclaredFields()) {
-                    f.setAccessible(true);
-                    Object x = f.get(null);
-                    if (k.isInstance(x)) {
-                      return k.cast(x);
-                    }
+          PrivilegedExceptionAction<Unsafe> action =
+              () -> {
+                Class<Unsafe> k = Unsafe.class;
+                for (Field f : k.getDeclaredFields()) {
+                  f.setAccessible(true);
+                  Object x = f.get(null);
+                  if (k.isInstance(x)) {
+                    return k.cast(x);
                   }
-                  throw new NoSuchFieldError("the Unsafe");
                 }
-              });
-        } catch (java.security.PrivilegedActionException e) {
-          throw new RuntimeException("Could not initialize intrinsics", e.getCause());
+                return null;
+              };
+          try {
+            return (Unsafe)
+                Class.forName("java.security.AccessController")
+                    .getMethod("doPrivileged", PrivilegedExceptionAction.class)
+                    .invoke(null, action);
+          } catch (Exception e) {
+            return action.run();
+          }
+        } catch (Exception e) {
+          return null;
         }
       }
 
       @Override
+      public boolean isFunctional() {
+        return BYTE_ARRAY_BASE_OFFSET != OFFSET_UNSAFE_APPROACH_IS_UNAVAILABLE;
+      }
+
+      @Override
       public int compare(byte[] left, byte[] right) {
+        // If theUnsafe weren't available, we wouldn't have selected this Comparator implementation.
+        Unsafe theUnsafe = requireNonNull(UnsafeComparator.theUnsafe);
+
+        int stride = 8;
         int minLength = Math.min(left.length, right.length);
-        int minWords = minLength / Longs.BYTES;
+        int strideLimit = minLength & ~(stride - 1);
+        int i;
 
         /*
-         * Compare 8 bytes at a time. Benchmarking shows comparing 8 bytes at a time is no slower
-         * than comparing 4 bytes at a time even on 32-bit. On the other hand, it is substantially
-         * faster on 64-bit.
+         * Compare 8 bytes at a time. Benchmarking on x86 shows a stride of 8 bytes is no slower
+         * than 4 bytes even on 32-bit. On the other hand, it is substantially faster on 64-bit.
          */
-        for (int i = 0; i < minWords * Longs.BYTES; i += Longs.BYTES) {
+        for (i = 0; i < strideLimit; i += stride) {
           long lw = theUnsafe.getLong(left, BYTE_ARRAY_BASE_OFFSET + (long) i);
           long rw = theUnsafe.getLong(right, BYTE_ARRAY_BASE_OFFSET + (long) i);
           if (lw != rw) {
             if (BIG_ENDIAN) {
-              return UnsignedLongs.compare(lw, rw);
+              return Long.compareUnsigned(lw, rw);
             }
 
             /*
@@ -388,8 +441,8 @@ public final class UnsignedBytes {
           }
         }
 
-        // The epilogue to cover the last (minLength % 8) elements.
-        for (int i = minWords * Longs.BYTES; i < minLength; i++) {
+        // The epilogue to cover the last (minLength % stride) elements.
+        for (; i < minLength; i++) {
           int result = UnsignedBytes.compare(left[i], right[i]);
           if (result != 0) {
             return result;
@@ -425,21 +478,146 @@ public final class UnsignedBytes {
       }
     }
 
-    /**
-     * Returns the Unsafe-using Comparator, or falls back to the pure-Java implementation if unable
-     * to do so.
-     */
+    /** Returns the best comparator supported by the current runtime. */
     static Comparator<byte[]> getBestComparator() {
-      try {
-        Class<?> theClass = Class.forName(UNSAFE_COMPARATOR_NAME);
+      Comparator<byte[]> arraysCompareUnsignedComparator =
+          ArraysCompareUnsignedComparatorMaker.INSTANCE.tryMakeArraysCompareUnsignedComparator();
+      if (arraysCompareUnsignedComparator != null) {
+        return arraysCompareUnsignedComparator;
+      }
 
-        // yes, UnsafeComparator does implement Comparator<byte[]>
-        @SuppressWarnings("unchecked")
-        Comparator<byte[]> comparator = (Comparator<byte[]>) theClass.getEnumConstants()[0];
-        return comparator;
+      try {
+        Class<? extends LexicographicalComparator> unsafeImpl =
+            Class.forName(UNSAFE_COMPARATOR_NAME).asSubclass(LexicographicalComparator.class);
+        // requireNonNull is safe because the class is an enum.
+        LexicographicalComparator unsafeComparator =
+            requireNonNull(unsafeImpl.getEnumConstants())[0];
+        return unsafeComparator.isFunctional()
+            ? unsafeComparator
+            : lexicographicalComparatorJavaImpl();
       } catch (Throwable t) { // ensure we really catch *everything*
+        /*
+         * Now that UnsafeComparator is implemented to initialize successfully even when we know we
+         * can't use it, this `catch` block might now be necessary only:
+         *
+         * - in the Android flavor or anywhere else that users might be applying an optimizer that
+         * might strip UnsafeComparator entirely. (TODO(cpovirk): Are we confident that optimizers
+         * aren't stripping UnsafeComparator today? Should we have Proguard configuration for it?)
+         *
+         * - if Unsafe is removed entirely from JDKs (or already absent in some unusual environment
+         * today). TODO(b/392974826): Check for the existence of Unsafe and its methods
+         * reflectively before attempting to access UnsafeComparator. Or, better yet, allow
+         * UnsafeComparator to still initialize correctly even if Unsafe is unavailable. This would
+         * protect against users that automatically preinitialize internal classes that they've seen
+         * initialized in their apps in the past. To do that, we may need to move the references to
+         * Unsafe to another class and then ensure that the preinitialization logic doesn't start
+         * picking up the new class as part of loading UnsafeComparator!
+         */
         return lexicographicalComparatorJavaImpl();
       }
+    }
+
+    private LexicographicalComparatorHolder() {}
+  }
+
+  private enum ArraysCompareUnsignedComparatorMaker {
+    INSTANCE {
+      /** Implementation used by non-J2ObjC environments. */
+      // We use Arrays.compareUnsigned only after confirming that it's available at runtime.
+      @SuppressWarnings("Java8ApiChecker")
+      @IgnoreJRERequirement
+      @Override
+      @J2ObjCIncompatible
+      @Nullable Comparator<byte[]> tryMakeArraysCompareUnsignedComparator() {
+        try {
+          // Compare AbstractFuture.VarHandleAtomicHelperMaker.
+          Arrays.class.getMethod("compareUnsigned", byte[].class, byte[].class);
+        } catch (NoSuchMethodException beforeJava9) {
+          return null;
+        }
+        return ArraysCompareUnsignedComparator.INSTANCE;
+      }
+
+      // TODO(cpovirk): Implement toString, as the other implementations do?
+    };
+
+    /** Implementation used by J2ObjC environments, overridden for other environments. */
+    @Nullable Comparator<byte[]> tryMakeArraysCompareUnsignedComparator() {
+      return null;
+    }
+  }
+
+  @J2ObjCIncompatible
+  enum ArraysCompareUnsignedComparator implements Comparator<byte[]> {
+    INSTANCE;
+
+    @Override
+    // We use the class only after confirming that Arrays.compareUnsigned is available at runtime.
+    @SuppressWarnings("Java8ApiChecker")
+    @IgnoreJRERequirement
+    public int compare(byte[] left, byte[] right) {
+      return Arrays.compareUnsigned(left, right);
+    }
+  }
+
+  private static byte flip(byte b) {
+    return (byte) (b ^ 0x80);
+  }
+
+  /**
+   * Sorts the array, treating its elements as unsigned bytes.
+   *
+   * @since 23.1
+   */
+  public static void sort(byte[] array) {
+    checkNotNull(array);
+    sort(array, 0, array.length);
+  }
+
+  /**
+   * Sorts the array between {@code fromIndex} inclusive and {@code toIndex} exclusive, treating its
+   * elements as unsigned bytes.
+   *
+   * @since 23.1
+   */
+  public static void sort(byte[] array, int fromIndex, int toIndex) {
+    checkNotNull(array);
+    checkPositionIndexes(fromIndex, toIndex, array.length);
+    for (int i = fromIndex; i < toIndex; i++) {
+      array[i] = flip(array[i]);
+    }
+    Arrays.sort(array, fromIndex, toIndex);
+    for (int i = fromIndex; i < toIndex; i++) {
+      array[i] = flip(array[i]);
+    }
+  }
+
+  /**
+   * Sorts the elements of {@code array} in descending order, interpreting them as unsigned 8-bit
+   * integers.
+   *
+   * @since 23.1
+   */
+  public static void sortDescending(byte[] array) {
+    checkNotNull(array);
+    sortDescending(array, 0, array.length);
+  }
+
+  /**
+   * Sorts the elements of {@code array} between {@code fromIndex} inclusive and {@code toIndex}
+   * exclusive in descending order, interpreting them as unsigned 8-bit integers.
+   *
+   * @since 23.1
+   */
+  public static void sortDescending(byte[] array, int fromIndex, int toIndex) {
+    checkNotNull(array);
+    checkPositionIndexes(fromIndex, toIndex, array.length);
+    for (int i = fromIndex; i < toIndex; i++) {
+      array[i] ^= Byte.MAX_VALUE;
+    }
+    Arrays.sort(array, fromIndex, toIndex);
+    for (int i = fromIndex; i < toIndex; i++) {
+      array[i] ^= Byte.MAX_VALUE;
     }
   }
 }

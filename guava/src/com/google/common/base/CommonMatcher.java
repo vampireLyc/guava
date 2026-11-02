@@ -23,15 +23,27 @@ import com.google.common.annotations.GwtCompatible;
  */
 @GwtCompatible
 abstract class CommonMatcher {
-  abstract boolean matches();
+  /** Returns {@code true} if the entire input region matches the pattern. */
+  public abstract boolean matches();
 
-  abstract boolean find();
+  /** Attempts to find the next subsequence of the input sequence that matches the pattern. */
+  public abstract boolean find();
 
-  abstract boolean find(int index);
+  /**
+   * Resets this matcher and then attempts to find the next subsequence of the input sequence that
+   * matches the pattern, starting at the specified index.
+   */
+  public abstract boolean find(int index);
 
-  abstract String replaceAll(String replacement);
+  /**
+   * Replaces every subsequence of the input sequence that matches the pattern with the given
+   * replacement string.
+   */
+  public abstract String replaceAll(String replacement);
 
-  abstract int end();
+  /** Returns the offset after the last character matched. */
+  public abstract int end();
 
-  abstract int start();
+  /** Returns the start index of the previous match. */
+  public abstract int start();
 }

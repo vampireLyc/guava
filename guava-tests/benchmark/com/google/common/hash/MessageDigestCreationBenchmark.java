@@ -20,12 +20,14 @@ import com.google.caliper.BeforeExperiment;
 import com.google.caliper.Benchmark;
 import com.google.caliper.Param;
 import java.security.MessageDigest;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Benchmarks for comparing instance creation of {@link MessageDigest}s.
  *
  * @author Kurt Alfred Kluever
  */
+@NullUnmarked
 public class MessageDigestCreationBenchmark {
 
   @Param({"MD5", "SHA-1", "SHA-256", "SHA-384", "SHA-512"})
@@ -33,11 +35,13 @@ public class MessageDigestCreationBenchmark {
 
   private MessageDigest md;
 
-  @BeforeExperiment void setUp() throws Exception {
+  @BeforeExperiment
+  void setUp() throws Exception {
     md = MessageDigest.getInstance(algorithm);
   }
 
-  @Benchmark int getInstance(int reps) throws Exception {
+  @Benchmark
+  int getInstance(int reps) throws Exception {
     int retValue = 0;
     for (int i = 0; i < reps; i++) {
       retValue ^= MessageDigest.getInstance(algorithm).getDigestLength();
@@ -45,7 +49,8 @@ public class MessageDigestCreationBenchmark {
     return retValue;
   }
 
-  @Benchmark int clone(int reps) throws Exception {
+  @Benchmark
+  int clone(int reps) throws Exception {
     int retValue = 0;
     for (int i = 0; i < reps; i++) {
       retValue ^= ((MessageDigest) md.clone()).getDigestLength();

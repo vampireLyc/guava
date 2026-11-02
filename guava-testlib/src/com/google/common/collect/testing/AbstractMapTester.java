@@ -16,6 +16,9 @@
 
 package com.google.common.collect.testing;
 
+import static com.google.common.collect.testing.Helpers.copyToList;
+import static com.google.common.collect.testing.Helpers.mapEntry;
+
 import com.google.common.annotations.GwtCompatible;
 import java.util.Collection;
 import java.util.Iterator;
@@ -23,40 +26,42 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Base class for map testers.
  *
- * TODO: see how much of this is actually needed once Map testers are written.
- * (It was cloned from AbstractCollectionTester.)
+ * <p>TODO: see how much of this is actually needed once Map testers are written. (It was cloned
+ * from AbstractCollectionTester.)
  *
  * @param <K> the key type of the map to be tested.
  * @param <V> the value type of the map to be tested.
- *
  * @author George van den Driessche
  */
 @GwtCompatible
-public abstract class AbstractMapTester<K, V>
-    extends AbstractContainerTester<Map<K, V>, Map.Entry<K, V>> {
+@NullMarked
+public abstract class AbstractMapTester<K extends @Nullable Object, V extends @Nullable Object>
+    extends AbstractContainerTester<Map<K, V>, Entry<K, V>> {
   protected Map<K, V> getMap() {
     return container;
   }
 
   @Override
-  public void setUp() throws Exception {
-    super.setUp();
-    samples = this.getSubjectGenerator().samples();
-    resetMap();
-  }
-
-  @Override
-  protected Collection<Map.Entry<K, V>> actualContents() {
+  protected Collection<Entry<K, V>> actualContents() {
     return getMap().entrySet();
   }
 
-  /** @see AbstractContainerTester#resetContainer() */
-  protected void resetMap() {
+  /**
+   * @see AbstractContainerTester#resetContainer()
+   */
+  protected final void resetMap() {
     resetContainer();
+  }
+
+  protected void resetMap(Entry<K, V>[] entries) {
+    resetContainer(getSubjectGenerator().create((Object[]) entries));
   }
 
   protected void expectMissingKeys(K... elements) {
@@ -72,13 +77,12 @@ public abstract class AbstractMapTester<K, V>
   }
 
   /**
-   * @return an array of the proper size with {@code null} as the key of the
-   * middle element.
+   * @return an array of the proper size with {@code null} as the key of the middle element.
    */
-  protected Map.Entry<K, V>[] createArrayWithNullKey() {
-    Map.Entry<K, V>[] array = createSamplesArray();
-    final int nullKeyLocation = getNullLocation();
-    final Map.Entry<K, V> oldEntry = array[nullKeyLocation];
+  protected Entry<K, V>[] createArrayWithNullKey() {
+    Entry<K, V>[] array = createSamplesArray();
+    int nullKeyLocation = getNullLocation();
+    Entry<K, V> oldEntry = array[nullKeyLocation];
     array[nullKeyLocation] = entry(null, oldEntry.getValue());
     return array;
   }
@@ -100,13 +104,12 @@ public abstract class AbstractMapTester<K, V>
   }
 
   /**
-   * @return an array of the proper size with {@code null} as the value of the
-   * middle element.
+   * @return an array of the proper size with {@code null} as the value of the middle element.
    */
-  protected Map.Entry<K, V>[] createArrayWithNullValue() {
-    Map.Entry<K, V>[] array = createSamplesArray();
-    final int nullValueLocation = getNullLocation();
-    final Map.Entry<K, V> oldEntry = array[nullValueLocation];
+  protected Entry<K, V>[] createArrayWithNullValue() {
+    Entry<K, V>[] array = createSamplesArray();
+    int nullValueLocation = getNullLocation();
+    Entry<K, V> oldEntry = array[nullValueLocation];
     array[nullValueLocation] = entry(oldEntry.getKey(), null);
     return array;
   }
@@ -120,10 +123,9 @@ public abstract class AbstractMapTester<K, V>
   }
 
   /**
-   * Equivalent to {@link #expectMissingKeys(Object[]) expectMissingKeys}
-   * {@code (null)}
-   * except that the call to {@code contains(null)} is permitted to throw a
-   * {@code NullPointerException}.
+   * Equivalent to {@link #expectMissingKeys(Object[]) expectMissingKeys} {@code (null)} except that
+   * the call to {@code contains(null)} is permitted to throw a {@code NullPointerException}.
+   *
    * @param message message to use upon assertion failure
    */
   protected void expectNullKeyMissingWhenNullKeysUnsupported(String message) {
@@ -135,10 +137,9 @@ public abstract class AbstractMapTester<K, V>
   }
 
   /**
-   * Equivalent to {@link #expectMissingValues(Object[]) expectMissingValues}
-   * {@code (null)}
-   * except that the call to {@code contains(null)} is permitted to throw a
-   * {@code NullPointerException}.
+   * Equivalent to {@link #expectMissingValues(Object[]) expectMissingValues} {@code (null)} except
+   * that the call to {@code contains(null)} is permitted to throw a {@code NullPointerException}.
+   *
    * @param message message to use upon assertion failure
    */
   protected void expectNullValueMissingWhenNullValuesUnsupported(String message) {
@@ -149,9 +150,8 @@ public abstract class AbstractMapTester<K, V>
     }
   }
 
-  @SuppressWarnings("unchecked")
   @Override
-  protected MinimalCollection<Map.Entry<K, V>> createDisjointCollection() {
+  protected MinimalCollection<Entry<K, V>> createDisjointCollection() {
     return MinimalCollection.of(e3(), e4());
   }
 
@@ -159,11 +159,11 @@ public abstract class AbstractMapTester<K, V>
     return getNumElements();
   }
 
-  protected Collection<Map.Entry<K, V>> getSampleEntries(int howMany) {
+  protected Collection<Entry<K, V>> getSampleEntries(int howMany) {
     return getSampleElements(howMany);
   }
 
-  protected Collection<Map.Entry<K, V>> getSampleEntries() {
+  protected Collection<Entry<K, V>> getSampleEntries() {
     return getSampleElements();
   }
 
@@ -173,17 +173,13 @@ public abstract class AbstractMapTester<K, V>
       assertFalse("Should not contain entry " + entry, actualContents().contains(entry));
       assertFalse(
           "Should not contain key " + entry.getKey() + " mapped to value " + entry.getValue(),
-          equal(getMap().get(entry.getKey()), entry.getValue()));
+          Objects.equals(getMap().get(entry.getKey()), entry.getValue()));
     }
-  }
-
-  private static boolean equal(Object a, Object b) {
-    return a == b || (a != null && a.equals(b));
   }
 
   // This one-liner saves us from some ugly casts
   protected Entry<K, V> entry(K key, V value) {
-    return Helpers.mapEntry(key, value);
+    return mapEntry(key, value);
   }
 
   @Override
@@ -197,14 +193,14 @@ public abstract class AbstractMapTester<K, V>
   }
 
   protected final void expectReplacement(Entry<K, V> newEntry) {
-    List<Entry<K, V>> expected = Helpers.copyToList(getSampleElements());
+    List<Entry<K, V>> expected = copyToList(getSampleElements());
     replaceValue(expected, newEntry);
     expectContents(expected);
   }
 
   private void replaceValue(List<Entry<K, V>> expected, Entry<K, V> newEntry) {
     for (ListIterator<Entry<K, V>> i = expected.listIterator(); i.hasNext(); ) {
-      if (Helpers.equal(i.next().getKey(), newEntry.getKey())) {
+      if (Objects.equals(i.next().getKey(), newEntry.getKey())) {
         i.set(newEntry);
         return;
       }
@@ -215,17 +211,12 @@ public abstract class AbstractMapTester<K, V>
   }
 
   /**
-   * Wrapper for {@link Map#get(Object)} that forces the caller to pass in a key
-   * of the same type as the map. Besides being slightly shorter than code that
-   * uses {@link #getMap()}, it also ensures that callers don't pass an
-   * {@link Entry} by mistake.
+   * Wrapper for {@link Map#get(Object)} that forces the caller to pass in a key of the same type as
+   * the map. Besides being slightly shorter than code that uses {@link #getMap()}, it also ensures
+   * that callers don't pass an {@link Entry} by mistake.
    */
   protected V get(K key) {
     return getMap().get(key);
-  }
-
-  protected void resetMap(Entry<K, V>[] entries) {
-    resetContainer(getSubjectGenerator().create((Object[]) entries));
   }
 
   protected final K k0() {

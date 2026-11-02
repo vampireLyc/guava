@@ -16,7 +16,10 @@
 
 package com.google.common.collect.testing;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 import com.google.common.annotations.GwtIncompatible;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.io.Serializable;
 import java.util.AbstractSet;
 import java.util.Collection;
@@ -28,11 +31,11 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import org.jspecify.annotations.Nullable;
 
 /**
- * A wrapper around {@code TreeMap} that aggressively checks to see if keys are
- * mutually comparable. This implementation passes the navigable map test
- * suites.
+ * A wrapper around {@code TreeMap} that aggressively checks to see if keys are mutually comparable.
+ * This implementation passes the navigable map test suites.
  *
  * @author Louis Wasserman
  */
@@ -40,12 +43,7 @@ import java.util.TreeMap;
 public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V> {
   @SuppressWarnings("unchecked")
   private static final Comparator<Object> NATURAL_ORDER =
-      new Comparator<Object>() {
-        @Override
-        public int compare(Object o1, Object o2) {
-          return ((Comparable<Object>) o1).compareTo(o2);
-        }
-      };
+      (o1, o2) -> ((Comparable<Object>) o1).compareTo(o2);
 
   private final NavigableMap<K, V> delegate;
 
@@ -66,22 +64,19 @@ public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V>
   }
 
   private SafeTreeMap(NavigableMap<K, V> delegate) {
-    this.delegate = delegate;
-    if (delegate == null) {
-      throw new NullPointerException();
-    }
+    this.delegate = checkNotNull(delegate);
     for (K k : keySet()) {
       checkValid(k);
     }
   }
 
   @Override
-  public Entry<K, V> ceilingEntry(K key) {
+  public @Nullable Entry<K, V> ceilingEntry(K key) {
     return delegate.ceilingEntry(checkValid(key));
   }
 
   @Override
-  public K ceilingKey(K key) {
+  public @Nullable K ceilingKey(K key) {
     return delegate.ceilingKey(checkValid(key));
   }
 
@@ -90,29 +85,26 @@ public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V>
     delegate.clear();
   }
 
-  @SuppressWarnings("unchecked")
   @Override
   public Comparator<? super K> comparator() {
     Comparator<? super K> comparator = delegate.comparator();
-    if (comparator == null) {
-      comparator = (Comparator<? super K>) NATURAL_ORDER;
+    if (comparator != null) {
+      return comparator;
     }
-    return comparator;
+    return NATURAL_ORDER;
   }
 
   @Override
-  public boolean containsKey(Object key) {
+  public boolean containsKey(@Nullable Object key) {
     try {
       return delegate.containsKey(checkValid(key));
-    } catch (NullPointerException e) {
-      return false;
-    } catch (ClassCastException e) {
+    } catch (NullPointerException | ClassCastException e) {
       return false;
     }
   }
 
   @Override
-  public boolean containsValue(Object value) {
+  public boolean containsValue(@Nullable Object value) {
     return delegate.containsValue(value);
   }
 
@@ -123,23 +115,21 @@ public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V>
 
   @Override
   public NavigableMap<K, V> descendingMap() {
-    return new SafeTreeMap<K, V>(delegate.descendingMap());
+    return new SafeTreeMap<>(delegate.descendingMap());
   }
 
   @Override
   public Set<Entry<K, V>> entrySet() {
     return new AbstractSet<Entry<K, V>>() {
-      private Set<Entry<K, V>> delegate() {
+      Set<Entry<K, V>> delegate() {
         return delegate.entrySet();
       }
 
       @Override
-      public boolean contains(Object object) {
+      public boolean contains(@Nullable Object object) {
         try {
           return delegate().contains(object);
-        } catch (NullPointerException e) {
-          return false;
-        } catch (ClassCastException e) {
+        } catch (NullPointerException | ClassCastException e) {
           return false;
         }
       }
@@ -155,7 +145,7 @@ public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V>
       }
 
       @Override
-      public boolean remove(Object o) {
+      public boolean remove(@Nullable Object o) {
         return delegate().remove(o);
       }
 
@@ -167,7 +157,7 @@ public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V>
   }
 
   @Override
-  public Entry<K, V> firstEntry() {
+  public @Nullable Entry<K, V> firstEntry() {
     return delegate.firstEntry();
   }
 
@@ -177,17 +167,17 @@ public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V>
   }
 
   @Override
-  public Entry<K, V> floorEntry(K key) {
+  public @Nullable Entry<K, V> floorEntry(K key) {
     return delegate.floorEntry(checkValid(key));
   }
 
   @Override
-  public K floorKey(K key) {
+  public @Nullable K floorKey(K key) {
     return delegate.floorKey(checkValid(key));
   }
 
   @Override
-  public V get(Object key) {
+  public @Nullable V get(@Nullable Object key) {
     return delegate.get(checkValid(key));
   }
 
@@ -198,16 +188,16 @@ public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V>
 
   @Override
   public NavigableMap<K, V> headMap(K toKey, boolean inclusive) {
-    return new SafeTreeMap<K, V>(delegate.headMap(checkValid(toKey), inclusive));
+    return new SafeTreeMap<>(delegate.headMap(checkValid(toKey), inclusive));
   }
 
   @Override
-  public Entry<K, V> higherEntry(K key) {
+  public @Nullable Entry<K, V> higherEntry(K key) {
     return delegate.higherEntry(checkValid(key));
   }
 
   @Override
-  public K higherKey(K key) {
+  public @Nullable K higherKey(K key) {
     return delegate.higherKey(checkValid(key));
   }
 
@@ -222,7 +212,7 @@ public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V>
   }
 
   @Override
-  public Entry<K, V> lastEntry() {
+  public @Nullable Entry<K, V> lastEntry() {
     return delegate.lastEntry();
   }
 
@@ -232,12 +222,12 @@ public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V>
   }
 
   @Override
-  public Entry<K, V> lowerEntry(K key) {
+  public @Nullable Entry<K, V> lowerEntry(K key) {
     return delegate.lowerEntry(checkValid(key));
   }
 
   @Override
-  public K lowerKey(K key) {
+  public @Nullable K lowerKey(K key) {
     return delegate.lowerKey(checkValid(key));
   }
 
@@ -247,17 +237,17 @@ public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V>
   }
 
   @Override
-  public Entry<K, V> pollFirstEntry() {
+  public @Nullable Entry<K, V> pollFirstEntry() {
     return delegate.pollFirstEntry();
   }
 
   @Override
-  public Entry<K, V> pollLastEntry() {
+  public @Nullable Entry<K, V> pollLastEntry() {
     return delegate.pollLastEntry();
   }
 
   @Override
-  public V put(K key, V value) {
+  public @Nullable V put(K key, V value) {
     return delegate.put(checkValid(key), value);
   }
 
@@ -270,7 +260,7 @@ public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V>
   }
 
   @Override
-  public V remove(Object key) {
+  public @Nullable V remove(@Nullable Object key) {
     return delegate.remove(checkValid(key));
   }
 
@@ -281,7 +271,7 @@ public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V>
 
   @Override
   public NavigableMap<K, V> subMap(K fromKey, boolean fromInclusive, K toKey, boolean toInclusive) {
-    return new SafeTreeMap<K, V>(
+    return new SafeTreeMap<>(
         delegate.subMap(checkValid(fromKey), fromInclusive, checkValid(toKey), toInclusive));
   }
 
@@ -297,7 +287,7 @@ public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V>
 
   @Override
   public NavigableMap<K, V> tailMap(K fromKey, boolean inclusive) {
-    return new SafeTreeMap<K, V>(delegate.tailMap(checkValid(fromKey), inclusive));
+    return new SafeTreeMap<>(delegate.tailMap(checkValid(fromKey), inclusive));
   }
 
   @Override
@@ -305,16 +295,17 @@ public final class SafeTreeMap<K, V> implements Serializable, NavigableMap<K, V>
     return delegate.values();
   }
 
+  @CanIgnoreReturnValue
   private <T> T checkValid(T t) {
     // a ClassCastException is what's supposed to happen!
     @SuppressWarnings("unchecked")
     K k = (K) t;
-    comparator().compare(k, k);
+    int unused = comparator().compare(k, k);
     return t;
   }
 
   @Override
-  public boolean equals(Object obj) {
+  public boolean equals(@Nullable Object obj) {
     return delegate.equals(obj);
   }
 

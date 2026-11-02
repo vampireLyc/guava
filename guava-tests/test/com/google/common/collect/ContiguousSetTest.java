@@ -19,6 +19,8 @@ package com.google.common.collect;
 import static com.google.common.collect.BoundType.CLOSED;
 import static com.google.common.collect.BoundType.OPEN;
 import static com.google.common.collect.DiscreteDomain.integers;
+import static com.google.common.collect.Sets.powerSet;
+import static com.google.common.collect.Sets.union;
 import static com.google.common.collect.testing.features.CollectionFeature.ALLOWS_NULL_QUERIES;
 import static com.google.common.collect.testing.features.CollectionFeature.KNOWN_ORDER;
 import static com.google.common.collect.testing.features.CollectionFeature.NON_STANDARD_TOSTRING;
@@ -27,9 +29,11 @@ import static com.google.common.collect.testing.testers.NavigableSetNavigationTe
 import static com.google.common.testing.SerializableTester.reserialize;
 import static com.google.common.testing.SerializableTester.reserializeAndAssert;
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.testing.NavigableSetTestSuiteBuilder;
 import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.collect.testing.google.SetGenerators.ContiguousSetDescendingGenerator;
@@ -43,11 +47,13 @@ import java.util.Set;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * @author Gregory Kick
  */
-@GwtCompatible(emulated = true)
+@GwtCompatible
+@NullUnmarked
 public class ContiguousSetTest extends TestCase {
   private static final DiscreteDomain<Integer> NOT_EQUAL_TO_INTEGERS =
       new DiscreteDomain<Integer>() {
@@ -77,11 +83,23 @@ public class ContiguousSetTest extends TestCase {
         }
       };
 
+  public void testInvalidIntRange() {
+    assertThrows(IllegalArgumentException.class, () -> ContiguousSet.closed(2, 1));
+    assertThrows(IllegalArgumentException.class, () -> ContiguousSet.closedOpen(2, 1));
+  }
+
+  public void testInvalidLongRange() {
+    assertThrows(IllegalArgumentException.class, () -> ContiguousSet.closed(2L, 1L));
+    assertThrows(IllegalArgumentException.class, () -> ContiguousSet.closedOpen(2L, 1L));
+  }
+
   public void testEquals() {
     new EqualsTester()
         .addEqualityGroup(
             ContiguousSet.create(Range.closed(1, 3), integers()),
+            ContiguousSet.closed(1, 3),
             ContiguousSet.create(Range.closedOpen(1, 4), integers()),
+            ContiguousSet.closedOpen(1, 4),
             ContiguousSet.create(Range.openClosed(0, 3), integers()),
             ContiguousSet.create(Range.open(0, 4), integers()),
             ContiguousSet.create(Range.closed(1, 3), NOT_EQUAL_TO_INTEGERS),
@@ -91,18 +109,20 @@ public class ContiguousSetTest extends TestCase {
             ImmutableSortedSet.of(1, 2, 3))
         .addEqualityGroup(
             ContiguousSet.create(Range.closedOpen(1, 1), integers()),
+            ContiguousSet.closedOpen(1, 1),
+            ContiguousSet.closedOpen(Integer.MIN_VALUE, Integer.MIN_VALUE),
             ImmutableSortedSet.of(),
             ImmutableSet.of())
         .testEquals();
     // not testing hashCode for these because it takes forever to compute
     assertEquals(
-        ContiguousSet.create(Range.closed(Integer.MIN_VALUE, Integer.MAX_VALUE), integers()),
-        ContiguousSet.create(Range.<Integer>all(), integers()));
+        ContiguousSet.closed(Integer.MIN_VALUE, Integer.MAX_VALUE),
+        ContiguousSet.create(Range.all(), integers()));
     assertEquals(
-        ContiguousSet.create(Range.closed(Integer.MIN_VALUE, Integer.MAX_VALUE), integers()),
+        ContiguousSet.closed(Integer.MIN_VALUE, Integer.MAX_VALUE),
         ContiguousSet.create(Range.atLeast(Integer.MIN_VALUE), integers()));
     assertEquals(
-        ContiguousSet.create(Range.closed(Integer.MIN_VALUE, Integer.MAX_VALUE), integers()),
+        ContiguousSet.closed(Integer.MIN_VALUE, Integer.MAX_VALUE),
         ContiguousSet.create(Range.atMost(Integer.MAX_VALUE), integers()));
   }
 
@@ -120,36 +140,53 @@ public class ContiguousSetTest extends TestCase {
      * Make sure that we're using RegularContiguousSet.SerializedForm and not
      * ImmutableSet.SerializedForm, which would be enormous.
      */
-    ContiguousSet<Integer> enormous = ContiguousSet.create(Range.<Integer>all(), integers());
+    ContiguousSet<Integer> enormous = ContiguousSet.create(Range.all(), integers());
     assertTrue(enormous instanceof RegularContiguousSet);
     // We can't use reserializeAndAssert because it calls hashCode, which is enormously slow.
     ContiguousSet<Integer> enormousReserialized = reserialize(enormous);
     assertEquals(enormous, enormousReserialized);
   }
 
+  private static final DiscreteDomain<Integer> UNBOUNDED_THROWING_DOMAIN =
+      new DiscreteDomain<Integer>() {
+        @Override
+        public Integer next(Integer value) {
+          throw new AssertionError();
+        }
+
+        @Override
+        public Integer previous(Integer value) {
+          throw new AssertionError();
+        }
+
+        @Override
+        public long distance(Integer start, Integer end) {
+          throw new AssertionError();
+        }
+      };
+
   public void testCreate_noMin() {
     Range<Integer> range = Range.lessThan(0);
-    try {
-      ContiguousSet.create(range, RangeTest.UNBOUNDED_DOMAIN);
-      fail();
-    } catch (IllegalArgumentException expected) {}
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> ContiguousSet.create(range, UNBOUNDED_THROWING_DOMAIN));
   }
 
   public void testCreate_noMax() {
     Range<Integer> range = Range.greaterThan(0);
-    try {
-      ContiguousSet.create(range, RangeTest.UNBOUNDED_DOMAIN);
-      fail();
-    } catch (IllegalArgumentException expected) {}
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> ContiguousSet.create(range, UNBOUNDED_THROWING_DOMAIN));
   }
 
   public void testCreate_empty() {
     assertEquals(ImmutableSet.of(), ContiguousSet.create(Range.closedOpen(1, 1), integers()));
+    assertEquals(ImmutableSet.of(), ContiguousSet.closedOpen(1, 1));
     assertEquals(ImmutableSet.of(), ContiguousSet.create(Range.openClosed(5, 5), integers()));
-    assertEquals(ImmutableSet.of(),
-        ContiguousSet.create(Range.lessThan(Integer.MIN_VALUE), integers()));
-    assertEquals(ImmutableSet.of(),
-        ContiguousSet.create(Range.greaterThan(Integer.MAX_VALUE), integers()));
+    assertEquals(
+        ImmutableSet.of(), ContiguousSet.create(Range.lessThan(Integer.MIN_VALUE), integers()));
+    assertEquals(
+        ImmutableSet.of(), ContiguousSet.create(Range.greaterThan(Integer.MAX_VALUE), integers()));
   }
 
   public void testHeadSet() {
@@ -205,10 +242,7 @@ public class ContiguousSetTest extends TestCase {
 
   public void testSubSet_outOfOrder() {
     ImmutableSortedSet<Integer> set = ContiguousSet.create(Range.closed(1, 3), integers());
-    try {
-      set.subSet(3, 2);
-      fail();
-    } catch (IllegalArgumentException expected) {}
+    assertThrows(IllegalArgumentException.class, () -> set.subSet(3, 2));
   }
 
   public void testSubSet_tooLarge() {
@@ -222,15 +256,15 @@ public class ContiguousSetTest extends TestCase {
   public void testFirst() {
     assertEquals(1, ContiguousSet.create(Range.closed(1, 3), integers()).first().intValue());
     assertEquals(1, ContiguousSet.create(Range.open(0, 4), integers()).first().intValue());
-    assertEquals(Integer.MIN_VALUE,
-        ContiguousSet.create(Range.<Integer>all(), integers()).first().intValue());
+    assertEquals(
+        Integer.MIN_VALUE, ContiguousSet.create(Range.all(), integers()).first().intValue());
   }
 
   public void testLast() {
     assertEquals(3, ContiguousSet.create(Range.closed(1, 3), integers()).last().intValue());
     assertEquals(3, ContiguousSet.create(Range.open(0, 4), integers()).last().intValue());
-    assertEquals(Integer.MAX_VALUE,
-        ContiguousSet.create(Range.<Integer>all(), integers()).last().intValue());
+    assertEquals(
+        Integer.MAX_VALUE, ContiguousSet.create(Range.all(), integers()).last().intValue());
   }
 
   public void testContains() {
@@ -246,83 +280,111 @@ public class ContiguousSetTest extends TestCase {
     assertTrue(set.contains(2));
     assertTrue(set.contains(3));
     assertFalse(set.contains(4));
+  }
+
+  // TODO(user): Enable when Kotlin throws expected CCE.
+  @J2ktIncompatible
+  public void testContains_typeMismatch() {
+    ImmutableSortedSet<Integer> set = ContiguousSet.create(Range.open(0, 4), integers());
     assertFalse(set.contains((Object) "blah"));
   }
 
   public void testContainsAll() {
     ImmutableSortedSet<Integer> set = ContiguousSet.create(Range.closed(1, 3), integers());
-    for (Set<Integer> subset : Sets.powerSet(ImmutableSet.of(1, 2, 3))) {
+    for (Set<Integer> subset : powerSet(ImmutableSet.of(1, 2, 3))) {
       assertTrue(set.containsAll(subset));
     }
-    for (Set<Integer> subset : Sets.powerSet(ImmutableSet.of(1, 2, 3))) {
-      assertFalse(set.containsAll(Sets.union(subset, ImmutableSet.of(9))));
+    for (Set<Integer> subset : powerSet(ImmutableSet.of(1, 2, 3))) {
+      assertFalse(set.containsAll(union(subset, ImmutableSet.of(9))));
     }
+  }
+
+  // TODO(user): Enable when Kotlin throws expected CCE.
+  @J2ktIncompatible
+  public void testContainsAll_typeMismatch() {
+    ImmutableSortedSet<Integer> set = ContiguousSet.create(Range.closed(1, 3), integers());
     assertFalse(set.containsAll((Collection<?>) ImmutableSet.of("blah")));
   }
 
   public void testRange() {
-    assertEquals(Range.closed(1, 3),
-        ContiguousSet.create(Range.closed(1, 3), integers()).range());
-    assertEquals(Range.closed(1, 3),
-        ContiguousSet.create(Range.closedOpen(1, 4), integers()).range());
+    assertEquals(Range.closed(1, 3), ContiguousSet.create(Range.closed(1, 3), integers()).range());
+    assertEquals(Range.closed(1, 3), ContiguousSet.closed(1, 3).range());
+    assertEquals(
+        Range.closed(1, 3), ContiguousSet.create(Range.closedOpen(1, 4), integers()).range());
+    assertEquals(Range.closed(1, 3), ContiguousSet.closedOpen(1, 4).range());
     assertEquals(Range.closed(1, 3), ContiguousSet.create(Range.open(0, 4), integers()).range());
-    assertEquals(Range.closed(1, 3),
-        ContiguousSet.create(Range.openClosed(0, 3), integers()).range());
+    assertEquals(
+        Range.closed(1, 3), ContiguousSet.create(Range.openClosed(0, 3), integers()).range());
 
-    assertEquals(Range.openClosed(0, 3),
+    assertEquals(
+        Range.openClosed(0, 3),
         ContiguousSet.create(Range.closed(1, 3), integers()).range(OPEN, CLOSED));
-    assertEquals(Range.openClosed(0, 3),
+    assertEquals(
+        Range.openClosed(0, 3),
         ContiguousSet.create(Range.closedOpen(1, 4), integers()).range(OPEN, CLOSED));
-    assertEquals(Range.openClosed(0, 3),
+    assertEquals(
+        Range.openClosed(0, 3),
         ContiguousSet.create(Range.open(0, 4), integers()).range(OPEN, CLOSED));
-    assertEquals(Range.openClosed(0, 3),
+    assertEquals(
+        Range.openClosed(0, 3),
         ContiguousSet.create(Range.openClosed(0, 3), integers()).range(OPEN, CLOSED));
 
-    assertEquals(Range.open(0, 4),
-        ContiguousSet.create(Range.closed(1, 3), integers()).range(OPEN, OPEN));
-    assertEquals(Range.open(0, 4),
+    assertEquals(
+        Range.open(0, 4), ContiguousSet.create(Range.closed(1, 3), integers()).range(OPEN, OPEN));
+    assertEquals(
+        Range.open(0, 4),
         ContiguousSet.create(Range.closedOpen(1, 4), integers()).range(OPEN, OPEN));
-    assertEquals(Range.open(0, 4),
-        ContiguousSet.create(Range.open(0, 4), integers()).range(OPEN, OPEN));
-    assertEquals(Range.open(0, 4),
+    assertEquals(
+        Range.open(0, 4), ContiguousSet.create(Range.open(0, 4), integers()).range(OPEN, OPEN));
+    assertEquals(
+        Range.open(0, 4),
         ContiguousSet.create(Range.openClosed(0, 3), integers()).range(OPEN, OPEN));
 
-    assertEquals(Range.closedOpen(1, 4),
+    assertEquals(
+        Range.closedOpen(1, 4),
         ContiguousSet.create(Range.closed(1, 3), integers()).range(CLOSED, OPEN));
-    assertEquals(Range.closedOpen(1, 4),
+    assertEquals(
+        Range.closedOpen(1, 4),
         ContiguousSet.create(Range.closedOpen(1, 4), integers()).range(CLOSED, OPEN));
-    assertEquals(Range.closedOpen(1, 4),
+    assertEquals(
+        Range.closedOpen(1, 4),
         ContiguousSet.create(Range.open(0, 4), integers()).range(CLOSED, OPEN));
-    assertEquals(Range.closedOpen(1, 4),
+    assertEquals(
+        Range.closedOpen(1, 4),
         ContiguousSet.create(Range.openClosed(0, 3), integers()).range(CLOSED, OPEN));
   }
 
   public void testRange_unboundedRange() {
-    assertEquals(Range.closed(Integer.MIN_VALUE, Integer.MAX_VALUE),
-        ContiguousSet.create(Range.<Integer>all(), integers()).range());
-    assertEquals(Range.atLeast(Integer.MIN_VALUE),
-        ContiguousSet.create(Range.<Integer>all(), integers()).range(CLOSED, OPEN));
-    assertEquals(Range.all(),
-        ContiguousSet.create(Range.<Integer>all(), integers()).range(OPEN, OPEN));
-    assertEquals(Range.atMost(Integer.MAX_VALUE),
-        ContiguousSet.create(Range.<Integer>all(), integers()).range(OPEN, CLOSED));
+    assertEquals(
+        Range.closed(Integer.MIN_VALUE, Integer.MAX_VALUE),
+        ContiguousSet.create(Range.all(), integers()).range());
+    assertEquals(
+        Range.atLeast(Integer.MIN_VALUE),
+        ContiguousSet.create(Range.all(), integers()).range(CLOSED, OPEN));
+    assertEquals(Range.all(), ContiguousSet.create(Range.all(), integers()).range(OPEN, OPEN));
+    assertEquals(
+        Range.atMost(Integer.MAX_VALUE),
+        ContiguousSet.create(Range.all(), integers()).range(OPEN, CLOSED));
   }
 
   public void testIntersection_empty() {
-    ContiguousSet<Integer> set = ContiguousSet.create(Range.closed(1, 3), integers());
-    ContiguousSet<Integer> emptySet = ContiguousSet.create(Range.closedOpen(2, 2), integers());
+    ContiguousSet<Integer> set = ContiguousSet.closed(1, 3);
+    ContiguousSet<Integer> emptySet = ContiguousSet.closedOpen(2, 2);
     assertEquals(ImmutableSet.of(), set.intersection(emptySet));
     assertEquals(ImmutableSet.of(), emptySet.intersection(set));
-    assertEquals(ImmutableSet.of(),
-        ContiguousSet.create(Range.closed(-5, -1), integers()).intersection(
-            ContiguousSet.create(Range.open(3, 64), integers())));
+    assertEquals(
+        ImmutableSet.of(),
+        ContiguousSet.create(Range.closed(-5, -1), integers())
+            .intersection(ContiguousSet.create(Range.open(3, 64), integers())));
   }
 
   public void testIntersection() {
     ContiguousSet<Integer> set = ContiguousSet.create(Range.closed(1, 3), integers());
-    assertEquals(ImmutableSet.of(1, 2, 3),
+    assertEquals(
+        ImmutableSet.of(1, 2, 3),
         ContiguousSet.create(Range.open(-1, 4), integers()).intersection(set));
-    assertEquals(ImmutableSet.of(1, 2, 3),
+    assertEquals(
+        ImmutableSet.of(1, 2, 3),
         set.intersection(ContiguousSet.create(Range.open(-1, 4), integers())));
     assertEquals(
         ImmutableSet.of(3), set.intersection(ContiguousSet.create(Range.closed(3, 5), integers())));
@@ -337,50 +399,72 @@ public class ContiguousSetTest extends TestCase {
     assertEquals(ImmutableList.of(1, 2, 3), ImmutableList.copyOf(list.toArray(new Integer[0])));
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // suite
+  @AndroidIncompatible // test-suite builders
   public static class BuiltTests extends TestCase {
     public static Test suite() {
       TestSuite suite = new TestSuite();
 
-      suite.addTest(NavigableSetTestSuiteBuilder.using(
-          new ContiguousSetGenerator())
-          .named("Range.asSet")
-          .withFeatures(CollectionSize.ANY, KNOWN_ORDER, ALLOWS_NULL_QUERIES,
-              NON_STANDARD_TOSTRING, RESTRICTS_ELEMENTS)
-          .suppressing(getHoleMethods())
-          .createTestSuite());
+      suite.addTest(
+          NavigableSetTestSuiteBuilder.using(new ContiguousSetGenerator())
+              .named("Range.asSet")
+              .withFeatures(
+                  CollectionSize.ANY,
+                  KNOWN_ORDER,
+                  ALLOWS_NULL_QUERIES,
+                  NON_STANDARD_TOSTRING,
+                  RESTRICTS_ELEMENTS)
+              .suppressing(getHoleMethods())
+              .createTestSuite());
 
-      suite.addTest(NavigableSetTestSuiteBuilder.using(
-          new ContiguousSetHeadsetGenerator())
-          .named("Range.asSet, headset")
-          .withFeatures(CollectionSize.ANY, KNOWN_ORDER, ALLOWS_NULL_QUERIES,
-              NON_STANDARD_TOSTRING, RESTRICTS_ELEMENTS)
-          .suppressing(getHoleMethods())
-          .createTestSuite());
+      suite.addTest(
+          NavigableSetTestSuiteBuilder.using(new ContiguousSetHeadsetGenerator())
+              .named("Range.asSet, headset")
+              .withFeatures(
+                  CollectionSize.ANY,
+                  KNOWN_ORDER,
+                  ALLOWS_NULL_QUERIES,
+                  NON_STANDARD_TOSTRING,
+                  RESTRICTS_ELEMENTS)
+              .suppressing(getHoleMethods())
+              .createTestSuite());
 
-      suite.addTest(NavigableSetTestSuiteBuilder.using(
-          new ContiguousSetTailsetGenerator())
-          .named("Range.asSet, tailset")
-          .withFeatures(CollectionSize.ANY, KNOWN_ORDER, ALLOWS_NULL_QUERIES,
-              NON_STANDARD_TOSTRING, RESTRICTS_ELEMENTS)
-          .suppressing(getHoleMethods())
-          .createTestSuite());
+      suite.addTest(
+          NavigableSetTestSuiteBuilder.using(new ContiguousSetTailsetGenerator())
+              .named("Range.asSet, tailset")
+              .withFeatures(
+                  CollectionSize.ANY,
+                  KNOWN_ORDER,
+                  ALLOWS_NULL_QUERIES,
+                  NON_STANDARD_TOSTRING,
+                  RESTRICTS_ELEMENTS)
+              .suppressing(getHoleMethods())
+              .createTestSuite());
 
-      suite.addTest(NavigableSetTestSuiteBuilder.using(
-          new ContiguousSetSubsetGenerator())
-          .named("Range.asSet, subset")
-          .withFeatures(CollectionSize.ANY, KNOWN_ORDER, ALLOWS_NULL_QUERIES,
-              NON_STANDARD_TOSTRING, RESTRICTS_ELEMENTS)
-          .suppressing(getHoleMethods())
-          .createTestSuite());
+      suite.addTest(
+          NavigableSetTestSuiteBuilder.using(new ContiguousSetSubsetGenerator())
+              .named("Range.asSet, subset")
+              .withFeatures(
+                  CollectionSize.ANY,
+                  KNOWN_ORDER,
+                  ALLOWS_NULL_QUERIES,
+                  NON_STANDARD_TOSTRING,
+                  RESTRICTS_ELEMENTS)
+              .suppressing(getHoleMethods())
+              .createTestSuite());
 
-      suite.addTest(NavigableSetTestSuiteBuilder.using(
-          new ContiguousSetDescendingGenerator())
-          .named("Range.asSet.descendingSet")
-          .withFeatures(CollectionSize.ANY, KNOWN_ORDER, ALLOWS_NULL_QUERIES,
-              NON_STANDARD_TOSTRING, RESTRICTS_ELEMENTS)
-          .suppressing(getHoleMethods())
-          .createTestSuite());
+      suite.addTest(
+          NavigableSetTestSuiteBuilder.using(new ContiguousSetDescendingGenerator())
+              .named("Range.asSet.descendingSet")
+              .withFeatures(
+                  CollectionSize.ANY,
+                  KNOWN_ORDER,
+                  ALLOWS_NULL_QUERIES,
+                  NON_STANDARD_TOSTRING,
+                  RESTRICTS_ELEMENTS)
+              .suppressing(getHoleMethods())
+              .createTestSuite());
 
       return suite;
     }

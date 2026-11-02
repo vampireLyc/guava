@@ -14,14 +14,17 @@
 
 package com.google.common.util.concurrent;
 
-import com.google.common.annotations.Beta;
+import static com.google.common.collect.Lists.newArrayList;
+import static java.util.Arrays.sort;
+import static java.util.Collections.unmodifiableList;
+
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.MapMaker;
 import com.google.common.math.IntMath;
 import com.google.common.primitives.Ints;
@@ -29,16 +32,16 @@ import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.math.RoundingMode;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A striped {@code Lock/Semaphore/ReadWriteLock}. This offers the underlying lock striping similar
@@ -51,22 +54,21 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * <p>The guarantee provided by this class is that equal keys lead to the same lock (or semaphore),
  * i.e. {@code if (key1.equals(key2))} then {@code striped.get(key1) == striped.get(key2)} (assuming
  * {@link Object#hashCode()} is correctly implemented for the keys). Note that if {@code key1} is
- * <strong>not</strong> equal to {@code key2}, it is <strong>not</strong> guaranteed that
- * {@code striped.get(key1) != striped.get(key2)}; the elements might nevertheless be mapped to the
- * same lock. The lower the number of stripes, the higher the probability of this happening.
+ * <strong>not</strong> equal to {@code key2}, it is <strong>not</strong> guaranteed that {@code
+ * striped.get(key1) != striped.get(key2)}; the elements might nevertheless be mapped to the same
+ * lock. The lower the number of stripes, the higher the probability of this happening.
  *
  * <p>There are three flavors of this class: {@code Striped<Lock>}, {@code Striped<Semaphore>}, and
- * {@code Striped<ReadWriteLock>}. For each type, two implementations are offered:
- * {@linkplain #lock(int) strong} and {@linkplain #lazyWeakLock(int) weak} {@code Striped<Lock>},
- * {@linkplain #semaphore(int, int) strong} and {@linkplain #lazyWeakSemaphore(int, int) weak}
- * {@code Striped<Semaphore>}, and {@linkplain #readWriteLock(int) strong} and
- * {@linkplain #lazyWeakReadWriteLock(int) weak} {@code Striped<ReadWriteLock>}. <i>Strong</i> means
- * that all stripes (locks/semaphores) are initialized eagerly, and are not reclaimed unless
- * {@code Striped} itself is reclaimable. <i>Weak</i> means that locks/semaphores are created
- * lazily, and they are allowed to be reclaimed if nobody is holding on to them. This is useful, for
- * example, if one wants to create a {@code
- * Striped<Lock>} of many locks, but worries that in most cases only a small portion of these would
- * be in use.
+ * {@code Striped<ReadWriteLock>}. For each type, two implementations are offered: {@linkplain
+ * #lock(int) strong} and {@linkplain #lazyWeakLock(int) weak} {@code Striped<Lock>}, {@linkplain
+ * #semaphore(int, int) strong} and {@linkplain #lazyWeakSemaphore(int, int) weak} {@code
+ * Striped<Semaphore>}, and {@linkplain #readWriteLock(int) strong} and {@linkplain
+ * #lazyWeakReadWriteLock(int) weak} {@code Striped<ReadWriteLock>}. <i>Strong</i> means that all
+ * stripes (locks/semaphores) are initialized eagerly, and are not reclaimed unless {@code Striped}
+ * itself is reclaimable. <i>Weak</i> means that locks/semaphores are created lazily, and they are
+ * allowed to be reclaimed if nobody is holding on to them. This is useful, for example, if one
+ * wants to create a {@code Striped<Lock>} of many locks, but worries that in most cases only a
+ * small portion of these would be in use.
  *
  * <p>Prior to this class, one might be tempted to use {@code Map<K, Lock>}, where {@code K}
  * represents the task. This maximizes concurrency by having each unique key mapped to a unique
@@ -80,7 +82,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * @author Dimitris Andreou
  * @since 13.0
  */
-@Beta
+@J2ktIncompatible
 @GwtIncompatible
 public abstract class Striped<L> {
   /**
@@ -93,8 +95,8 @@ public abstract class Striped<L> {
   private Striped() {}
 
   /**
-   * Returns the stripe that corresponds to the passed key. It is always guaranteed that if
-   * {@code key1.equals(key2)}, then {@code get(key1) == get(key2)}.
+   * Returns the stripe that corresponds to the passed key. It is always guaranteed that if {@code
+   * key1.equals(key2)}, then {@code get(key1) == get(key2)}.
    *
    * @param key an arbitrary, non-null key
    * @return the stripe that the passed key corresponds to
@@ -115,49 +117,47 @@ public abstract class Striped<L> {
    */
   abstract int indexFor(Object key);
 
-  /**
-   * Returns the total number of stripes in this instance.
-   */
+  /** Returns the total number of stripes in this instance. */
   public abstract int size();
 
   /**
-   * Returns the stripes that correspond to the passed objects, in ascending (as per
-   * {@link #getAt(int)}) order. Thus, threads that use the stripes in the order returned by this
-   * method are guaranteed to not deadlock each other.
+   * Returns the stripes that correspond to the passed objects, in ascending (as per {@link
+   * #getAt(int)}) order. Thus, threads that use the stripes in the order returned by this method
+   * are guaranteed to not deadlock each other.
    *
-   * <p>It should be noted that using a {@code Striped<L>} with relatively few stripes, and
-   * {@code bulkGet(keys)} with a relative large number of keys can cause an excessive number of
-   * shared stripes (much like the birthday paradox, where much fewer than anticipated birthdays are
-   * needed for a pair of them to match). Please consider carefully the implications of the number
-   * of stripes, the intended concurrency level, and the typical number of keys used in a
-   * {@code bulkGet(keys)} operation. See <a href="http://www.mathpages.com/home/kmath199.htm">Balls
-   * in Bins model</a> for mathematical formulas that can be used to estimate the probability of
+   * <p>It should be noted that using a {@code Striped<L>} with relatively few stripes, and {@code
+   * bulkGet(keys)} with a relative large number of keys can cause an excessive number of shared
+   * stripes (much like the birthday paradox, where much fewer than anticipated birthdays are needed
+   * for a pair of them to match). Please consider carefully the implications of the number of
+   * stripes, the intended concurrency level, and the typical number of keys used in a {@code
+   * bulkGet(keys)} operation. See <a href="http://www.mathpages.com/home/kmath199.htm">Balls in
+   * Bins model</a> for mathematical formulas that can be used to estimate the probability of
    * collisions.
    *
    * @param keys arbitrary non-null keys
    * @return the stripes corresponding to the objects (one per each object, derived by delegating to
    *     {@link #get(Object)}; may contain duplicates), in an increasing index order.
    */
-  public Iterable<L> bulkGet(Iterable<?> keys) {
-    // Initially using the array to store the keys, then reusing it to store the respective L's
-    final Object[] array = Iterables.toArray(keys, Object.class);
-    if (array.length == 0) {
+  public Iterable<L> bulkGet(Iterable<? extends Object> keys) {
+    // Initially using the list to store the keys, then reusing it to store the respective L's
+    List<Object> result = newArrayList(keys);
+    if (result.isEmpty()) {
       return ImmutableList.of();
     }
-    int[] stripes = new int[array.length];
-    for (int i = 0; i < array.length; i++) {
-      stripes[i] = indexFor(array[i]);
+    int[] stripes = new int[result.size()];
+    for (int i = 0; i < result.size(); i++) {
+      stripes[i] = indexFor(result.get(i));
     }
-    Arrays.sort(stripes);
+    sort(stripes);
     // optimize for runs of identical stripes
     int previousStripe = stripes[0];
-    array[0] = getAt(previousStripe);
-    for (int i = 1; i < array.length; i++) {
+    result.set(0, getAt(previousStripe));
+    for (int i = 1; i < result.size(); i++) {
       int currentStripe = stripes[i];
       if (currentStripe == previousStripe) {
-        array[i] = array[i - 1];
+        result.set(i, result.get(i - 1));
       } else {
-        array[i] = getAt(currentStripe);
+        result.set(i, getAt(currentStripe));
         previousStripe = currentStripe;
       }
     }
@@ -179,11 +179,24 @@ public abstract class Striped<L> {
      * be garbage collected after locking them, ending up in a huge mess.
      */
     @SuppressWarnings("unchecked") // we carefully replaced all keys with their respective L's
-    List<L> asList = (List<L>) Arrays.asList(array);
-    return Collections.unmodifiableList(asList);
+    List<L> asStripes = (List<L>) result;
+    return unmodifiableList(asStripes);
   }
 
   // Static factories
+
+  /**
+   * Creates a {@code Striped<L>} with eagerly initialized, strongly referenced locks. Every lock is
+   * obtained from the passed supplier.
+   *
+   * @param stripes the minimum number of stripes (locks) required
+   * @param supplier a {@code Supplier<L>} object to obtain locks from
+   * @return a new {@code Striped<L>}
+   * @since 33.5.0
+   */
+  public static <L> Striped<L> custom(int stripes, Supplier<L> supplier) {
+    return new CompactStriped<>(stripes, supplier);
+  }
 
   /**
    * Creates a {@code Striped<Lock>} with eagerly initialized, strongly referenced locks. Every lock
@@ -193,14 +206,7 @@ public abstract class Striped<L> {
    * @return a new {@code Striped<Lock>}
    */
   public static Striped<Lock> lock(int stripes) {
-    return new CompactStriped<Lock>(
-        stripes,
-        new Supplier<Lock>() {
-          @Override
-          public Lock get() {
-            return new PaddedLock();
-          }
-        });
+    return custom(stripes, PaddedLock::new);
   }
 
   /**
@@ -211,17 +217,18 @@ public abstract class Striped<L> {
    * @return a new {@code Striped<Lock>}
    */
   public static Striped<Lock> lazyWeakLock(int stripes) {
-    return lazy(
-        stripes,
-        new Supplier<Lock>() {
-          @Override
-          public Lock get() {
-            return new ReentrantLock(false);
-          }
-        });
+    return lazyWeakCustom(stripes, () -> new ReentrantLock(false));
   }
 
-  private static <L> Striped<L> lazy(int stripes, Supplier<L> supplier) {
+  /**
+   * Creates a {@code Striped<L>} with lazily initialized, weakly referenced locks. Every lock is
+   * obtained from the passed supplier.
+   *
+   * @param stripes the minimum number of stripes (locks) required
+   * @param supplier a {@code Supplier<L>} object to obtain locks from
+   * @return a new {@code Striped<L>}
+   */
+  static <L> Striped<L> lazyWeakCustom(int stripes, Supplier<L> supplier) {
     return stripes < LARGE_LAZY_CUTOFF
         ? new SmallLazyStriped<L>(stripes, supplier)
         : new LargeLazyStriped<L>(stripes, supplier);
@@ -235,15 +242,8 @@ public abstract class Striped<L> {
    * @param permits the number of permits in each semaphore
    * @return a new {@code Striped<Semaphore>}
    */
-  public static Striped<Semaphore> semaphore(int stripes, final int permits) {
-    return new CompactStriped<Semaphore>(
-        stripes,
-        new Supplier<Semaphore>() {
-          @Override
-          public Semaphore get() {
-            return new PaddedSemaphore(permits);
-          }
-        });
+  public static Striped<Semaphore> semaphore(int stripes, int permits) {
+    return custom(stripes, () -> new PaddedSemaphore(permits));
   }
 
   /**
@@ -254,15 +254,8 @@ public abstract class Striped<L> {
    * @param permits the number of permits in each semaphore
    * @return a new {@code Striped<Semaphore>}
    */
-  public static Striped<Semaphore> lazyWeakSemaphore(int stripes, final int permits) {
-    return lazy(
-        stripes,
-        new Supplier<Semaphore>() {
-          @Override
-          public Semaphore get() {
-            return new Semaphore(permits, false);
-          }
-        });
+  public static Striped<Semaphore> lazyWeakSemaphore(int stripes, int permits) {
+    return lazyWeakCustom(stripes, () -> new Semaphore(permits, false));
   }
 
   /**
@@ -273,7 +266,7 @@ public abstract class Striped<L> {
    * @return a new {@code Striped<ReadWriteLock>}
    */
   public static Striped<ReadWriteLock> readWriteLock(int stripes) {
-    return new CompactStriped<ReadWriteLock>(stripes, READ_WRITE_LOCK_SUPPLIER);
+    return custom(stripes, ReentrantReadWriteLock::new);
   }
 
   /**
@@ -284,17 +277,72 @@ public abstract class Striped<L> {
    * @return a new {@code Striped<ReadWriteLock>}
    */
   public static Striped<ReadWriteLock> lazyWeakReadWriteLock(int stripes) {
-    return lazy(stripes, READ_WRITE_LOCK_SUPPLIER);
+    return lazyWeakCustom(stripes, WeakSafeReadWriteLock::new);
   }
 
-  // ReentrantReadWriteLock is large enough to make padding probably unnecessary
-  private static final Supplier<ReadWriteLock> READ_WRITE_LOCK_SUPPLIER =
-      new Supplier<ReadWriteLock>() {
-        @Override
-        public ReadWriteLock get() {
-          return new ReentrantReadWriteLock();
-        }
-      };
+  /**
+   * ReadWriteLock implementation whose read and write locks retain a reference back to this lock.
+   * Otherwise, a reference to just the read lock or just the write lock would not suffice to ensure
+   * the {@code ReadWriteLock} is retained.
+   */
+  private static final class WeakSafeReadWriteLock implements ReadWriteLock {
+    private final ReadWriteLock delegate;
+
+    WeakSafeReadWriteLock() {
+      this.delegate = new ReentrantReadWriteLock();
+    }
+
+    @Override
+    public Lock readLock() {
+      return new WeakSafeLock(delegate.readLock(), this);
+    }
+
+    @Override
+    public Lock writeLock() {
+      return new WeakSafeLock(delegate.writeLock(), this);
+    }
+  }
+
+  /** Lock object that ensures a strong reference is retained to a specified object. */
+  private static final class WeakSafeLock extends ForwardingLock {
+    private final Lock delegate;
+
+    @SuppressWarnings("unused")
+    private final WeakSafeReadWriteLock strongReference;
+
+    WeakSafeLock(Lock delegate, WeakSafeReadWriteLock strongReference) {
+      this.delegate = delegate;
+      this.strongReference = strongReference;
+    }
+
+    @Override
+    Lock delegate() {
+      return delegate;
+    }
+
+    @Override
+    public Condition newCondition() {
+      return new WeakSafeCondition(delegate.newCondition(), strongReference);
+    }
+  }
+
+  /** Condition object that ensures a strong reference is retained to a specified object. */
+  private static final class WeakSafeCondition extends ForwardingCondition {
+    private final Condition delegate;
+
+    @SuppressWarnings("unused")
+    private final WeakSafeReadWriteLock strongReference;
+
+    WeakSafeCondition(Condition delegate, WeakSafeReadWriteLock strongReference) {
+      this.delegate = delegate;
+      this.strongReference = strongReference;
+    }
+
+    @Override
+    Condition delegate() {
+      return delegate;
+    }
+  }
 
   private abstract static class PowerOfTwoStriped<L> extends Striped<L> {
     /** Capacity (power of two) minus one, for fast mod evaluation */
@@ -321,7 +369,7 @@ public abstract class Striped<L> {
    * Implementation of Striped where 2^k stripes are represented as an array of the same length,
    * eagerly initialized.
    */
-  private static class CompactStriped<L> extends PowerOfTwoStriped<L> {
+  private static final class CompactStriped<L> extends PowerOfTwoStriped<L> {
     /** Size is a power of two. */
     private final Object[] array;
 
@@ -353,16 +401,16 @@ public abstract class Striped<L> {
    * user key's (smeared) hashCode(). The stripes are lazily initialized and are weakly referenced.
    */
   @VisibleForTesting
-  static class SmallLazyStriped<L> extends PowerOfTwoStriped<L> {
-    final AtomicReferenceArray<ArrayReference<? extends L>> locks;
+  static final class SmallLazyStriped<L> extends PowerOfTwoStriped<L> {
+    final AtomicReferenceArray<@Nullable ArrayReference<? extends L>> locks;
     final Supplier<L> supplier;
     final int size;
-    final ReferenceQueue<L> queue = new ReferenceQueue<L>();
+    final ReferenceQueue<L> queue = new ReferenceQueue<>();
 
     SmallLazyStriped(int stripes, Supplier<L> supplier) {
       super(stripes);
       this.size = (mask == ALL_SET) ? Integer.MAX_VALUE : mask + 1;
-      this.locks = new AtomicReferenceArray<ArrayReference<? extends L>>(size);
+      this.locks = new AtomicReferenceArray<>(size);
       this.supplier = supplier;
     }
 
@@ -377,7 +425,7 @@ public abstract class Striped<L> {
         return existing;
       }
       L created = supplier.get();
-      ArrayReference<L> newRef = new ArrayReference<L>(created, index, queue);
+      ArrayReference<L> newRef = new ArrayReference<>(created, index, queue);
       while (!locks.compareAndSet(index, existingRef, newRef)) {
         // we raced, we need to re-read and try again
         existingRef = locks.get(index);
@@ -425,7 +473,7 @@ public abstract class Striped<L> {
    * user key's (smeared) hashCode(). The stripes are lazily initialized and are weakly referenced.
    */
   @VisibleForTesting
-  static class LargeLazyStriped<L> extends PowerOfTwoStriped<L> {
+  static final class LargeLazyStriped<L> extends PowerOfTwoStriped<L> {
     final ConcurrentMap<Integer, L> locks;
     final Supplier<L> supplier;
     final int size;
@@ -457,9 +505,7 @@ public abstract class Striped<L> {
     }
   }
 
-  /**
-   * A bit mask were all bits are set.
-   */
+  /** A bit mask were all bits are set. */
   private static final int ALL_SET = ~0;
 
   private static int ceilToPowerOfTwo(int x) {
@@ -480,7 +526,7 @@ public abstract class Striped<L> {
     return hashCode ^ (hashCode >>> 7) ^ (hashCode >>> 4);
   }
 
-  private static class PaddedLock extends ReentrantLock {
+  private static final class PaddedLock extends ReentrantLock {
     /*
      * Padding from 40 into 64 bytes, same size as cache line. Might be beneficial to add a fourth
      * long here, to minimize chance of interference between consecutive locks, but I couldn't
@@ -495,7 +541,7 @@ public abstract class Striped<L> {
     }
   }
 
-  private static class PaddedSemaphore extends Semaphore {
+  private static final class PaddedSemaphore extends Semaphore {
     // See PaddedReentrantLock comment
     long unused1;
     long unused2;

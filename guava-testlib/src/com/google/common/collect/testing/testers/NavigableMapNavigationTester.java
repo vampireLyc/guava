@@ -16,14 +16,17 @@
 
 package com.google.common.collect.testing.testers;
 
+import static com.google.common.collect.testing.Helpers.copyToList;
+import static com.google.common.collect.testing.Helpers.entryComparator;
 import static com.google.common.collect.testing.features.CollectionSize.ONE;
 import static com.google.common.collect.testing.features.CollectionSize.SEVERAL;
 import static com.google.common.collect.testing.features.CollectionSize.ZERO;
 import static com.google.common.collect.testing.features.MapFeature.SUPPORTS_REMOVE;
+import static java.util.Collections.sort;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtIncompatible;
 import com.google.common.collect.testing.AbstractMapTester;
-import com.google.common.collect.testing.Helpers;
 import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.collect.testing.features.MapFeature;
 import java.util.ArrayList;
@@ -33,8 +36,8 @@ import java.util.Map.Entry;
 import java.util.NavigableMap;
 
 /**
- * A generic JUnit test which tests operations on a NavigableMap. Can't be
- * invoked directly; please see {@code NavigableMapTestSuiteBuilder}.
+ * A generic JUnit test which tests operations on a NavigableMap. Can't be invoked directly; please
+ * see {@code NavigableMapTestSuiteBuilder}.
  *
  * @author Jesse Wilson
  * @author Louis Wasserman
@@ -53,10 +56,10 @@ public class NavigableMapNavigationTester<K, V> extends AbstractMapTester<K, V> 
     super.setUp();
     navigableMap = (NavigableMap<K, V>) getMap();
     entries =
-        Helpers.copyToList(
+        copyToList(
             getSubjectGenerator()
                 .getSampleElements(getSubjectGenerator().getCollectionSize().getNumElements()));
-    Collections.sort(entries, Helpers.<K, V>entryComparator(navigableMap.comparator()));
+    sort(entries, entryComparator(navigableMap.comparator()));
 
     // some tests assume SEVERAL == 3
     if (entries.size() >= 1) {
@@ -68,13 +71,10 @@ public class NavigableMapNavigationTester<K, V> extends AbstractMapTester<K, V> 
     }
   }
 
-  /**
-   * Resets the contents of navigableMap to have entries a, c, for the
-   * navigation tests.
-   */
+  /** Resets the contents of navigableMap to have entries a, c, for the navigation tests. */
   @SuppressWarnings("unchecked") // Needed to stop Eclipse whining
   private void resetWithHole() {
-    Entry<K, V>[] entries = new Entry[] {a, c};
+    Entry<K, V>[] entries = (Entry<K, V>[]) new Entry<?, ?>[] {a, c};
     super.resetMap(entries);
     navigableMap = (NavigableMap<K, V>) getMap();
   }
@@ -115,13 +115,13 @@ public class NavigableMapNavigationTester<K, V> extends AbstractMapTester<K, V> 
 
   @CollectionSize.Require(ONE)
   public void testSingletonMapFirst() {
-    assertEquals(a, navigableMap.firstEntry());
+    assertEqualImmutableEntry(a, navigableMap.firstEntry());
   }
 
   @MapFeature.Require(SUPPORTS_REMOVE)
   @CollectionSize.Require(ONE)
   public void testSingletonMapPollFirst() {
-    assertEquals(a, navigableMap.pollFirstEntry());
+    assertEqualImmutableEntry(a, navigableMap.pollFirstEntry());
     assertTrue(navigableMap.isEmpty());
   }
 
@@ -129,9 +129,9 @@ public class NavigableMapNavigationTester<K, V> extends AbstractMapTester<K, V> 
   public void testSingletonMapNearby() {
     assertNull(navigableMap.lowerEntry(k0()));
     assertNull(navigableMap.lowerKey(k0()));
-    assertEquals(a, navigableMap.floorEntry(k0()));
+    assertEqualImmutableEntry(a, navigableMap.floorEntry(k0()));
     assertEquals(a.getKey(), navigableMap.floorKey(k0()));
-    assertEquals(a, navigableMap.ceilingEntry(k0()));
+    assertEqualImmutableEntry(a, navigableMap.ceilingEntry(k0()));
     assertEquals(a.getKey(), navigableMap.ceilingKey(k0()));
     assertNull(navigableMap.higherEntry(k0()));
     assertNull(navigableMap.higherKey(k0()));
@@ -139,35 +139,31 @@ public class NavigableMapNavigationTester<K, V> extends AbstractMapTester<K, V> 
 
   @CollectionSize.Require(ONE)
   public void testSingletonMapLast() {
-    assertEquals(a, navigableMap.lastEntry());
+    assertEqualImmutableEntry(a, navigableMap.lastEntry());
   }
 
   @MapFeature.Require(SUPPORTS_REMOVE)
   @CollectionSize.Require(ONE)
   public void testSingletonMapPollLast() {
-    assertEquals(a, navigableMap.pollLastEntry());
+    assertEqualImmutableEntry(a, navigableMap.pollLastEntry());
     assertTrue(navigableMap.isEmpty());
   }
 
   @CollectionSize.Require(SEVERAL)
   public void testFirst() {
-    assertEquals(a, navigableMap.firstEntry());
+    assertEqualImmutableEntry(a, navigableMap.firstEntry());
   }
 
   @MapFeature.Require(SUPPORTS_REMOVE)
   @CollectionSize.Require(SEVERAL)
   public void testPollFirst() {
-    assertEquals(a, navigableMap.pollFirstEntry());
-    assertEquals(entries.subList(1, entries.size()), Helpers.copyToList(navigableMap.entrySet()));
+    assertEqualImmutableEntry(a, navigableMap.pollFirstEntry());
+    assertEquals(entries.subList(1, entries.size()), copyToList(navigableMap.entrySet()));
   }
 
   @MapFeature.Require(absent = SUPPORTS_REMOVE)
   public void testPollFirstUnsupported() {
-    try {
-      navigableMap.pollFirstEntry();
-      fail();
-    } catch (UnsupportedOperationException e) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> navigableMap.pollFirstEntry());
   }
 
   @CollectionSize.Require(SEVERAL)
@@ -175,40 +171,40 @@ public class NavigableMapNavigationTester<K, V> extends AbstractMapTester<K, V> 
     resetWithHole();
     assertEquals(null, navigableMap.lowerEntry(a.getKey()));
     assertEquals(null, navigableMap.lowerKey(a.getKey()));
-    assertEquals(a, navigableMap.lowerEntry(b.getKey()));
+    assertEqualImmutableEntry(a, navigableMap.lowerEntry(b.getKey()));
     assertEquals(a.getKey(), navigableMap.lowerKey(b.getKey()));
-    assertEquals(a, navigableMap.lowerEntry(c.getKey()));
+    assertEqualImmutableEntry(a, navigableMap.lowerEntry(c.getKey()));
     assertEquals(a.getKey(), navigableMap.lowerKey(c.getKey()));
   }
 
   @CollectionSize.Require(SEVERAL)
   public void testFloor() {
     resetWithHole();
-    assertEquals(a, navigableMap.floorEntry(a.getKey()));
+    assertEqualImmutableEntry(a, navigableMap.floorEntry(a.getKey()));
     assertEquals(a.getKey(), navigableMap.floorKey(a.getKey()));
-    assertEquals(a, navigableMap.floorEntry(b.getKey()));
+    assertEqualImmutableEntry(a, navigableMap.floorEntry(b.getKey()));
     assertEquals(a.getKey(), navigableMap.floorKey(b.getKey()));
-    assertEquals(c, navigableMap.floorEntry(c.getKey()));
+    assertEqualImmutableEntry(c, navigableMap.floorEntry(c.getKey()));
     assertEquals(c.getKey(), navigableMap.floorKey(c.getKey()));
   }
 
   @CollectionSize.Require(SEVERAL)
   public void testCeiling() {
     resetWithHole();
-    assertEquals(a, navigableMap.ceilingEntry(a.getKey()));
+    assertEqualImmutableEntry(a, navigableMap.ceilingEntry(a.getKey()));
     assertEquals(a.getKey(), navigableMap.ceilingKey(a.getKey()));
-    assertEquals(c, navigableMap.ceilingEntry(b.getKey()));
+    assertEqualImmutableEntry(c, navigableMap.ceilingEntry(b.getKey()));
     assertEquals(c.getKey(), navigableMap.ceilingKey(b.getKey()));
-    assertEquals(c, navigableMap.ceilingEntry(c.getKey()));
+    assertEqualImmutableEntry(c, navigableMap.ceilingEntry(c.getKey()));
     assertEquals(c.getKey(), navigableMap.ceilingKey(c.getKey()));
   }
 
   @CollectionSize.Require(SEVERAL)
   public void testHigher() {
     resetWithHole();
-    assertEquals(c, navigableMap.higherEntry(a.getKey()));
+    assertEqualImmutableEntry(c, navigableMap.higherEntry(a.getKey()));
     assertEquals(c.getKey(), navigableMap.higherKey(a.getKey()));
-    assertEquals(c, navigableMap.higherEntry(b.getKey()));
+    assertEqualImmutableEntry(c, navigableMap.higherEntry(b.getKey()));
     assertEquals(c.getKey(), navigableMap.higherKey(b.getKey()));
     assertEquals(null, navigableMap.higherEntry(c.getKey()));
     assertEquals(null, navigableMap.higherKey(c.getKey()));
@@ -216,33 +212,25 @@ public class NavigableMapNavigationTester<K, V> extends AbstractMapTester<K, V> 
 
   @CollectionSize.Require(SEVERAL)
   public void testLast() {
-    assertEquals(c, navigableMap.lastEntry());
+    assertEqualImmutableEntry(c, navigableMap.lastEntry());
   }
 
   @MapFeature.Require(SUPPORTS_REMOVE)
   @CollectionSize.Require(SEVERAL)
   public void testPollLast() {
-    assertEquals(c, navigableMap.pollLastEntry());
-    assertEquals(
-        entries.subList(0, entries.size() - 1), Helpers.copyToList(navigableMap.entrySet()));
+    assertEqualImmutableEntry(c, navigableMap.pollLastEntry());
+    assertEquals(entries.subList(0, entries.size() - 1), copyToList(navigableMap.entrySet()));
   }
 
   @MapFeature.Require(absent = SUPPORTS_REMOVE)
   @CollectionSize.Require(SEVERAL)
   public void testPollLastUnsupported() {
-    try {
-      navigableMap.pollLastEntry();
-      fail();
-    } catch (UnsupportedOperationException e) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> navigableMap.pollLastEntry());
   }
 
   @CollectionSize.Require(SEVERAL)
   public void testDescendingNavigation() {
-    List<Entry<K, V>> descending = new ArrayList<Entry<K, V>>();
-    for (Entry<K, V> entry : navigableMap.descendingMap().entrySet()) {
-      descending.add(entry);
-    }
+    List<Entry<K, V>> descending = new ArrayList<>(navigableMap.descendingMap().entrySet());
     Collections.reverse(descending);
     assertEquals(entries, descending);
   }
@@ -265,5 +253,15 @@ public class NavigableMapNavigationTester<K, V> extends AbstractMapTester<K, V> 
   @CollectionSize.Require(absent = ZERO)
   public void testTailMapInclusive() {
     assertTrue(navigableMap.tailMap(a.getKey(), true).containsKey(a.getKey()));
+  }
+
+  private void assertEqualImmutableEntry(Entry<K, V> expected, Entry<K, V> actual) {
+    assertEquals(expected, actual);
+
+    V currentValue = expected.getValue();
+    assertThrows(UnsupportedOperationException.class, () -> actual.setValue(currentValue));
+
+    V otherValue = v3();
+    assertThrows(UnsupportedOperationException.class, () -> actual.setValue(otherValue));
   }
 }

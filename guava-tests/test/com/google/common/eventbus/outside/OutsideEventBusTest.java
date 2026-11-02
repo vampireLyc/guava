@@ -16,6 +16,8 @@
 
 package com.google.common.eventbus.outside;
 
+import static com.google.common.truth.Truth.assertWithMessage;
+
 import com.google.common.eventbus.EventBus;
 import com.google.common.eventbus.Subscribe;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -35,21 +37,22 @@ public class OutsideEventBusTest extends TestCase {
    * it can fail here.
    */
   public void testAnonymous() {
-    final AtomicReference<String> holder = new AtomicReference<String>();
-    final AtomicInteger deliveries = new AtomicInteger();
+    AtomicReference<String> holder = new AtomicReference<>();
+    AtomicInteger deliveries = new AtomicInteger();
     EventBus bus = new EventBus();
-    bus.register(new Object() {
-      @Subscribe
-      public void accept(String str) {
-        holder.set(str);
-        deliveries.incrementAndGet();
-      }
-    });
+    bus.register(
+        new Object() {
+          @Subscribe
+          public void accept(String str) {
+            holder.set(str);
+            deliveries.incrementAndGet();
+          }
+        });
 
     String EVENT = "Hello!";
     bus.post(EVENT);
 
     assertEquals("Only one event should be delivered.", 1, deliveries.get());
-    assertEquals("Correct string should be delivered.", EVENT, holder.get());
+    assertWithMessage("Correct string should be delivered.").that(holder.get()).isEqualTo(EVENT);
   }
 }

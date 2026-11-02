@@ -20,22 +20,27 @@ import com.google.common.base.Function;
 import com.google.common.testing.EqualsTester;
 import com.google.common.testing.ForwardingWrapperTester;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Unit test for {@link ForwardingSetMultimap}.
  *
  * @author Kurt Alfred Kluever
  */
+@NullUnmarked
 public class ForwardingSetMultimapTest extends TestCase {
 
   @SuppressWarnings("rawtypes")
   public void testForwarding() {
     new ForwardingWrapperTester()
-        .testForwarding(SetMultimap.class, new Function<SetMultimap, SetMultimap>() {
-          @Override public SetMultimap apply(SetMultimap delegate) {
-            return wrap(delegate);
-          }
-        });
+        .testForwarding(
+            SetMultimap.class,
+            new Function<SetMultimap, SetMultimap<?, ?>>() {
+              @Override
+              public SetMultimap<?, ?> apply(SetMultimap delegate) {
+                return wrap((SetMultimap<?, ?>) delegate);
+              }
+            });
   }
 
   public void testEquals() {
@@ -47,9 +52,10 @@ public class ForwardingSetMultimapTest extends TestCase {
         .testEquals();
   }
 
-  private static <K, V> SetMultimap<K, V> wrap(final SetMultimap<K, V> delegate) {
+  private static <K, V> SetMultimap<K, V> wrap(SetMultimap<K, V> delegate) {
     return new ForwardingSetMultimap<K, V>() {
-      @Override protected SetMultimap<K, V> delegate() {
+      @Override
+      protected SetMultimap<K, V> delegate() {
         return delegate;
       }
     };

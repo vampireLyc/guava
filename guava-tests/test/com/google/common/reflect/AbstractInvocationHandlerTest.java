@@ -17,21 +17,25 @@
 package com.google.common.reflect;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.testing.SerializableTester.reserialize;
+import static com.google.common.truth.Truth.assertThat;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.testing.EqualsTester;
-import com.google.common.testing.SerializableTester;
 import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.List;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Tests for {@link AbstractInvocationHandler}.
  *
  * @author Ben Yu
  */
+@NullUnmarked
 public class AbstractInvocationHandlerTest extends TestCase {
 
   private static final ImmutableList<String> LIST1 = ImmutableList.of("one", "two");
@@ -44,17 +48,14 @@ public class AbstractInvocationHandlerTest extends TestCase {
 
   public void testToString() {
     List<String> proxy = newDelegatingList(LIST1);
-    assertEquals(Proxy.getInvocationHandler(proxy).toString(), proxy.toString());
+    assertThat(proxy.toString()).isEqualTo(Proxy.getInvocationHandler(proxy).toString());
   }
 
   interface A {}
-  interface B{}
+
+  interface B {}
 
   public void testEquals() {
-    class AB implements A, B {}
-    class BA implements B, A {}
-    AB ab = new AB();
-    BA ba = new BA();
     new EqualsTester()
         .addEqualityGroup(newDelegatingList(LIST1))
         // Actually, this violates List#equals contract.
@@ -64,12 +65,11 @@ public class AbstractInvocationHandlerTest extends TestCase {
         .addEqualityGroup(
             newProxyWithEqualsForInterfaces(List.class, Runnable.class),
             newProxyWithEqualsForInterfaces(List.class, Runnable.class))
-        .addEqualityGroup(
-            newProxyWithEqualsForInterfaces(Runnable.class, List.class))
+        .addEqualityGroup(newProxyWithEqualsForInterfaces(Runnable.class, List.class))
         .addEqualityGroup(
             newDelegatingListWithEquals(LIST1),
             newDelegatingListWithEquals(LIST1),
-            SerializableTester.reserialize(newDelegatingListWithEquals(LIST1)))
+            reserialize(newDelegatingListWithEquals(LIST1)))
         .addEqualityGroup(
             newDelegatingListWithEquals(LIST2),
             newProxyWithSubHandler1(LIST2), // Makes sure type of handler doesn't affect equality
@@ -103,10 +103,11 @@ public class AbstractInvocationHandlerTest extends TestCase {
     return Reflection.newProxy(List.class, new SubHandler2(delegate));
   }
 
-  private static Object newProxyWithEqualsForInterfaces(
-      Class<?>... interfaces) {
-    return Proxy.newProxyInstance(AbstractInvocationHandlerTest.class.getClassLoader(),
-        interfaces, new DelegatingInvocationHandlerWithEquals("a string"));
+  private static Object newProxyWithEqualsForInterfaces(Class<?>... interfaces) {
+    return Proxy.newProxyInstance(
+        AbstractInvocationHandlerTest.class.getClassLoader(),
+        interfaces,
+        new DelegatingInvocationHandlerWithEquals("a string"));
   }
 
   private static class DelegatingInvocationHandler extends AbstractInvocationHandler
@@ -117,12 +118,13 @@ public class AbstractInvocationHandlerTest extends TestCase {
       this.delegate = checkNotNull(delegate);
     }
 
-    @Override protected Object handleInvocation(Object proxy, Method method, Object[] args)
-        throws Throwable {
+    @Override
+    protected Object handleInvocation(Object proxy, Method method, Object[] args) throws Throwable {
       return method.invoke(delegate, args);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
       return "some arbitrary string";
     }
   }
@@ -133,7 +135,8 @@ public class AbstractInvocationHandlerTest extends TestCase {
       super(delegate);
     }
 
-    @Override public boolean equals(Object obj) {
+    @Override
+    public boolean equals(@Nullable Object obj) {
       if (obj instanceof DelegatingInvocationHandlerWithEquals) {
         DelegatingInvocationHandlerWithEquals that = (DelegatingInvocationHandlerWithEquals) obj;
         return delegate.equals(that.delegate);
@@ -142,11 +145,13 @@ public class AbstractInvocationHandlerTest extends TestCase {
       }
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
       return delegate.hashCode();
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
       return "another arbitrary string";
     }
   }

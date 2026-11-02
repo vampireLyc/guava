@@ -17,14 +17,14 @@ package com.google.common.hash;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
+import static java.lang.Math.min;
+import static java.lang.System.arraycopy;
 
-import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
-import com.google.common.primitives.Ints;
 import com.google.common.primitives.UnsignedInts;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.io.Serializable;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * An immutable hash code of arbitrary bit length.
@@ -33,13 +33,10 @@ import javax.annotation.Nullable;
  * @author Kurt Alfred Kluever
  * @since 11.0
  */
-@Beta
 public abstract class HashCode {
   HashCode() {}
 
-  /**
-   * Returns the number of bits in this hash code; a positive multiple of 8.
-   */
+  /** Returns the number of bits in this hash code; a positive multiple of 8. */
   public abstract int bits();
 
   /**
@@ -86,7 +83,7 @@ public abstract class HashCode {
    */
   @CanIgnoreReturnValue
   public int writeBytesTo(byte[] dest, int offset, int maxLength) {
-    maxLength = Ints.min(maxLength, bits() / 8);
+    maxLength = min(maxLength, bits() / 8);
     Preconditions.checkPositionIndexes(offset, offset + maxLength, dest.length);
     writeBytesToImpl(dest, offset, maxLength);
     return maxLength;
@@ -133,12 +130,7 @@ public abstract class HashCode {
 
     @Override
     public byte[] asBytes() {
-      return new byte[] {
-        (byte) hash,
-        (byte) (hash >> 8),
-        (byte) (hash >> 16),
-        (byte) (hash >> 24)
-      };
+      return new byte[] {(byte) hash, (byte) (hash >> 8), (byte) (hash >> 16), (byte) (hash >> 24)};
     }
 
     @Override
@@ -296,8 +288,8 @@ public abstract class HashCode {
 
     @Override
     public long padToLong() {
-      long retVal = (bytes[0] & 0xFF);
-      for (int i = 1; i < Math.min(bytes.length, 8); i++) {
+      long retVal = bytes[0] & 0xFF;
+      for (int i = 1; i < min(bytes.length, 8); i++) {
         retVal |= (bytes[i] & 0xFFL) << (i * 8);
       }
       return retVal;
@@ -305,7 +297,7 @@ public abstract class HashCode {
 
     @Override
     void writeBytesToImpl(byte[] dest, int offset, int maxLength) {
-      System.arraycopy(bytes, 0, dest, offset, maxLength);
+      arraycopy(bytes, 0, dest, offset, maxLength);
     }
 
     @Override
@@ -323,7 +315,7 @@ public abstract class HashCode {
 
       boolean areEqual = true;
       for (int i = 0; i < this.bytes.length; i++) {
-        areEqual &= (this.bytes[i] == that.getBytesInternal()[i]);
+        areEqual &= this.bytes[i] == that.getBytesInternal()[i];
       }
       return areEqual;
     }
@@ -386,8 +378,8 @@ public abstract class HashCode {
 
   /**
    * Returns a "Java hash code" for this {@code HashCode} instance; this is well-defined (so, for
-   * example, you can safely put {@code HashCode} instances into a {@code
-   * HashSet}) but is otherwise probably not what you want to use.
+   * example, you can safely put {@code HashCode} instances into a {@code HashSet}) but is otherwise
+   * probably not what you want to use.
    */
   @Override
   public final int hashCode() {
@@ -398,9 +390,9 @@ public abstract class HashCode {
     }
     // If we have less than 4 bytes, use them all.
     byte[] bytes = getBytesInternal();
-    int val = (bytes[0] & 0xFF);
+    int val = bytes[0] & 0xFF;
     for (int i = 1; i < bytes.length; i++) {
-      val |= ((bytes[i] & 0xFF) << (i * 8));
+      val |= (bytes[i] & 0xFF) << (i * 8);
     }
     return val;
   }
@@ -409,10 +401,10 @@ public abstract class HashCode {
    * Returns a string containing each byte of {@link #asBytes}, in order, as a two-digit unsigned
    * hexadecimal number in lower case.
    *
-   * <p>Note that if the output is considered to be a single hexadecimal number, this hash code's
-   * bytes are the <i>big-endian</i> representation of that number. This may be surprising since
-   * everything else in the hashing API uniformly treats multibyte values as little-endian. But this
-   * format conveniently matches that of utilities such as the UNIX {@code md5sum} command.
+   * <p>Note that if the output is considered to be a single hexadecimal number, whether this string
+   * is big-endian or little-endian depends on the byte order of {@link #asBytes}. This may be
+   * surprising for implementations of {@code HashCode} that represent the number in big-endian
+   * since everything else in the hashing API uniformly treats multibyte values as little-endian.
    *
    * <p>To create a {@code HashCode} from its string representation, see {@link #fromString}.
    */

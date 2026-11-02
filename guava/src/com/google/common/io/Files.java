@@ -17,19 +17,25 @@ package com.google.common.io;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.io.FileWriteMode.APPEND;
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 
 import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
 import com.google.common.base.Predicate;
 import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.TreeTraverser;
+import com.google.common.graph.SuccessorsFunction;
+import com.google.common.graph.Traverser;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import com.google.errorprone.annotations.InlineMe;
+import com.google.j2objc.annotations.J2ObjCIncompatible;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -37,7 +43,6 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -48,9 +53,8 @@ import java.nio.channels.FileChannel.MapMode;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Provides utility methods for working with {@linkplain File files}.
@@ -62,12 +66,9 @@ import java.util.List;
  * @author Colin Decker
  * @since 1.0
  */
-@Beta
+@J2ktIncompatible
 @GwtIncompatible
 public final class Files {
-
-  /** Maximum loop count when creating temp directories. */
-  private static final int TEMP_DIR_ATTEMPTS = 10000;
 
   private Files() {}
 
@@ -115,7 +116,9 @@ public final class Files {
     return new FileByteSource(file);
   }
 
-  private static final class FileByteSource extends ByteSource {
+  private static final class FileByteSource extends
+      ByteSource
+  {
 
     private final File file;
 
@@ -150,7 +153,7 @@ public final class Files {
       Closer closer = Closer.create();
       try {
         FileInputStream in = closer.register(openStream());
-        return readFile(in, in.getChannel().size());
+        return ByteStreams.toByteArray(in, in.getChannel().size());
       } catch (Throwable e) {
         throw closer.rethrow(e);
       } finally {
@@ -162,24 +165,6 @@ public final class Files {
     public String toString() {
       return "Files.asByteSource(" + file + ")";
     }
-  }
-
-  /**
-   * Reads a file of the given expected size from the given input stream, if it will fit into a byte
-   * array. This method handles the case where the file size changes between when the size is read
-   * and when the contents are read from the stream.
-   */
-  static byte[] readFile(InputStream in, long expectedSize) throws IOException {
-    if (expectedSize > Integer.MAX_VALUE) {
-      throw new OutOfMemoryError(
-          "file is too large to fit in a byte array: " + expectedSize + " bytes");
-    }
-
-    // some special files may return size 0 but have content, so read
-    // the file normally in that case
-    return expectedSize == 0
-        ? ByteStreams.toByteArray(in)
-        : ByteStreams.toByteArray(in, (int) expectedSize);
   }
 
   /**
@@ -260,10 +245,12 @@ public final class Files {
    *     helpful predefined constants
    * @return a string containing all the characters from the file
    * @throws IOException if an I/O error occurs
-   * @deprecated Prefer {@code asCharSource(file, charset).read()}. This method is scheduled to be
-   *     removed in January 2019.
+   * @deprecated Prefer {@code asCharSource(file, charset).read()}.
    */
   @Deprecated
+  @InlineMe(
+      replacement = "Files.asCharSource(file, charset).read()",
+      imports = "com.google.common.io.Files")
   public static String toString(File file, Charset charset) throws IOException {
     return asCharSource(file, charset).read();
   }
@@ -280,6 +267,24 @@ public final class Files {
    */
   public static void write(byte[] from, File to) throws IOException {
     asByteSink(to).write(from);
+  }
+
+  /**
+   * Writes a character sequence (such as a string) to a file using the given character set.
+   *
+   * @param from the character sequence to write
+   * @param to the destination file
+   * @param charset the charset used to encode the output stream; see {@link StandardCharsets} for
+   *     helpful predefined constants
+   * @throws IOException if an I/O error occurs
+   * @deprecated Prefer {@code asCharSink(to, charset).write(from)}.
+   */
+  @Deprecated
+  @InlineMe(
+      replacement = "Files.asCharSink(to, charset).write(from)",
+      imports = "com.google.common.io.Files")
+  public static void write(CharSequence from, File to, Charset charset) throws IOException {
+    asCharSink(to, charset).write(from);
   }
 
   /**
@@ -321,19 +326,22 @@ public final class Files {
   }
 
   /**
-   * Writes a character sequence (such as a string) to a file using the given character set.
+   * Copies all characters from a file to an appendable object, using the given character set.
    *
-   * @param from the character sequence to write
-   * @param to the destination file
-   * @param charset the charset used to encode the output stream; see {@link StandardCharsets} for
+   * @param from the source file
+   * @param charset the charset used to decode the input stream; see {@link StandardCharsets} for
    *     helpful predefined constants
+   * @param to the appendable object
    * @throws IOException if an I/O error occurs
-   * @deprecated Prefer {@code asCharSink(to, charset).write(from)}. This method is scheduled to be
-   *     removed in January 2019.
+   * @deprecated Prefer {@code asCharSource(from, charset).copyTo(to)}.
    */
   @Deprecated
-  public static void write(CharSequence from, File to, Charset charset) throws IOException {
-    asCharSink(to, charset).write(from);
+  @InlineMe(
+      replacement = "Files.asCharSource(from, charset).copyTo(to)",
+      imports = "com.google.common.io.Files")
+  public
+  static void copy(File from, Charset charset, Appendable to) throws IOException {
+    asCharSource(from, charset).copyTo(to);
   }
 
   /**
@@ -344,28 +352,15 @@ public final class Files {
    * @param charset the charset used to encode the output stream; see {@link StandardCharsets} for
    *     helpful predefined constants
    * @throws IOException if an I/O error occurs
-   * @deprecated Prefer {@code asCharSink(to, charset, FileWriteMode.APPEND).write(from)}. This
-   *     method is scheduled to be removed in January 2019.
+   * @deprecated Prefer {@code asCharSink(to, charset, FileWriteMode.APPEND).write(from)}.
    */
   @Deprecated
-  public static void append(CharSequence from, File to, Charset charset) throws IOException {
+  @InlineMe(
+      replacement = "Files.asCharSink(to, charset, FileWriteMode.APPEND).write(from)",
+      imports = {"com.google.common.io.FileWriteMode", "com.google.common.io.Files"})
+  public
+  static void append(CharSequence from, File to, Charset charset) throws IOException {
     asCharSink(to, charset, FileWriteMode.APPEND).write(from);
-  }
-
-  /**
-   * Copies all characters from a file to an appendable object, using the given character set.
-   *
-   * @param from the source file
-   * @param charset the charset used to decode the input stream; see {@link StandardCharsets} for
-   *     helpful predefined constants
-   * @param to the appendable object
-   * @throws IOException if an I/O error occurs
-   * @deprecated Prefer {@code asCharSource(from, charset).copyTo(to)}. This method is scheduled to
-   *     be removed in January 2019.
-   */
-  @Deprecated
-  public static void copy(File from, Charset charset, Appendable to) throws IOException {
-    asCharSource(from, charset).copyTo(to);
   }
 
   /**
@@ -373,6 +368,8 @@ public final class Files {
    *
    * @throws IOException if an I/O error occurs
    */
+  // performance optimization to avoid lexicographical comparison in File.equals
+  @SuppressWarnings("ReferenceEquality")
   public static boolean equal(File file1, File file2) throws IOException {
     checkNotNull(file1);
     checkNotNull(file2);
@@ -397,6 +394,13 @@ public final class Files {
    * Atomically creates a new directory somewhere beneath the system's temporary directory (as
    * defined by the {@code java.io.tmpdir} system property), and returns its name.
    *
+   * <p>The temporary directory is created with permissions restricted to the current user or, in
+   * the case of Android, the current app. If that is not possible (as is the case under the very
+   * old Android Ice Cream Sandwich release), then this method throws an exception instead of
+   * creating a directory that would be more accessible. (This behavior is new in Guava 32.0.0.
+   * Previous versions would create a directory that is more accessible, as discussed in <a
+   * href="https://github.com/google/guava/issues/4011">CVE-2020-8908</a>.)
+   *
    * <p>Use this method instead of {@link File#createTempFile(String, String)} when you wish to
    * create a directory, not a regular file. A common pitfall is to call {@code createTempFile},
    * delete the file and create a directory in its place, but this leads a race condition which can
@@ -410,27 +414,26 @@ public final class Files {
    * java.nio.file.Files#createTempDirectory}.
    *
    * @return the newly-created directory
-   * @throws IllegalStateException if the directory could not be created
+   * @throws IllegalStateException if the directory could not be created, such as if the system does
+   *     not support creating temporary directories securely
+   * @deprecated For Android users, see the <a
+   *     href="https://developer.android.com/training/data-storage" target="_blank">Data and File
+   *     Storage overview</a> to select an appropriate temporary directory (perhaps {@code
+   *     context.getCacheDir()}), and create your own directory under that. (For example, you might
+   *     use {@code new File(context.getCacheDir(), "directoryname").mkdir()}, or, if you need an
+   *     arbitrary number of temporary directories, you might have to generate multiple directory
+   *     names in a loop until {@code mkdir()} returns {@code true}.) For JRE users, prefer {@link
+   *     java.nio.file.Files#createTempDirectory}, transforming it to a {@link File} using {@link
+   *     java.nio.file.Path#toFile() toFile()} if needed. To restrict permissions as this method
+   *     does, pass {@code
+   *     PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"))} to your
+   *     call to {@code createTempDirectory}.
    */
+  @Beta
+  @Deprecated
+  @J2ObjCIncompatible
   public static File createTempDir() {
-    File baseDir = new File(System.getProperty("java.io.tmpdir"));
-    String baseName = System.currentTimeMillis() + "-";
-
-    for (int counter = 0; counter < TEMP_DIR_ATTEMPTS; counter++) {
-      File tempDir = new File(baseDir, baseName + counter);
-      if (tempDir.mkdir()) {
-        return tempDir;
-      }
-    }
-    throw new IllegalStateException(
-        "Failed to create directory within "
-            + TEMP_DIR_ATTEMPTS
-            + " attempts (tried "
-            + baseName
-            + "0 to "
-            + baseName
-            + (TEMP_DIR_ATTEMPTS - 1)
-            + ')');
+    return TempFileCreator.INSTANCE.createTempDir();
   }
 
   /**
@@ -440,6 +443,7 @@ public final class Files {
    * @param file the file to create or update
    * @throws IOException if an I/O error occurs
    */
+  @SuppressWarnings("GoodTime") // reading system time without TimeSource
   public static void touch(File file) throws IOException {
     checkNotNull(file);
     if (!file.createNewFile() && !file.setLastModified(System.currentTimeMillis())) {
@@ -511,11 +515,14 @@ public final class Files {
    *     helpful predefined constants
    * @return the first line, or null if the file is empty
    * @throws IOException if an I/O error occurs
-   * @deprecated Prefer {@code asCharSource(file, charset).readFirstLine()}. This method is
-   *     scheduled to be removed in January 2019.
+   * @deprecated Prefer {@code asCharSource(file, charset).readFirstLine()}.
    */
   @Deprecated
-  public static String readFirstLine(File file, Charset charset) throws IOException {
+  @InlineMe(
+      replacement = "Files.asCharSource(file, charset).readFirstLine()",
+      imports = "com.google.common.io.Files")
+  public
+  static @Nullable String readFirstLine(File file, Charset charset) throws IOException {
     return asCharSource(file, charset).readFirstLine();
   }
 
@@ -541,7 +548,7 @@ public final class Files {
     return asCharSource(file, charset)
         .readLines(
             new LineProcessor<List<String>>() {
-              final List<String> result = Lists.newArrayList();
+              final List<String> result = new ArrayList<>();
 
               @Override
               public boolean processLine(String line) {
@@ -566,13 +573,17 @@ public final class Files {
    * @param callback the {@link LineProcessor} to use to handle the lines
    * @return the output of processing the lines
    * @throws IOException if an I/O error occurs
-   * @deprecated Prefer {@code asCharSource(file, charset).readLines(callback)}. This method is
-   *     scheduled to be removed in January 2019.
+   * @deprecated Prefer {@code asCharSource(file, charset).readLines(callback)}.
    */
   @Deprecated
+  @InlineMe(
+      replacement = "Files.asCharSource(file, charset).readLines(callback)",
+      imports = "com.google.common.io.Files")
   @CanIgnoreReturnValue // some processors won't return a useful result
-  public static <T> T readLines(File file, Charset charset, LineProcessor<T> callback)
-      throws IOException {
+  @ParametricNullness
+  public
+  static <T extends @Nullable Object> T readLines(
+      File file, Charset charset, LineProcessor<T> callback) throws IOException {
     return asCharSource(file, charset).readLines(callback);
   }
 
@@ -585,12 +596,17 @@ public final class Files {
    * @param processor the object to which the bytes of the file are passed.
    * @return the result of the byte processor
    * @throws IOException if an I/O error occurs
-   * @deprecated Prefer {@code asByteSource(file).read(processor)}. This method is scheduled to be
-   *     removed in January 2019.
+   * @deprecated Prefer {@code asByteSource(file).read(processor)}.
    */
   @Deprecated
+  @InlineMe(
+      replacement = "Files.asByteSource(file).read(processor)",
+      imports = "com.google.common.io.Files")
   @CanIgnoreReturnValue // some processors won't return a useful result
-  public static <T> T readBytes(File file, ByteProcessor<T> processor) throws IOException {
+  @ParametricNullness
+  public
+  static <T extends @Nullable Object> T readBytes(File file, ByteProcessor<T> processor)
+      throws IOException {
     return asByteSource(file).read(processor);
   }
 
@@ -602,11 +618,14 @@ public final class Files {
    * @return the {@link HashCode} of all of the bytes in the file
    * @throws IOException if an I/O error occurs
    * @since 12.0
-   * @deprecated Prefer {@code asByteSource(file).hash(hashFunction)}. This method is scheduled to
-   *     be removed in January 2019.
+   * @deprecated Prefer {@code asByteSource(file).hash(hashFunction)}.
    */
   @Deprecated
-  public static HashCode hash(File file, HashFunction hashFunction) throws IOException {
+  @InlineMe(
+      replacement = "Files.asByteSource(file).hash(hashFunction)",
+      imports = "com.google.common.io.Files")
+  public
+  static HashCode hash(File file, HashFunction hashFunction) throws IOException {
     return asByteSource(file).hash(hashFunction);
   }
 
@@ -648,12 +667,7 @@ public final class Files {
    * @since 2.0
    */
   public static MappedByteBuffer map(File file, MapMode mode) throws IOException {
-    checkNotNull(file);
-    checkNotNull(mode);
-    if (!file.exists()) {
-      throw new FileNotFoundException(file.toString());
-    }
-    return map(file, mode, file.length());
+    return mapInternal(file, mode, -1);
   }
 
   /**
@@ -675,8 +689,13 @@ public final class Files {
    * @see FileChannel#map(MapMode, long, long)
    * @since 2.0
    */
-  public static MappedByteBuffer map(File file, MapMode mode, long size)
-      throws FileNotFoundException, IOException {
+  public static MappedByteBuffer map(File file, MapMode mode, long size) throws IOException {
+    checkArgument(size >= 0, "size (%s) may not be negative", size);
+    return mapInternal(file, mode, size);
+  }
+
+  private static MappedByteBuffer mapInternal(File file, MapMode mode, long size)
+      throws IOException {
     checkNotNull(file);
     checkNotNull(mode);
 
@@ -684,20 +703,8 @@ public final class Files {
     try {
       RandomAccessFile raf =
           closer.register(new RandomAccessFile(file, mode == MapMode.READ_ONLY ? "r" : "rw"));
-      return map(raf, mode, size);
-    } catch (Throwable e) {
-      throw closer.rethrow(e);
-    } finally {
-      closer.close();
-    }
-  }
-
-  private static MappedByteBuffer map(RandomAccessFile raf, MapMode mode, long size)
-      throws IOException {
-    Closer closer = Closer.create();
-    try {
       FileChannel channel = closer.register(raf.getChannel());
-      return channel.map(mode, 0, size);
+      return channel.map(mode, 0, size == -1 ? channel.size() : size);
     } catch (Throwable e) {
       throw closer.rethrow(e);
     } finally {
@@ -710,12 +717,12 @@ public final class Files {
    * to the original. The following heuristics are used:
    *
    * <ul>
-   * <li>empty string becomes .
-   * <li>. stays as .
-   * <li>fold out ./
-   * <li>fold out ../ when possible
-   * <li>collapse multiple slashes
-   * <li>delete trailing slashes (unless the path is just "/")
+   *   <li>empty string becomes .
+   *   <li>. stays as .
+   *   <li>fold out ./
+   *   <li>fold out ../ when possible
+   *   <li>collapse multiple slashes
+   *   <li>delete trailing slashes (unless the path is just "/")
    * </ul>
    *
    * <p>These heuristics do not always match the behavior of the filesystem. In particular, consider
@@ -727,26 +734,29 @@ public final class Files {
    */
   public static String simplifyPath(String pathname) {
     checkNotNull(pathname);
-    if (pathname.length() == 0) {
+    if (pathname.isEmpty()) {
       return ".";
     }
 
     // split the path apart
     Iterable<String> components = Splitter.on('/').omitEmptyStrings().split(pathname);
-    List<String> path = new ArrayList<String>();
+    List<String> path = new ArrayList<>();
 
     // resolve ., .., and //
     for (String component : components) {
-      if (component.equals(".")) {
-        continue;
-      } else if (component.equals("..")) {
-        if (path.size() > 0 && !path.get(path.size() - 1).equals("..")) {
-          path.remove(path.size() - 1);
-        } else {
-          path.add("..");
-        }
-      } else {
-        path.add(component);
+      switch (component) {
+        case ".":
+          continue;
+        case "..":
+          if (path.size() > 0 && !path.get(path.size() - 1).equals("..")) {
+            path.remove(path.size() - 1);
+          } else {
+            path.add("..");
+          }
+          break;
+        default:
+          path.add(component);
+          break;
       }
     }
 
@@ -761,7 +771,7 @@ public final class Files {
     }
     if (result.equals("/..")) {
       result = "/";
-    } else if ("".equals(result)) {
+    } else if (result.isEmpty()) {
       result = ".";
     }
 
@@ -778,7 +788,9 @@ public final class Files {
    * behavior that the {@link File} API does not already account for. For example, on NTFS it will
    * report {@code "txt"} as the extension for the filename {@code "foo.exe:.txt"} even though NTFS
    * will drop the {@code ":.txt"} part of the name when the file is actually created on the
-   * filesystem due to NTFS's <a href="https://goo.gl/vTpJi4">Alternate Data Streams</a>.
+   * filesystem due to NTFS's <a
+   * href="https://learn.microsoft.com/en-us/archive/blogs/askcore/alternate-data-streams-in-ntfs">Alternate
+   * Data Streams</a>.
    *
    * @since 11.0
    */
@@ -790,8 +802,8 @@ public final class Files {
   }
 
   /**
-   * Returns the file name without its
-   * <a href="http://en.wikipedia.org/wiki/Filename_extension">file extension</a> or path. This is
+   * Returns the file name without its <a
+   * href="http://en.wikipedia.org/wiki/Filename_extension">file extension</a> or path. This is
    * similar to the {@code basename} unix command. The result does not include the '{@code .}'.
    *
    * @param file The name of the file to trim the extension from. This can be either a fully
@@ -807,38 +819,42 @@ public final class Files {
   }
 
   /**
-   * Returns a {@link TreeTraverser} instance for {@link File} trees.
+   * Returns a {@link Traverser} instance for the file and directory tree. The returned traverser
+   * starts from a {@link File} and will return all files and directories it encounters.
    *
    * <p><b>Warning:</b> {@code File} provides no support for symbolic links, and as such there is no
    * way to ensure that a symbolic link to a directory is not followed when traversing the tree. In
    * this case, iterables created by this traverser could contain files that are outside of the
    * given directory or even be infinite if there is a symbolic link loop.
    *
-   * @since 15.0
+   * <p>If available, consider using {@link MoreFiles#fileTraverser()} instead. It behaves the same
+   * except that it doesn't follow symbolic links and returns {@code Path} instances.
+   *
+   * <p>If the {@link File} passed to one of the {@link Traverser} methods does not exist or is not
+   * a directory, no exception will be thrown and the returned {@link Iterable} will contain a
+   * single element: that file.
+   *
+   * <p>Example: {@code Files.fileTraverser().depthFirstPreOrder(new File("/"))} may return files
+   * with the following paths: {@code ["/", "/etc", "/etc/config.txt", "/etc/fonts", "/home",
+   * "/home/alice", ...]}
+   *
+   * @since 23.5
    */
-  public static TreeTraverser<File> fileTreeTraverser() {
-    return FILE_TREE_TRAVERSER;
+  public static Traverser<File> fileTraverser() {
+    return Traverser.forTree(FILE_TREE);
   }
 
-  private static final TreeTraverser<File> FILE_TREE_TRAVERSER =
-      new TreeTraverser<File>() {
-        @Override
-        public Iterable<File> children(File file) {
-          // check isDirectory() just because it may be faster than listFiles() on a non-directory
-          if (file.isDirectory()) {
-            File[] files = file.listFiles();
-            if (files != null) {
-              return Collections.unmodifiableList(Arrays.asList(files));
-            }
+  private static final SuccessorsFunction<File> FILE_TREE =
+      file -> {
+        // check isDirectory() just because it may be faster than listFiles() on a non-directory
+        if (file.isDirectory()) {
+          File[] files = file.listFiles();
+          if (files != null) {
+            return unmodifiableList(asList(files));
           }
-
-          return Collections.emptyList();
         }
 
-        @Override
-        public String toString() {
-          return "Files.fileTreeTraverser()";
-        }
+        return ImmutableList.of();
       };
 
   /**
@@ -882,6 +898,6 @@ public final class Files {
       public String toString() {
         return "Files.isFile()";
       }
-    };
+    }
   }
 }

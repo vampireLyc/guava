@@ -24,16 +24,18 @@ import static com.google.common.math.MathBenchmarking.randomPositiveDouble;
 
 import com.google.caliper.BeforeExperiment;
 import com.google.caliper.Benchmark;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Tests for the non-rounding methods of {@code DoubleMath}.
  *
  * @author Louis Wasserman
  */
+@NullUnmarked
 public class DoubleMathBenchmark {
   private static final double[] positiveDoubles = new double[ARRAY_SIZE];
   private static final int[] factorials = new int[ARRAY_SIZE];
-  private static final double [] doubles = new double[ARRAY_SIZE];
+  private static final double[] doubles = new double[ARRAY_SIZE];
 
   @BeforeExperiment
   void setUp() {
@@ -44,7 +46,8 @@ public class DoubleMathBenchmark {
     }
   }
 
-  @Benchmark long log2(int reps) {
+  @Benchmark
+  long log2(int reps) {
     long tmp = 0;
     for (int i = 0; i < reps; i++) {
       int j = i & ARRAY_MASK;
@@ -53,7 +56,8 @@ public class DoubleMathBenchmark {
     return tmp;
   }
 
-  @Benchmark long factorial(int reps) {
+  @Benchmark
+  long factorial(int reps) {
     long tmp = 0;
     for (int i = 0; i < reps; i++) {
       int j = i & ARRAY_MASK;
@@ -62,7 +66,8 @@ public class DoubleMathBenchmark {
     return tmp;
   }
 
-  @Benchmark int isMathematicalInteger(int reps) {
+  @Benchmark
+  int isMathematicalInteger(int reps) {
     int tmp = 0;
     for (int i = 0; i < reps; i++) {
       int j = i & ARRAY_MASK;
@@ -73,7 +78,8 @@ public class DoubleMathBenchmark {
     return tmp;
   }
 
-  @Benchmark int isPowerOfTwo(int reps) {
+  @Benchmark
+  int isPowerOfTwo(int reps) {
     int tmp = 0;
     for (int i = 0; i < reps; i++) {
       int j = i & ARRAY_MASK;

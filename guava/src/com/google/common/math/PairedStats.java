@@ -21,14 +21,15 @@ import static java.lang.Double.NaN;
 import static java.lang.Double.doubleToLongBits;
 import static java.lang.Double.isNaN;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Objects;
+import com.google.common.primitives.Doubles;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import javax.annotation.Nullable;
+import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 
 /**
  * An immutable value object capturing some basic statistics about a collection of paired double
@@ -37,7 +38,7 @@ import javax.annotation.Nullable;
  * @author Pete Gillin
  * @since 20.0
  */
-@Beta
+@J2ktIncompatible
 @GwtIncompatible
 public final class PairedStats implements Serializable {
 
@@ -63,23 +64,17 @@ public final class PairedStats implements Serializable {
     this.sumOfProductsOfDeltas = sumOfProductsOfDeltas;
   }
 
-  /**
-   * Returns the number of pairs in the dataset.
-   */
+  /** Returns the number of pairs in the dataset. */
   public long count() {
     return xStats.count();
   }
 
-  /**
-   * Returns the statistics on the {@code x} values alone.
-   */
+  /** Returns the statistics on the {@code x} values alone. */
   public Stats xStats() {
     return xStats;
   }
 
-  /**
-   * Returns the statistics on the {@code y} values alone.
-   */
+  /** Returns the statistics on the {@code y} values alone. */
   public Stats yStats() {
     return yStats;
   }
@@ -91,10 +86,10 @@ public final class PairedStats implements Serializable {
    * is not guaranteed to return zero when the dataset consists of the same pair of values multiple
    * times, due to numerical errors.
    *
-   * <h3>Non-finite values</h3>
+   * <h4>Non-finite values</h4>
    *
-   * <p>If the dataset contains any non-finite values ({@link Double#POSITIVE_INFINITY},
-   * {@link Double#NEGATIVE_INFINITY}, or {@link Double#NaN}) then the result is {@link Double#NaN}.
+   * <p>If the dataset contains any non-finite values ({@link Double#POSITIVE_INFINITY}, {@link
+   * Double#NEGATIVE_INFINITY}, or {@link Double#NaN}) then the result is {@link Double#NaN}.
    *
    * @throws IllegalStateException if the dataset is empty
    */
@@ -109,10 +104,10 @@ public final class PairedStats implements Serializable {
    * <p>This is not guaranteed to return zero when the dataset consists of the same pair of values
    * multiple times, due to numerical errors.
    *
-   * <h3>Non-finite values</h3>
+   * <h4>Non-finite values</h4>
    *
-   * <p>If the dataset contains any non-finite values ({@link Double#POSITIVE_INFINITY},
-   * {@link Double#NEGATIVE_INFINITY}, or {@link Double#NaN}) then the result is {@link Double#NaN}.
+   * <p>If the dataset contains any non-finite values ({@link Double#POSITIVE_INFINITY}, {@link
+   * Double#NEGATIVE_INFINITY}, or {@link Double#NaN}) then the result is {@link Double#NaN}.
    *
    * @throws IllegalStateException if the dataset is empty or contains a single pair of values
    */
@@ -124,15 +119,15 @@ public final class PairedStats implements Serializable {
   /**
    * Returns the <a href="http://mathworld.wolfram.com/CorrelationCoefficient.html">Pearson's or
    * product-moment correlation coefficient</a> of the values. The count must greater than one, and
-   * the {@code x} and {@code y} values must both have non-zero population variance (i.e.
-   * {@code xStats().populationVariance() > 0.0 && yStats().populationVariance() > 0.0}). The result
-   * is not guaranteed to be exactly +/-1 even when the data are perfectly (anti-)correlated, due to
+   * the {@code x} and {@code y} values must both have non-zero population variance (i.e. {@code
+   * xStats().populationVariance() > 0.0 && yStats().populationVariance() > 0.0}). The result is not
+   * guaranteed to be exactly +/-1 even when the data are perfectly (anti-)correlated, due to
    * numerical errors. However, it is guaranteed to be in the inclusive range [-1, +1].
    *
-   * <h3>Non-finite values</h3>
+   * <h4>Non-finite values</h4>
    *
-   * <p>If the dataset contains any non-finite values ({@link Double#POSITIVE_INFINITY},
-   * {@link Double#NEGATIVE_INFINITY}, or {@link Double#NaN}) then the result is {@link Double#NaN}.
+   * <p>If the dataset contains any non-finite values ({@link Double#POSITIVE_INFINITY}, {@link
+   * Double#NEGATIVE_INFINITY}, or {@link Double#NaN}) then the result is {@link Double#NaN}.
    *
    * @throws IllegalStateException if the dataset is empty or contains a single pair of values, or
    *     either the {@code x} and {@code y} dataset has zero population variance
@@ -154,32 +149,32 @@ public final class PairedStats implements Serializable {
   }
 
   /**
-   * Returns a linear transformation giving the best fit to the data according to
-   * <a href="http://mathworld.wolfram.com/LeastSquaresFitting.html">Ordinary Least Squares linear
+   * Returns a linear transformation giving the best fit to the data according to <a
+   * href="http://mathworld.wolfram.com/LeastSquaresFitting.html">Ordinary Least Squares linear
    * regression</a> of {@code y} as a function of {@code x}. The count must be greater than one, and
-   * either the {@code x} or {@code y} data must have a non-zero population variance (i.e.
-   * {@code xStats().populationVariance() > 0.0 || yStats().populationVariance() > 0.0}). The result
-   * is guaranteed to be horizontal if there is variance in the {@code x} data but not the {@code y}
+   * either the {@code x} or {@code y} data must have a non-zero population variance (i.e. {@code
+   * xStats().populationVariance() > 0.0 || yStats().populationVariance() > 0.0}). The result is
+   * guaranteed to be horizontal if there is variance in the {@code x} data but not the {@code y}
    * data, and vertical if there is variance in the {@code y} data but not the {@code x} data.
    *
    * <p>This fit minimizes the root-mean-square error in {@code y} as a function of {@code x}. This
    * error is defined as the square root of the mean of the squares of the differences between the
    * actual {@code y} values of the data and the values predicted by the fit for the {@code x}
    * values (i.e. it is the square root of the mean of the squares of the vertical distances between
-   * the data points and the best fit line). For this fit, this error is a fraction
-   * {@code sqrt(1 - R*R)} of the population standard deviation of {@code y}, where {@code R} is the
-   * Pearson's correlation coefficient (as given by {@link #pearsonsCorrelationCoefficient()}).
+   * the data points and the best fit line). For this fit, this error is a fraction {@code sqrt(1 -
+   * R*R)} of the population standard deviation of {@code y}, where {@code R} is the Pearson's
+   * correlation coefficient (as given by {@link #pearsonsCorrelationCoefficient()}).
    *
    * <p>The corresponding root-mean-square error in {@code x} as a function of {@code y} is a
    * fraction {@code sqrt(1/(R*R) - 1)} of the population standard deviation of {@code x}. This fit
    * does not normally minimize that error: to do that, you should swap the roles of {@code x} and
    * {@code y}.
    *
-   * <h3>Non-finite values</h3>
+   * <h4>Non-finite values</h4>
    *
-   * <p>If the dataset contains any non-finite values ({@link Double#POSITIVE_INFINITY},
-   * {@link Double#NEGATIVE_INFINITY}, or {@link Double#NaN}) then the result is
-   * {@link LinearTransformation#forNaN()}.
+   * <p>If the dataset contains any non-finite values ({@link Double#POSITIVE_INFINITY}, {@link
+   * Double#NEGATIVE_INFINITY}, or {@link Double#NaN}) then the result is {@link
+   * LinearTransformation#forNaN()}.
    *
    * @throws IllegalStateException if the dataset is empty or contains a single pair of values, or
    *     both the {@code x} and {@code y} dataset must have zero population variance
@@ -207,10 +202,16 @@ public final class PairedStats implements Serializable {
    * {@inheritDoc}
    *
    * <p><b>Note:</b> This tests exact equality of the calculated statistics, including the floating
-   * point values. It is definitely true for instances constructed from exactly the same values in
-   * the same order. It is also true for an instance round-tripped through java serialization.
-   * However, floating point rounding errors mean that it may be false for some instances where the
-   * statistics are mathematically equal, including the same values in a different order.
+   * point values. Two instances are guaranteed to be considered equal if one is copied from the
+   * other using {@code second = new PairedStatsAccumulator().addAll(first).snapshot()}, if both
+   * were obtained by calling {@code snapshot()} on the same {@link PairedStatsAccumulator} without
+   * adding any values in between the two calls, or if one is obtained from the other after
+   * round-tripping through java serialization. However, floating point rounding errors mean that it
+   * may be false for some instances where the statistics are mathematically equal, including
+   * instances constructed from the same values in a different order... or (in the general case)
+   * even in the same order. (It is guaranteed to return true for instances constructed from the
+   * same values in the same order if {@code strictfp} is in effect, or if the system architecture
+   * guarantees {@code strictfp}-like semantics.)
    */
   @Override
   public boolean equals(@Nullable Object obj) {
@@ -221,10 +222,9 @@ public final class PairedStats implements Serializable {
       return false;
     }
     PairedStats other = (PairedStats) obj;
-    return (xStats.equals(other.xStats))
-        && (yStats.equals(other.yStats))
-        && (doubleToLongBits(sumOfProductsOfDeltas)
-            == doubleToLongBits(other.sumOfProductsOfDeltas));
+    return xStats.equals(other.xStats)
+        && yStats.equals(other.yStats)
+        && doubleToLongBits(sumOfProductsOfDeltas) == doubleToLongBits(other.sumOfProductsOfDeltas);
   }
 
   /**
@@ -235,7 +235,7 @@ public final class PairedStats implements Serializable {
    */
   @Override
   public int hashCode() {
-    return Objects.hashCode(xStats, yStats, sumOfProductsOfDeltas);
+    return Objects.hash(xStats, yStats, sumOfProductsOfDeltas);
   }
 
   @Override
@@ -262,7 +262,7 @@ public final class PairedStats implements Serializable {
     if (value > 0.0) {
       return value;
     } else {
-      return Double.MIN_VALUE;
+      return Doubles.MIN_POSITIVE_VALUE;
     }
   }
 
@@ -278,9 +278,7 @@ public final class PairedStats implements Serializable {
 
   // Serialization helpers
 
-  /**
-   * The size of byte array representation in bytes.
-   */
+  /** The size of byte array representation in bytes. */
   private static final int BYTES = Stats.BYTES * 2 + Double.SIZE / Byte.SIZE;
 
   /**

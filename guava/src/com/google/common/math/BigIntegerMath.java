@@ -19,11 +19,11 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.math.MathPreconditions.checkNonNegative;
 import static com.google.common.math.MathPreconditions.checkPositive;
 import static com.google.common.math.MathPreconditions.checkRoundingUnnecessary;
+import static java.lang.Math.log;
 import static java.math.RoundingMode.CEILING;
 import static java.math.RoundingMode.FLOOR;
 import static java.math.RoundingMode.HALF_EVEN;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
 import com.google.common.annotations.VisibleForTesting;
@@ -45,35 +45,31 @@ import java.util.List;
  * @author Louis Wasserman
  * @since 11.0
  */
-@GwtCompatible(emulated = true)
+@GwtCompatible
 public final class BigIntegerMath {
   /**
-   * Returns the smallest power of two greater than or equal to {@code x}.  This is equivalent to
+   * Returns the smallest power of two greater than or equal to {@code x}. This is equivalent to
    * {@code BigInteger.valueOf(2).pow(log2(x, CEILING))}.
    *
    * @throws IllegalArgumentException if {@code x <= 0}
    * @since 20.0
    */
-  @Beta
   public static BigInteger ceilingPowerOfTwo(BigInteger x) {
-    return BigInteger.ZERO.setBit(log2(x, RoundingMode.CEILING));
+    return BigInteger.ZERO.setBit(log2(x, CEILING));
   }
 
   /**
-   * Returns the largest power of two less than or equal to {@code x}.  This is equivalent to
-   * {@code BigInteger.valueOf(2).pow(log2(x, FLOOR))}.
+   * Returns the largest power of two less than or equal to {@code x}. This is equivalent to {@code
+   * BigInteger.valueOf(2).pow(log2(x, FLOOR))}.
    *
    * @throws IllegalArgumentException if {@code x <= 0}
    * @since 20.0
    */
-  @Beta
   public static BigInteger floorPowerOfTwo(BigInteger x) {
-    return BigInteger.ZERO.setBit(log2(x, RoundingMode.FLOOR));
+    return BigInteger.ZERO.setBit(log2(x, FLOOR));
   }
 
-  /**
-   * Returns {@code true} if {@code x} represents a power of two.
-   */
+  /** Returns {@code true} if {@code x} represents a power of two. */
   public static boolean isPowerOfTwo(BigInteger x) {
     checkNotNull(x);
     return x.signum() > 0 && x.getLowestSetBit() == x.bitLength() - 1;
@@ -121,10 +117,8 @@ public final class BigIntegerMath {
         BigInteger x2 = x.pow(2);
         int logX2Floor = x2.bitLength() - 1;
         return (logX2Floor < 2 * logFloor + 1) ? logFloor : logFloor + 1;
-
-      default:
-        throw new AssertionError();
     }
+    throw new AssertionError();
   }
 
   /*
@@ -192,7 +186,7 @@ public final class BigIntegerMath {
     switch (mode) {
       case UNNECESSARY:
         checkRoundingUnnecessary(floorCmp == 0);
-        // fall through
+      // fall through
       case FLOOR:
       case DOWN:
         return floorLog;
@@ -208,20 +202,19 @@ public final class BigIntegerMath {
         BigInteger x2 = x.pow(2);
         BigInteger halfPowerSquared = floorPow.pow(2).multiply(BigInteger.TEN);
         return (x2.compareTo(halfPowerSquared) <= 0) ? floorLog : floorLog + 1;
-      default:
-        throw new AssertionError();
     }
+    throw new AssertionError();
   }
 
-  private static final double LN_10 = Math.log(10);
-  private static final double LN_2 = Math.log(2);
+  private static final double LN_10 = log(10);
+  private static final double LN_2 = log(2);
 
   /**
    * Returns the square root of {@code x}, rounded with the specified rounding mode.
    *
    * @throws IllegalArgumentException if {@code x < 0}
-   * @throws ArithmeticException if {@code mode} is {@link RoundingMode#UNNECESSARY} and
-   *     {@code sqrt(x)} is not an integer
+   * @throws ArithmeticException if {@code mode} is {@link RoundingMode#UNNECESSARY} and {@code
+   *     sqrt(x)} is not an integer
    */
   @GwtIncompatible // TODO
   @SuppressWarnings("fallthrough")
@@ -254,9 +247,8 @@ public final class BigIntegerMath {
          * halfSquare.
          */
         return (halfSquare.compareTo(x) >= 0) ? sqrtFloor : sqrtFloor.add(BigInteger.ONE);
-      default:
-        throw new AssertionError();
     }
+    throw new AssertionError();
   }
 
   @GwtIncompatible // TODO
@@ -309,8 +301,61 @@ public final class BigIntegerMath {
   }
 
   /**
-   * Returns the result of dividing {@code p} by {@code q}, rounding using the specified
-   * {@code RoundingMode}.
+   * Returns {@code x}, rounded to a {@code double} with the specified rounding mode. If {@code x}
+   * is precisely representable as a {@code double}, its {@code double} value will be returned;
+   * otherwise, the rounding will choose between the two nearest representable values with {@code
+   * mode}.
+   *
+   * <p>For the case of {@link RoundingMode#HALF_DOWN}, {@code HALF_UP}, and {@code HALF_EVEN},
+   * infinite {@code double} values are considered infinitely far away. For example, 2^2000 is not
+   * representable as a double, but {@code roundToDouble(BigInteger.valueOf(2).pow(2000), HALF_UP)}
+   * will return {@code Double.MAX_VALUE}, not {@code Double.POSITIVE_INFINITY}.
+   *
+   * <p>For the case of {@link RoundingMode#HALF_EVEN}, this implementation uses the IEEE 754
+   * default rounding mode: if the two nearest representable values are equally near, the one with
+   * the least significant bit zero is chosen. (In such cases, both of the nearest representable
+   * values are even integers; this method returns the one that is a multiple of a greater power of
+   * two.)
+   *
+   * @throws ArithmeticException if {@code mode} is {@link RoundingMode#UNNECESSARY} and {@code x}
+   *     is not precisely representable as a {@code double}
+   * @since 30.0
+   */
+  @GwtIncompatible
+  public static double roundToDouble(BigInteger x, RoundingMode mode) {
+    return BigIntegerToDoubleRounder.INSTANCE.roundToDouble(x, mode);
+  }
+
+  @GwtIncompatible
+  private static final class BigIntegerToDoubleRounder extends ToDoubleRounder<BigInteger> {
+    static final BigIntegerToDoubleRounder INSTANCE = new BigIntegerToDoubleRounder();
+
+    private BigIntegerToDoubleRounder() {}
+
+    @Override
+    double roundToDoubleArbitrarily(BigInteger bigInteger) {
+      return DoubleUtils.bigToDouble(bigInteger);
+    }
+
+    @Override
+    int sign(BigInteger bigInteger) {
+      return bigInteger.signum();
+    }
+
+    @Override
+    BigInteger toX(double d, RoundingMode mode) {
+      return DoubleMath.roundToBigInteger(d, mode);
+    }
+
+    @Override
+    BigInteger minus(BigInteger a, BigInteger b) {
+      return a.subtract(b);
+    }
+  }
+
+  /**
+   * Returns the result of dividing {@code p} by {@code q}, rounding using the specified {@code
+   * RoundingMode}.
    *
    * @throws ArithmeticException if {@code q == 0}, or if {@code mode == UNNECESSARY} and {@code a}
    *     is not an integer multiple of {@code b}
@@ -344,7 +389,7 @@ public final class BigIntegerMath {
 
     // Pre-allocate space for our list of intermediate BigIntegers.
     int approxSize = IntMath.divide(n * IntMath.log2(n, CEILING), Long.SIZE, CEILING);
-    ArrayList<BigInteger> bignums = new ArrayList<BigInteger>(approxSize);
+    ArrayList<BigInteger> bignums = new ArrayList<>(approxSize);
 
     // Start from the pre-computed maximum long factorial.
     int startingNumber = LongMath.factorials.length;
@@ -434,7 +479,7 @@ public final class BigIntegerMath {
     long numeratorAccum = n;
     long denominatorAccum = 1;
 
-    int bits = LongMath.log2(n, RoundingMode.CEILING);
+    int bits = LongMath.log2(n, CEILING);
 
     int numeratorBits = bits;
 

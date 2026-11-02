@@ -16,12 +16,13 @@
 
 package com.google.common.collect.testing.testers;
 
+import static org.junit.Assert.assertThrows;
+
 import com.google.common.annotations.GwtCompatible;
 
 /**
- * A generic JUnit test which tests {@code get()} operations on a list. Can't be
- * invoked directly; please see
- * {@link com.google.common.collect.testing.ListTestSuiteBuilder}.
+ * A generic JUnit test which tests {@code get()} operations on a list. Can't be invoked directly;
+ * please see {@link com.google.common.collect.testing.ListTestSuiteBuilder}.
  *
  * @author Chris Povirk
  */
@@ -33,18 +34,10 @@ public class ListGetTester<E> extends AbstractListTester<E> {
   }
 
   public void testGet_negative() {
-    try {
-      getList().get(-1);
-      fail("get(-1) should throw");
-    } catch (IndexOutOfBoundsException expected) {
-    }
+    assertThrows(IndexOutOfBoundsException.class, () -> getList().get(-1));
   }
 
   public void testGet_tooLarge() {
-    try {
-      getList().get(getNumElements());
-      fail("get(size) should throw");
-    } catch (IndexOutOfBoundsException expected) {
-    }
+    assertThrows(IndexOutOfBoundsException.class, () -> getList().get(getNumElements()));
   }
 }

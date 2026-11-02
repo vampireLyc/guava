@@ -14,16 +14,22 @@
 
 package com.google.common.util.concurrent;
 
+import static com.google.common.math.LongMath.saturatedAbs;
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Preconditions;
+import com.google.errorprone.annotations.concurrent.LazyInit;
+import com.google.j2objc.annotations.RetainedLocalRef;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Implementation of {@code Futures#withTimeout}.
@@ -32,15 +38,16 @@ import javax.annotation.Nullable;
  * in an {@link ExecutionException}) if the specified duration expires. The delegate future is
  * interrupted and cancelled if it times out.
  */
+@J2ktIncompatible
 @GwtIncompatible
-final class TimeoutFuture<V> extends AbstractFuture.TrustedFuture<V> {
-  static <V> ListenableFuture<V> create(
+final class TimeoutFuture<V extends @Nullable Object> extends FluentFuture.TrustedFuture<V> {
+  static <V extends @Nullable Object> ListenableFuture<V> create(
       ListenableFuture<V> delegate,
       long time,
       TimeUnit unit,
       ScheduledExecutorService scheduledExecutor) {
-    TimeoutFuture<V> result = new TimeoutFuture<V>(delegate);
-    Fire<V> fire = new Fire<V>(result);
+    TimeoutFuture<V> result = new TimeoutFuture<>(delegate);
+    Fire<V> fire = new Fire<>(result);
     result.timer = scheduledExecutor.schedule(fire, time, unit);
     delegate.addListener(fire, directExecutor());
     return result;
@@ -70,22 +77,24 @@ final class TimeoutFuture<V> extends AbstractFuture.TrustedFuture<V> {
    * write-barriers).
    */
 
-  @Nullable private ListenableFuture<V> delegateRef;
-  @Nullable private Future<?> timer;
+  @LazyInit private @Nullable ListenableFuture<V> delegateRef;
+  @LazyInit private @Nullable ScheduledFuture<?> timer;
 
   private TimeoutFuture(ListenableFuture<V> delegate) {
     this.delegateRef = Preconditions.checkNotNull(delegate);
   }
 
   /** A runnable that is called when the delegate or the timer completes. */
-  private static final class Fire<V> implements Runnable {
-    @Nullable TimeoutFuture<V> timeoutFutureRef;
+  private static final class Fire<V extends @Nullable Object> implements Runnable {
+    @LazyInit @Nullable TimeoutFuture<V> timeoutFutureRef;
 
     Fire(TimeoutFuture<V> timeoutFuture) {
       this.timeoutFutureRef = timeoutFuture;
     }
 
     @Override
+    // TODO(b/227335009): Maybe change interruption behavior, but it requires thought.
+    @SuppressWarnings("Interruption")
     public void run() {
       // If either of these reads return null then we must be after a successful cancel or another
       // call to this method.
@@ -93,7 +102,7 @@ final class TimeoutFuture<V> extends AbstractFuture.TrustedFuture<V> {
       if (timeoutFuture == null) {
         return;
       }
-      ListenableFuture<V> delegate = timeoutFuture.delegateRef;
+      @RetainedLocalRef ListenableFuture<V> delegate = timeoutFuture.delegateRef;
       if (delegate == null) {
         return;
       }
@@ -112,12 +121,25 @@ final class TimeoutFuture<V> extends AbstractFuture.TrustedFuture<V> {
        */
       timeoutFutureRef = null;
       if (delegate.isDone()) {
-        timeoutFuture.setFuture(delegate);
+        timeoutFuture.setFutureInternal(delegate);
       } else {
         try {
-          // TODO(lukes): this stack trace is particularly useless (all it does is point at the
-          // scheduledexecutorservice thread), consider eliminating it altogether?
-          timeoutFuture.setException(new TimeoutException("Future timed out: " + delegate));
+          @RetainedLocalRef ScheduledFuture<?> timer = timeoutFuture.timer;
+          timeoutFuture.timer = null; // Don't include already elapsed delay in delegate.toString()
+          String message = "Timed out";
+          // This try-finally block ensures that we complete the timeout future, even if attempting
+          // to produce the message throws (probably StackOverflowError from delegate.toString())
+          try {
+            if (timer != null) {
+              long overDelayMs = saturatedAbs(timer.getDelay(MILLISECONDS));
+              if (overDelayMs > 10) { // Not all timing drift is worth reporting
+                message += " (timeout delayed by " + overDelayMs + " ms after scheduled time)";
+              }
+            }
+            message += ": " + delegate;
+          } finally {
+            timeoutFuture.setException(new TimeoutFutureException(message));
+          }
         } finally {
           delegate.cancel(true);
         }
@@ -125,11 +147,42 @@ final class TimeoutFuture<V> extends AbstractFuture.TrustedFuture<V> {
     }
   }
 
+  private static final class TimeoutFutureException extends TimeoutException {
+    private TimeoutFutureException(String message) {
+      super(message);
+    }
+
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+      setStackTrace(new StackTraceElement[0]);
+      return this; // no stack trace, wouldn't be useful anyway
+    }
+  }
+
+  @Override
+  protected @Nullable String pendingToString() {
+    @RetainedLocalRef ListenableFuture<? extends V> localInputFuture = delegateRef;
+    @RetainedLocalRef ScheduledFuture<?> localTimer = timer;
+    if (localInputFuture != null) {
+      String message = "inputFuture=[" + localInputFuture + "]";
+      if (localTimer != null) {
+        long delay = localTimer.getDelay(MILLISECONDS);
+        // Negative delays look confusing in an error message
+        if (delay > 0) {
+          message += ", remaining delay=[" + delay + " ms]";
+        }
+      }
+      return message;
+    }
+    return null;
+  }
+
   @Override
   protected void afterDone() {
-    maybePropagateCancellation(delegateRef);
+    @RetainedLocalRef ListenableFuture<? extends V> delegate = delegateRef;
+    maybePropagateCancellationTo(delegate);
 
-    Future<?> localTimer = timer;
+    @RetainedLocalRef Future<?> localTimer = timer;
     // Try to cancel the timer as an optimization.
     // timer may be null if this call to run was by the timer task since there is no happens-before
     // edge between the assignment to timer and an execution of the timer task.

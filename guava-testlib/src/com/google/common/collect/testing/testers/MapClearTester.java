@@ -20,6 +20,7 @@ import static com.google.common.collect.testing.features.CollectionSize.SEVERAL;
 import static com.google.common.collect.testing.features.CollectionSize.ZERO;
 import static com.google.common.collect.testing.features.MapFeature.FAILS_FAST_ON_CONCURRENT_MODIFICATION;
 import static com.google.common.collect.testing.features.MapFeature.SUPPORTS_REMOVE;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.testing.AbstractMapTester;
@@ -30,9 +31,8 @@ import java.util.Iterator;
 import java.util.Map.Entry;
 
 /**
- * A generic JUnit test which tests {@code clear()} operations on a map.
- * Can't be invoked directly; please see
- * {@link com.google.common.collect.testing.MapTestSuiteBuilder}.
+ * A generic JUnit test which tests {@code clear()} operations on a map. Can't be invoked directly;
+ * please see {@link com.google.common.collect.testing.MapTestSuiteBuilder}.
  *
  * @author George van den Driessche
  * @author Chris Povirk
@@ -50,52 +50,31 @@ public class MapClearTester<K, V> extends AbstractMapTester<K, V> {
   @MapFeature.Require({FAILS_FAST_ON_CONCURRENT_MODIFICATION, SUPPORTS_REMOVE})
   @CollectionSize.Require(SEVERAL)
   public void testClearConcurrentWithEntrySetIteration() {
-    try {
-      Iterator<Entry<K, V>> iterator = getMap().entrySet().iterator();
-      getMap().clear();
-      iterator.next();
-      fail("Expected ConcurrentModificationException");
-    } catch (ConcurrentModificationException expected) {
-      // success
-    }
+    Iterator<Entry<K, V>> iterator = getMap().entrySet().iterator();
+    getMap().clear();
+    assertThrows(ConcurrentModificationException.class, iterator::next);
   }
 
   @MapFeature.Require({FAILS_FAST_ON_CONCURRENT_MODIFICATION, SUPPORTS_REMOVE})
   @CollectionSize.Require(SEVERAL)
   public void testClearConcurrentWithKeySetIteration() {
-    try {
-      Iterator<K> iterator = getMap().keySet().iterator();
-      getMap().clear();
-      iterator.next();
-      fail("Expected ConcurrentModificationException");
-    } catch (ConcurrentModificationException expected) {
-      // success
-    }
+    Iterator<K> iterator = getMap().keySet().iterator();
+    getMap().clear();
+    assertThrows(ConcurrentModificationException.class, iterator::next);
   }
 
   @MapFeature.Require({FAILS_FAST_ON_CONCURRENT_MODIFICATION, SUPPORTS_REMOVE})
   @CollectionSize.Require(SEVERAL)
   public void testClearConcurrentWithValuesIteration() {
-    try {
-      Iterator<V> iterator = getMap().values().iterator();
-      getMap().clear();
-      iterator.next();
-      fail("Expected ConcurrentModificationException");
-    } catch (ConcurrentModificationException expected) {
-      // success
-    }
+    Iterator<V> iterator = getMap().values().iterator();
+    getMap().clear();
+    assertThrows(ConcurrentModificationException.class, iterator::next);
   }
 
   @MapFeature.Require(absent = SUPPORTS_REMOVE)
   @CollectionSize.Require(absent = ZERO)
   public void testClear_unsupported() {
-    try {
-      getMap().clear();
-      fail(
-          "clear() should throw UnsupportedOperation if a map does "
-              + "not support it and is not empty.");
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> getMap().clear());
     expectUnchanged();
   }
 

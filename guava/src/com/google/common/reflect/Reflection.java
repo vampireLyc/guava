@@ -17,7 +17,6 @@ package com.google.common.reflect;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.google.common.annotations.Beta;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 
@@ -26,7 +25,6 @@ import java.lang.reflect.Proxy;
  *
  * @since 12.0
  */
-@Beta
 public final class Reflection {
 
   /**
@@ -49,13 +47,13 @@ public final class Reflection {
   }
 
   /**
-   * Ensures that the given classes are initialized, as described in
-   * <a href="http://java.sun.com/docs/books/jls/third_edition/html/execution.html#12.4.2">
-   * JLS Section 12.4.2</a>.
+   * Ensures that the given classes are initialized, as described in <a
+   * href="http://java.sun.com/docs/books/jls/third_edition/html/execution.html#12.4.2">JLS Section
+   * 12.4.2</a>.
    *
    * <p>WARNING: Normally it's a smell if a class needs to be explicitly initialized, because static
    * state hurts system maintainability and testability. In cases when you have no choice while
-   * inter-operating with a legacy framework, this method helps to keep the code less ugly.
+   * interoperating with a legacy framework, this method helps to keep the code less ugly.
    *
    * @throws ExceptionInInitializerError if an exception is thrown during initialization of a class
    */
@@ -72,8 +70,8 @@ public final class Reflection {
   /**
    * Returns a proxy instance that implements {@code interfaceType} by dispatching method
    * invocations to {@code handler}. The class loader of {@code interfaceType} will be used to
-   * define the proxy class. To implement multiple interfaces or specify a class loader, use
-   * {@link Proxy#newProxyInstance}.
+   * define the proxy class. To implement multiple interfaces or specify a class loader, use {@link
+   * Proxy#newProxyInstance}.
    *
    * @throws IllegalArgumentException if {@code interfaceType} does not specify the type of a Java
    *     interface

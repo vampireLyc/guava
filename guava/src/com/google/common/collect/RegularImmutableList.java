@@ -16,34 +16,35 @@
 
 package com.google.common.collect;
 
-import static com.google.common.base.Preconditions.checkElementIndex;
+import static java.lang.System.arraycopy;
 
 import com.google.common.annotations.GwtCompatible;
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.annotations.VisibleForTesting;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Implementation of {@link ImmutableList} backed by a simple array.
  *
  * @author Kevin Bourrillion
  */
-@GwtCompatible(serializable = true, emulated = true)
+@GwtCompatible
 @SuppressWarnings("serial") // uses writeReplace(), not default serialization
-class RegularImmutableList<E> extends ImmutableList<E> {
-  static final ImmutableList<Object> EMPTY = new RegularImmutableList<Object>(new Object[0], 0);
+final class RegularImmutableList<E> extends ImmutableList<E> {
+  static final ImmutableList<Object> EMPTY = new RegularImmutableList<>(new Object[0]);
 
   @VisibleForTesting final transient Object[] array;
-  private final transient int size;
 
-  RegularImmutableList(Object[] array, int size) {
+  RegularImmutableList(Object[] array) {
     this.array = array;
-    this.size = size;
   }
 
   @Override
   public int size() {
-    return size;
+    return array.length;
   }
 
   @Override
@@ -52,16 +53,30 @@ class RegularImmutableList<E> extends ImmutableList<E> {
   }
 
   @Override
-  int copyIntoArray(Object[] dst, int dstOff) {
-    System.arraycopy(array, 0, dst, dstOff, size);
-    return dstOff + size;
+  Object[] internalArray() {
+    return array;
+  }
+
+  @Override
+  int internalArrayStart() {
+    return 0;
+  }
+
+  @Override
+  int internalArrayEnd() {
+    return array.length;
+  }
+
+  @Override
+  int copyIntoArray(@Nullable Object[] dst, int dstOff) {
+    arraycopy(array, 0, dst, dstOff, array.length);
+    return dstOff + array.length;
   }
 
   // The fake cast to E is safe because the creation methods only allow E's
   @Override
   @SuppressWarnings("unchecked")
   public E get(int index) {
-    checkElementIndex(index, size);
     return (E) array[index];
   }
 
@@ -70,13 +85,22 @@ class RegularImmutableList<E> extends ImmutableList<E> {
   public UnmodifiableListIterator<E> listIterator(int index) {
     // for performance
     // The fake cast to E is safe because the creation methods only allow E's
-    return (UnmodifiableListIterator<E>) Iterators.forArray(array, 0, size, index);
+    return (UnmodifiableListIterator<E>) Iterators.forArrayWithPosition(array, index);
   }
 
   @Override
   public Spliterator<E> spliterator() {
-    return Spliterators.spliterator(array, 0, size, SPLITERATOR_CHARACTERISTICS);
+    return Spliterators.spliterator(array, SPLITERATOR_CHARACTERISTICS);
   }
 
   // TODO(lowasser): benchmark optimizations for equals() and see if they're worthwhile
+
+  // redeclare to help optimizers with b/310253115
+  @SuppressWarnings("RedundantOverride")
+  @Override
+  @J2ktIncompatible
+  @GwtIncompatible
+    Object writeReplace() {
+    return super.writeReplace();
+  }
 }

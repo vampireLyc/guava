@@ -17,6 +17,7 @@
 package com.google.common.util.concurrent.testing;
 
 import static com.google.common.util.concurrent.MoreExecutors.newDirectExecutorService;
+import static java.util.concurrent.Executors.callable;
 
 import com.google.common.annotations.GwtIncompatible;
 import com.google.common.base.Preconditions;
@@ -36,17 +37,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * A ScheduledExecutorService that executes all scheduled actions immediately
- * in the calling thread.
+ * A ScheduledExecutorService that executes all scheduled actions immediately in the calling thread.
  *
- * See {@link TestingExecutors#sameThreadScheduledExecutor()} for a full list of
- * constraints.
+ * <p>See {@link TestingExecutors#sameThreadScheduledExecutor()} for a full list of constraints.
  *
  * @author John Sirois
  * @author Zach van Schouwen
  */
 @GwtIncompatible
-class SameThreadScheduledExecutorService extends AbstractExecutorService
+final class SameThreadScheduledExecutorService extends AbstractExecutorService
     implements ListeningScheduledExecutorService {
 
   private final ListeningExecutorService delegate = newDirectExecutorService();
@@ -72,8 +71,7 @@ class SameThreadScheduledExecutorService extends AbstractExecutorService
   }
 
   @Override
-  public boolean awaitTermination(long timeout, TimeUnit unit)
-      throws InterruptedException {
+  public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
     Preconditions.checkNotNull(unit, "unit must not be null!");
     return delegate.awaitTermination(timeout, unit);
   }
@@ -98,8 +96,8 @@ class SameThreadScheduledExecutorService extends AbstractExecutorService
   }
 
   @Override
-  public <T> List<Future<T>> invokeAll(
-      Collection<? extends Callable<T>> tasks) throws InterruptedException {
+  public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks)
+      throws InterruptedException {
     Preconditions.checkNotNull(tasks, "tasks must not be null!");
     return delegate.invokeAll(tasks);
   }
@@ -121,8 +119,7 @@ class SameThreadScheduledExecutorService extends AbstractExecutorService
   }
 
   @Override
-  public <T> T invokeAny(Collection<? extends Callable<T>> tasks,
-      long timeout, TimeUnit unit)
+  public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit)
       throws InterruptedException, ExecutionException, TimeoutException {
     Preconditions.checkNotNull(tasks, "tasks must not be null!");
     Preconditions.checkNotNull(unit, "unit must not be null!");
@@ -136,26 +133,29 @@ class SameThreadScheduledExecutorService extends AbstractExecutorService
   }
 
   @Override
-  public ListenableScheduledFuture<?> schedule(Runnable command, long delay,
-      TimeUnit unit) {
+  public ListenableScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
     Preconditions.checkNotNull(command, "command must not be null");
     Preconditions.checkNotNull(unit, "unit must not be null!");
-    return schedule(java.util.concurrent.Executors.callable(command),
-        delay, unit);
+    return schedule(callable(command), delay, unit);
   }
 
-  private static class ImmediateScheduledFuture<V>
-      extends SimpleForwardingListenableFuture<V>
-      implements ListenableScheduledFuture<V> {
-    private ExecutionException exception;
+  @Override
+  public <V> ListenableScheduledFuture<V> schedule(
+      Callable<V> callable, long delay, TimeUnit unit) {
+    Preconditions.checkNotNull(callable, "callable must not be null!");
+    Preconditions.checkNotNull(unit, "unit must not be null!");
+    ListenableFuture<V> delegateFuture = submit(callable);
+    return new ImmediateScheduledFuture<>(delegateFuture);
+  }
 
-    protected ImmediateScheduledFuture(ListenableFuture<V> future) {
+  private static final class ImmediateScheduledFuture<V> extends SimpleForwardingListenableFuture<V>
+      implements ListenableScheduledFuture<V> {
+    ImmediateScheduledFuture(ListenableFuture<V> future) {
       super(future);
     }
 
     @Override
-    public V get(long timeout, TimeUnit unit)
-        throws InterruptedException, ExecutionException, TimeoutException {
+    public V get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException {
       Preconditions.checkNotNull(unit, "unit must not be null!");
       return get();
     }
@@ -174,25 +174,14 @@ class SameThreadScheduledExecutorService extends AbstractExecutorService
   }
 
   @Override
-  public <V> ListenableScheduledFuture<V> schedule(final Callable<V> callable,
-      long delay, TimeUnit unit) {
-    Preconditions.checkNotNull(callable, "callable must not be null!");
-    Preconditions.checkNotNull(unit, "unit must not be null!");
-    ListenableFuture<V> delegateFuture = submit(callable);
-    return new ImmediateScheduledFuture<V>(delegateFuture);
+  public ListenableScheduledFuture<?> scheduleAtFixedRate(
+      Runnable command, long initialDelay, long period, TimeUnit unit) {
+    throw new UnsupportedOperationException("scheduleAtFixedRate is not supported.");
   }
 
   @Override
-  public ListenableScheduledFuture<?> scheduleAtFixedRate(Runnable command,
-      long initialDelay, long period, TimeUnit unit) {
-    throw new UnsupportedOperationException(
-        "scheduleAtFixedRate is not supported.");
-  }
-
-  @Override
-  public ListenableScheduledFuture<?> scheduleWithFixedDelay(Runnable command,
-      long initialDelay, long delay, TimeUnit unit) {
-    throw new UnsupportedOperationException(
-        "scheduleWithFixedDelay is not supported.");
+  public ListenableScheduledFuture<?> scheduleWithFixedDelay(
+      Runnable command, long initialDelay, long delay, TimeUnit unit) {
+    throw new UnsupportedOperationException("scheduleWithFixedDelay is not supported.");
   }
 }

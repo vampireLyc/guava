@@ -16,26 +16,33 @@ package com.google.common.collect;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.SortedLists.KeyAbsentBehavior;
 import com.google.common.collect.SortedLists.KeyPresentBehavior;
 import com.google.common.testing.NullPointerTester;
 import java.util.List;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullMarked;
 
 /**
  * Tests for SortedLists.
  *
  * @author Louis Wasserman
  */
-@GwtCompatible(emulated = true)
+@GwtCompatible
+@NullMarked
 public class SortedListsTest extends TestCase {
   private static final ImmutableList<Integer> LIST_WITH_DUPS =
       ImmutableList.of(1, 1, 2, 4, 4, 4, 8);
 
   private static final ImmutableList<Integer> LIST_WITHOUT_DUPS = ImmutableList.of(1, 2, 4, 8);
 
-  void assertModelAgrees(List<Integer> list, Integer key, int answer,
-      KeyPresentBehavior presentBehavior, KeyAbsentBehavior absentBehavior) {
+  void assertModelAgrees(
+      List<Integer> list,
+      Integer key,
+      int answer,
+      KeyPresentBehavior presentBehavior,
+      KeyAbsentBehavior absentBehavior) {
     switch (presentBehavior) {
       case FIRST_PRESENT:
         if (list.contains(key)) {
@@ -67,8 +74,6 @@ public class SortedListsTest extends TestCase {
           return;
         }
         break;
-      default:
-        throw new AssertionError();
     }
     // key is not present
     int nextHigherIndex = list.size();
@@ -85,18 +90,20 @@ public class SortedListsTest extends TestCase {
       case INVERTED_INSERTION_INDEX:
         assertEquals(-1 - nextHigherIndex, answer);
         return;
-      default:
-        throw new AssertionError();
     }
+    throw new AssertionError();
   }
 
   public void testWithoutDups() {
     for (KeyPresentBehavior presentBehavior : KeyPresentBehavior.values()) {
       for (KeyAbsentBehavior absentBehavior : KeyAbsentBehavior.values()) {
         for (int key = 0; key <= 10; key++) {
-          assertModelAgrees(LIST_WITHOUT_DUPS, key,
+          assertModelAgrees(
+              LIST_WITHOUT_DUPS,
+              key,
               SortedLists.binarySearch(LIST_WITHOUT_DUPS, key, presentBehavior, absentBehavior),
-              presentBehavior, absentBehavior);
+              presentBehavior,
+              absentBehavior);
         }
       }
     }
@@ -106,14 +113,18 @@ public class SortedListsTest extends TestCase {
     for (KeyPresentBehavior presentBehavior : KeyPresentBehavior.values()) {
       for (KeyAbsentBehavior absentBehavior : KeyAbsentBehavior.values()) {
         for (int key = 0; key <= 10; key++) {
-          assertModelAgrees(LIST_WITH_DUPS, key,
+          assertModelAgrees(
+              LIST_WITH_DUPS,
+              key,
               SortedLists.binarySearch(LIST_WITH_DUPS, key, presentBehavior, absentBehavior),
-              presentBehavior, absentBehavior);
+              presentBehavior,
+              absentBehavior);
         }
       }
     }
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // NullPointerTester
   public void testNulls() {
     new NullPointerTester().testAllPublicStaticMethods(SortedLists.class);

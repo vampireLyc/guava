@@ -14,16 +14,17 @@
 
 package com.google.common.reflect;
 
-import com.google.common.annotations.Beta;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
- * Abstract implementation of {@link InvocationHandler} that handles {@link Object#equals},
- * {@link Object#hashCode} and {@link Object#toString}. For example: <pre>
+ * Abstract implementation of {@link InvocationHandler} that handles {@link Object#equals}, {@link
+ * Object#hashCode} and {@link Object#toString}. For example:
+ *
+ * <pre>
  * class Unsupported extends AbstractInvocationHandler {
  *   protected Object handleInvocation(Object proxy, Method method, Object[] args) {
  *     throw new UnsupportedOperationException();
@@ -36,8 +37,9 @@ import javax.annotation.Nullable;
  * @author Ben Yu
  * @since 12.0
  */
-@Beta
 public abstract class AbstractInvocationHandler implements InvocationHandler {
+  /** Constructor for use by subclasses. */
+  protected AbstractInvocationHandler() {}
 
   private static final Object[] NO_ARGS = {};
 
@@ -45,20 +47,21 @@ public abstract class AbstractInvocationHandler implements InvocationHandler {
    * {@inheritDoc}
    *
    * <ul>
-   * <li>{@code proxy.hashCode()} delegates to {@link AbstractInvocationHandler#hashCode}
-   * <li>{@code proxy.toString()} delegates to {@link AbstractInvocationHandler#toString}
-   * <li>{@code proxy.equals(argument)} returns true if:
-   *   <ul>
-   *   <li>{@code proxy} and {@code argument} are of the same type
-   *   <li>and {@link AbstractInvocationHandler#equals} returns true for the
-   *       {@link InvocationHandler} of {@code argument}
-   *   </ul>
-   * <li>other method calls are dispatched to {@link #handleInvocation}.
+   *   <li>{@code proxy.hashCode()} delegates to {@link AbstractInvocationHandler#hashCode}
+   *   <li>{@code proxy.toString()} delegates to {@link AbstractInvocationHandler#toString}
+   *   <li>{@code proxy.equals(argument)} returns true if:
+   *       <ul>
+   *         <li>{@code proxy} and {@code argument} are of the same type
+   *         <li>and {@link AbstractInvocationHandler#equals} returns true for the {@link
+   *             InvocationHandler} of {@code argument}
+   *       </ul>
+   *   <li>other method calls are dispatched to {@link #handleInvocation}.
    * </ul>
    */
+  @SuppressWarnings("ReferenceEquality") // == fast path
   @Override
-  public final Object invoke(Object proxy, Method method, @Nullable Object[] args)
-      throws Throwable {
+  public final @Nullable Object invoke(
+      Object proxy, Method method, @Nullable Object @Nullable [] args) throws Throwable {
     if (args == null) {
       args = NO_ARGS;
     }
@@ -92,22 +95,22 @@ public abstract class AbstractInvocationHandler implements InvocationHandler {
    * <p>Unlike {@link #invoke}, {@code args} will never be null. When the method has no parameter,
    * an empty array is passed in.
    */
-  protected abstract Object handleInvocation(Object proxy, Method method, Object[] args)
-      throws Throwable;
+  protected abstract @Nullable Object handleInvocation(
+      Object proxy, Method method, @Nullable Object[] args) throws Throwable;
 
   /**
    * By default delegates to {@link Object#equals} so instances are only equal if they are
    * identical. {@code proxy.equals(argument)} returns true if:
    *
    * <ul>
-   * <li>{@code proxy} and {@code argument} are of the same type
-   * <li>and this method returns true for the {@link InvocationHandler} of {@code argument}
+   *   <li>{@code proxy} and {@code argument} are of the same type
+   *   <li>and this method returns true for the {@link InvocationHandler} of {@code argument}
    * </ul>
    *
    * <p>Subclasses can override this method to provide custom equality.
    */
   @Override
-  public boolean equals(Object obj) {
+  public boolean equals(@Nullable Object obj) {
     return super.equals(obj);
   }
 

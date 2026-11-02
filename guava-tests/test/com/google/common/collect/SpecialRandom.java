@@ -16,21 +16,23 @@
 
 package com.google.common.collect;
 
+import static java.lang.Long.parseLong;
+
 import java.util.Random;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
- * Utility class for being able to seed a {@link Random} value with a passed
- * in seed from a benchmark parameter.
+ * Utility class for being able to seed a {@link Random} value with a passed in seed from a
+ * benchmark parameter.
  *
- * TODO: Remove this class once Caliper has a better way.
+ * <p>TODO: Remove this class once Caliper has a better way.
  *
  * @author Nicholaus Shupe
  */
+@NullUnmarked
 public final class SpecialRandom extends Random {
   public static SpecialRandom valueOf(String s) {
-    return (s.length() == 0)
-        ? new SpecialRandom()
-        : new SpecialRandom(Long.parseLong(s));
+    return s.isEmpty() ? new SpecialRandom() : new SpecialRandom(parseLong(s));
   }
 
   private final boolean hasSeed;
@@ -47,7 +49,8 @@ public final class SpecialRandom extends Random {
     this.seed = seed;
   }
 
-  @Override public String toString() {
+  @Override
+  public String toString() {
     return hasSeed ? "(seed:" + seed : "(default seed)";
   }
 

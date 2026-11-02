@@ -15,9 +15,10 @@
 package com.google.common.escape;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.lang.System.arraycopy;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtCompatible;
+import org.jspecify.annotations.Nullable;
 
 /**
  * An object that converts literal text into a format safe for inclusion in a particular context
@@ -32,15 +33,15 @@ import com.google.common.annotations.GwtCompatible;
  * <p>A {@code CharEscaper} instance is required to be stateless, and safe when used concurrently by
  * multiple threads.
  *
- * <p>Popular escapers are defined as constants in classes like
- * {@link com.google.common.html.HtmlEscapers} and {@link com.google.common.xml.XmlEscapers}. To
- * create your own escapers extend this class and implement the {@link #escape(char)} method.
+ * <p>Popular escapers are defined as constants in classes like {@link
+ * com.google.common.html.HtmlEscapers} and {@link com.google.common.xml.XmlEscapers}. To create
+ * your own escapers extend this class and implement the {@link #escape(char)} method.
  *
  * @author Sven Mawson
  * @since 15.0
  */
-@Beta
 @GwtCompatible
+@SuppressWarnings("EscapedEntity") // We do mean for the user to see "&lt;" etc.
 public abstract class CharEscaper extends Escaper {
   /** Constructor for use by subclasses. */
   protected CharEscaper() {}
@@ -63,6 +64,27 @@ public abstract class CharEscaper extends Escaper {
       }
     }
     return string;
+  }
+
+  /**
+   * Returns the escaped form of the given character, or {@code null} if this character does not
+   * need to be escaped. If an empty array is returned, this effectively strips the input character
+   * from the resulting text.
+   *
+   * <p>If the character does not need to be escaped, this method should return {@code null}, rather
+   * than a one-character array containing the character itself. This enables the escaping algorithm
+   * to perform more efficiently.
+   *
+   * <p>An escaper is expected to be able to deal with any {@code char} value, so this method should
+   * not throw any exceptions.
+   *
+   * @param c the character to escape if necessary
+   * @return the replacement characters, or {@code null} if no escaping was needed
+   */
+  protected abstract char @Nullable [] escape(char c);
+
+  final char @Nullable [] escapeInternal(char c) {
+    return escape(c);
   }
 
   /**
@@ -117,7 +139,7 @@ public abstract class CharEscaper extends Escaper {
 
       // Copy the replacement string into the dest buffer as needed.
       if (rlen > 0) {
-        System.arraycopy(r, 0, dest, destIndex, rlen);
+        arraycopy(r, 0, dest, destIndex, rlen);
         destIndex += rlen;
       }
       lastEscape = index + 1;
@@ -139,23 +161,6 @@ public abstract class CharEscaper extends Escaper {
   }
 
   /**
-   * Returns the escaped form of the given character, or {@code null} if this character does not
-   * need to be escaped. If an empty array is returned, this effectively strips the input character
-   * from the resulting text.
-   *
-   * <p>If the character does not need to be escaped, this method should return {@code null}, rather
-   * than a one-character array containing the character itself. This enables the escaping algorithm
-   * to perform more efficiently.
-   *
-   * <p>An escaper is expected to be able to deal with any {@code char} value, so this method should
-   * not throw any exceptions.
-   *
-   * @param c the character to escape if necessary
-   * @return the replacement characters, or {@code null} if no escaping was needed
-   */
-  protected abstract char[] escape(char c);
-
-  /**
    * Helper method to grow the character buffer as needed, this only happens once in a while so it's
    * ok if it's in a method call. If the index passed in is 0 then no copying will be done.
    */
@@ -165,13 +170,11 @@ public abstract class CharEscaper extends Escaper {
     }
     char[] copy = new char[size];
     if (index > 0) {
-      System.arraycopy(dest, 0, copy, 0, index);
+      arraycopy(dest, 0, copy, 0, index);
     }
     return copy;
   }
 
-  /**
-   * The multiplier for padding to use when growing the escape buffer.
-   */
+  /** The multiplier for padding to use when growing the escape buffer. */
   private static final int DEST_PAD_MULTIPLIER = 2;
 }

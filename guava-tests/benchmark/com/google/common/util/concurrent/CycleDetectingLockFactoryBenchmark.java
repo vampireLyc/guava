@@ -21,24 +21,26 @@ import com.google.caliper.Benchmark;
 import com.google.caliper.Param;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Benchmarks for {@link CycleDetectingLockFactory}.
  *
  * @author Darick Tong
  */
+@NullUnmarked
 public class CycleDetectingLockFactoryBenchmark {
 
-  @Param({"2","3","4","5","10"}) int lockNestingDepth;
+  @Param({"2", "3", "4", "5", "10"})
+  int lockNestingDepth;
 
   CycleDetectingLockFactory factory;
   private Lock[] plainLocks;
   private Lock[] detectingLocks;
 
   @BeforeExperiment
-  void setUp() throws Exception {
-    this.factory = CycleDetectingLockFactory.newInstance(
-        CycleDetectingLockFactory.Policies.WARN);
+  void setUp() {
+    this.factory = CycleDetectingLockFactory.newInstance(CycleDetectingLockFactory.Policies.WARN);
     this.plainLocks = new Lock[lockNestingDepth];
     for (int i = 0; i < lockNestingDepth; i++) {
       plainLocks[i] = new ReentrantLock();
@@ -49,11 +51,13 @@ public class CycleDetectingLockFactoryBenchmark {
     }
   }
 
-  @Benchmark void unorderedPlainLocks(int reps) {
+  @Benchmark
+  void unorderedPlainLocks(int reps) {
     lockAndUnlock(new ReentrantLock(), reps);
   }
 
-  @Benchmark void unorderedCycleDetectingLocks(int reps) {
+  @Benchmark
+  void unorderedCycleDetectingLocks(int reps) {
     lockAndUnlock(factory.newReentrantLock("foo"), reps);
   }
 
@@ -64,11 +68,13 @@ public class CycleDetectingLockFactoryBenchmark {
     }
   }
 
-  @Benchmark void orderedPlainLocks(int reps) {
+  @Benchmark
+  void orderedPlainLocks(int reps) {
     lockAndUnlockNested(plainLocks, reps);
   }
 
-  @Benchmark void orderedCycleDetectingLocks(int reps) {
+  @Benchmark
+  void orderedCycleDetectingLocks(int reps) {
     lockAndUnlockNested(detectingLocks, reps);
   }
 

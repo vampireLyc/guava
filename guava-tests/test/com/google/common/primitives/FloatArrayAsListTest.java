@@ -17,9 +17,11 @@
 package com.google.common.primitives;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.lang.System.arraycopy;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.testing.ListTestSuiteBuilder;
 import com.google.common.collect.testing.SampleElements;
@@ -31,49 +33,49 @@ import java.util.List;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Test suite covering {@link Floats#asList(float[])})}.
  *
  * @author Kevin Bourrillion
  */
-@GwtCompatible(emulated = true)
+@GwtCompatible
+@NullUnmarked
+@AndroidIncompatible // test-suite builders
 public class FloatArrayAsListTest extends TestCase {
 
   private static List<Float> asList(Float[] values) {
     float[] temp = new float[values.length];
     for (int i = 0; i < values.length; i++) {
-      temp[i] = checkNotNull(values[i]);  // checkNotNull for GWT (do not optimize).
+      temp[i] = checkNotNull(values[i]); // checkNotNull for GWT (do not optimize).
     }
     return Floats.asList(temp);
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // suite
   public static Test suite() {
     List<ListTestSuiteBuilder<Float>> builders =
         ImmutableList.of(
-            ListTestSuiteBuilder.using(new FloatsAsListGenerator())
-                .named("Floats.asList"),
-
+            ListTestSuiteBuilder.using(new FloatsAsListGenerator()).named("Floats.asList"),
             ListTestSuiteBuilder.using(new FloatsAsListHeadSubListGenerator())
                 .named("Floats.asList, head subList"),
-
             ListTestSuiteBuilder.using(new FloatsAsListTailSubListGenerator())
                 .named("Floats.asList, tail subList"),
-
             ListTestSuiteBuilder.using(new FloatsAsListMiddleSubListGenerator())
-                .named("Floats.asList, middle subList")
-            );
+                .named("Floats.asList, middle subList"));
 
     TestSuite suite = new TestSuite();
     for (ListTestSuiteBuilder<Float> builder : builders) {
       suite.addTest(
           builder
-          .withFeatures(CollectionSize.ONE,
-                        CollectionSize.SEVERAL,
-                        CollectionFeature.RESTRICTS_ELEMENTS,
-                        ListFeature.SUPPORTS_SET)
-          .createTestSuite());
+              .withFeatures(
+                  CollectionSize.ONE,
+                  CollectionSize.SEVERAL,
+                  CollectionFeature.RESTRICTS_ELEMENTS,
+                  ListFeature.SUPPORTS_SET)
+              .createTestSuite());
     }
     return suite;
   }
@@ -82,31 +84,35 @@ public class FloatArrayAsListTest extends TestCase {
   // public named classes with a public default constructor.
 
   public static final class FloatsAsListGenerator extends TestFloatListGenerator {
-    @Override protected List<Float> create(Float[] elements) {
+    @Override
+    List<Float> create(Float[] elements) {
       return asList(elements);
     }
   }
 
   public static final class FloatsAsListHeadSubListGenerator extends TestFloatListGenerator {
-    @Override protected List<Float> create(Float[] elements) {
-      Float[] suffix = {Float.MIN_VALUE, Float.MAX_VALUE};
+    @Override
+    List<Float> create(Float[] elements) {
+      Float[] suffix = {Floats.MIN_POSITIVE_VALUE, Float.MAX_VALUE};
       Float[] all = concat(elements, suffix);
       return asList(all).subList(0, elements.length);
     }
   }
 
   public static final class FloatsAsListTailSubListGenerator extends TestFloatListGenerator {
-    @Override protected List<Float> create(Float[] elements) {
-      Float[] prefix = {(float) 86, (float) 99};
+    @Override
+    List<Float> create(Float[] elements) {
+      Float[] prefix = {86.0f, 99.0f};
       Float[] all = concat(prefix, elements);
       return asList(all).subList(2, elements.length + 2);
     }
   }
 
   public static final class FloatsAsListMiddleSubListGenerator extends TestFloatListGenerator {
-    @Override protected List<Float> create(Float[] elements) {
-      Float[] prefix = {Float.MIN_VALUE, Float.MAX_VALUE};
-      Float[] suffix = {(float) 86, (float) 99};
+    @Override
+    List<Float> create(Float[] elements) {
+      Float[] prefix = {Floats.MIN_POSITIVE_VALUE, Float.MAX_VALUE};
+      Float[] suffix = {86.0f, 99.0f};
       Float[] all = concat(concat(prefix, elements), suffix);
       return asList(all).subList(2, elements.length + 2);
     }
@@ -114,13 +120,12 @@ public class FloatArrayAsListTest extends TestCase {
 
   private static Float[] concat(Float[] left, Float[] right) {
     Float[] result = new Float[left.length + right.length];
-    System.arraycopy(left, 0, result, 0, left.length);
-    System.arraycopy(right, 0, result, left.length, right.length);
+    arraycopy(left, 0, result, 0, left.length);
+    arraycopy(right, 0, result, left.length, right.length);
     return result;
   }
 
-  public static abstract class TestFloatListGenerator
-      implements TestListGenerator<Float> {
+  public abstract static class TestFloatListGenerator implements TestListGenerator<Float> {
     @Override
     public SampleElements<Float> samples() {
       return new SampleFloats();
@@ -137,10 +142,10 @@ public class FloatArrayAsListTest extends TestCase {
     }
 
     /**
-     * Creates a new collection containing the given elements; implement this
-     * method instead of {@link #create(Object...)}.
+     * Creates a new collection containing the given elements; implement this method instead of
+     * {@link #create(Object...)}.
      */
-    protected abstract List<Float> create(Float[] elements);
+    abstract List<Float> create(Float[] elements);
 
     @Override
     public Float[] createArray(int length) {
@@ -156,7 +161,7 @@ public class FloatArrayAsListTest extends TestCase {
 
   public static class SampleFloats extends SampleElements<Float> {
     public SampleFloats() {
-      super((float) 0, (float) 1, (float) 2, (float) 3, (float) 4);
+      super(0.0f, 1.0f, 2.0f, 3.0f, 4.0f);
     }
   }
 }

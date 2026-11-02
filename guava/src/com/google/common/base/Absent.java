@@ -15,18 +15,18 @@
 package com.google.common.base;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Collections.emptySet;
 
 import com.google.common.annotations.GwtCompatible;
-import java.util.Collections;
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import java.util.Set;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
-/**
- * Implementation of an {@link Optional} not containing a reference.
- */
+/** Implementation of an {@link Optional} not containing a reference. */
 @GwtCompatible
 final class Absent<T> extends Optional<T> {
-  static final Absent<Object> INSTANCE = new Absent<Object>();
+  static final Absent<Object> INSTANCE = new Absent<>();
 
   @SuppressWarnings("unchecked") // implementation is "fully variant"
   static <T> Optional<T> withType() {
@@ -63,14 +63,13 @@ final class Absent<T> extends Optional<T> {
   }
 
   @Override
-  @Nullable
-  public T orNull() {
+  public @Nullable T orNull() {
     return null;
   }
 
   @Override
   public Set<T> asSet() {
-    return Collections.emptySet();
+    return emptySet();
   }
 
   @Override
@@ -80,8 +79,8 @@ final class Absent<T> extends Optional<T> {
   }
 
   @Override
-  public boolean equals(@Nullable Object object) {
-    return object == this;
+  public boolean equals(@Nullable Object obj) {
+    return this == obj;
   }
 
   @Override
@@ -98,5 +97,5 @@ final class Absent<T> extends Optional<T> {
     return INSTANCE;
   }
 
-  private static final long serialVersionUID = 0;
+  @GwtIncompatible @J2ktIncompatible private static final long serialVersionUID = 0;
 }

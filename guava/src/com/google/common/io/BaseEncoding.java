@@ -20,33 +20,42 @@ import static com.google.common.base.Preconditions.checkPositionIndexes;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.math.IntMath.divide;
 import static com.google.common.math.IntMath.log2;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+import static java.lang.System.arraycopy;
 import static java.math.RoundingMode.CEILING;
 import static java.math.RoundingMode.FLOOR;
 import static java.math.RoundingMode.UNNECESSARY;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Ascii;
-import com.google.common.base.CharMatcher;
-import com.google.common.base.Objects;
+import com.google.errorprone.annotations.concurrent.GuardedBy;
+import com.google.errorprone.annotations.concurrent.LazyInit;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.io.Writer;
 import java.util.Arrays;
-import javax.annotation.Nullable;
+import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A binary encoding scheme for reversibly translating between byte sequences and printable ASCII
- * strings. This class includes several constants for encoding schemes specified by
- * <a href="http://tools.ietf.org/html/rfc4648">RFC 4648</a>. For example, the expression:
+ * strings. This class includes several constants for encoding schemes specified by <a
+ * href="http://tools.ietf.org/html/rfc4648">RFC 4648</a>. For example, the expression:
  *
- * <pre>   {@code
- *   BaseEncoding.base32().encode("foo".getBytes(Charsets.US_ASCII))}</pre>
+ * {@snippet :
+ * BaseEncoding.base32().encode("foo".getBytes(US_ASCII))
+ * }
  *
- * <p>returns the string {@code "MZXW6==="}, and <pre>   {@code
- *  byte[] decoded = BaseEncoding.base32().decode("MZXW6===");}</pre>
+ * <p>returns the string {@code "MZXW6==="}, and
+ *
+ * {@snippet :
+ * byte[] decoded = BaseEncoding.base32().decode("MZXW6===");
+ * }
  *
  * <p>...returns the ASCII bytes of the string {@code "foo"}.
  *
@@ -55,22 +64,25 @@ import javax.annotation.Nullable;
  * encoding and decoding behavior, use configuration methods to obtain a new encoding with modified
  * behavior:
  *
- * <pre>   {@code
- *  BaseEncoding.base16().lowerCase().decode("deadbeef");}</pre>
+ * {@snippet :
+ * BaseEncoding.base16().lowerCase().decode("deadbeef");
+ * }
  *
  * <p>Warning: BaseEncoding instances are immutable. Invoking a configuration method has no effect
  * on the receiving instance; you must store and use the new encoding instance it returns, instead.
  *
- * <pre>   {@code
- *   // Do NOT do this
- *   BaseEncoding hex = BaseEncoding.base16();
- *   hex.lowerCase(); // does nothing!
- *   return hex.decode("deadbeef"); // throws an IllegalArgumentException}</pre>
+ * {@snippet :
+ * // Do NOT do this
+ * BaseEncoding hex = BaseEncoding.base16();
+ * hex.lowerCase(); // does nothing!
+ * return hex.decode("deadbeef"); // throws an IllegalArgumentException
+ * }
  *
- * <p>It is guaranteed that {@code encoding.decode(encoding.encode(x))} is always equal to
- * {@code x}, but the reverse does not necessarily hold.
+ * <p>It is guaranteed that {@code encoding.decode(encoding.encode(x))} is always equal to {@code
+ * x}, but the reverse does not necessarily hold.
  *
  * <table>
+ * <caption>Encodings</caption>
  * <tr>
  * <th>Encoding
  * <th>Alphabet
@@ -114,7 +126,10 @@ import javax.annotation.Nullable;
  * @author Louis Wasserman
  * @since 14.0
  */
-@GwtCompatible(emulated = true)
+// We use `& 0xff` before casting to `(byte)` to keep GWT from letting the byte be out of range:
+// https://www.gwtproject.org/doc/latest/DevGuideCodingBasicsCompatibility
+@SuppressWarnings("MaskAndCastToByte")
+@GwtCompatible
 public abstract class BaseEncoding {
   // TODO(lowasser): consider making encodeTo(Appendable, byte[], int, int) public.
 
@@ -127,25 +142,19 @@ public abstract class BaseEncoding {
    * @since 15.0
    */
   public static final class DecodingException extends IOException {
-    DecodingException(String message) {
+    DecodingException(@Nullable String message) {
       super(message);
-    }
-
-    DecodingException(Throwable cause) {
-      super(cause);
     }
   }
 
-  /**
-   * Encodes the specified byte array, and returns the encoded {@code String}.
-   */
+  /** Encodes the specified byte array, and returns the encoded {@code String}. */
   public String encode(byte[] bytes) {
     return encode(bytes, 0, bytes.length);
   }
 
   /**
-   * Encodes the specified range of the specified byte array, and returns the encoded
-   * {@code String}.
+   * Encodes the specified range of the specified byte array, and returns the encoded {@code
+   * String}.
    */
   public final String encode(byte[] bytes, int off, int len) {
     checkPositionIndexes(off, off + len, bytes.length);
@@ -160,17 +169,19 @@ public abstract class BaseEncoding {
 
   /**
    * Returns an {@code OutputStream} that encodes bytes using this encoding into the specified
-   * {@code Writer}. When the returned {@code OutputStream} is closed, so is the backing
-   * {@code Writer}.
+   * {@code Writer}. When the returned {@code OutputStream} is closed, so is the backing {@code
+   * Writer}.
    */
+  @J2ktIncompatible
   @GwtIncompatible // Writer,OutputStream
   public abstract OutputStream encodingStream(Writer writer);
 
   /**
    * Returns a {@code ByteSink} that writes base-encoded bytes to the specified {@code CharSink}.
    */
+  @J2ktIncompatible
   @GwtIncompatible // ByteSink,CharSink
-  public final ByteSink encodingSink(final CharSink encodedSink) {
+  public final ByteSink encodingSink(CharSink encodedSink) {
     checkNotNull(encodedSink);
     return new ByteSink() {
       @Override
@@ -185,11 +196,10 @@ public abstract class BaseEncoding {
   private static byte[] extract(byte[] result, int length) {
     if (length == result.length) {
       return result;
-    } else {
-      byte[] trunc = new byte[length];
-      System.arraycopy(result, 0, trunc, 0, length);
-      return trunc;
     }
+    byte[] trunc = new byte[length];
+    arraycopy(result, 0, trunc, 0, length);
+    return trunc;
   }
 
   /**
@@ -221,28 +231,30 @@ public abstract class BaseEncoding {
    *
    * @throws DecodingException if the input is not a valid encoded string according to this
    *     encoding.
-   */ final byte[] decodeChecked(CharSequence chars)
+   */
+  final byte[] decodeChecked(CharSequence chars)
       throws DecodingException {
-    chars = padding().trimTrailingFrom(chars);
+    chars = trimTrailingPadding(chars);
     byte[] tmp = new byte[maxDecodedSize(chars.length())];
     int len = decodeTo(tmp, chars);
     return extract(tmp, len);
   }
 
   /**
-   * Returns an {@code InputStream} that decodes base-encoded input from the specified
-   * {@code Reader}. The returned stream throws a {@link DecodingException} upon decoding-specific
-   * errors.
+   * Returns an {@code InputStream} that decodes base-encoded input from the specified {@code
+   * Reader}. The returned stream throws a {@link DecodingException} upon decoding-specific errors.
    */
+  @J2ktIncompatible
   @GwtIncompatible // Reader,InputStream
   public abstract InputStream decodingStream(Reader reader);
 
   /**
-   * Returns a {@code ByteSource} that reads base-encoded bytes from the specified
-   * {@code CharSource}.
+   * Returns a {@code ByteSource} that reads base-encoded bytes from the specified {@code
+   * CharSource}.
    */
+  @J2ktIncompatible
   @GwtIncompatible // ByteSource,CharSource
-  public final ByteSource decodingSource(final CharSource encodedSource) {
+  public final ByteSource decodingSource(CharSource encodedSource) {
     checkNotNull(encodedSource);
     return new ByteSource() {
       @Override
@@ -262,7 +274,9 @@ public abstract class BaseEncoding {
 
   abstract int decodeTo(byte[] target, CharSequence chars) throws DecodingException;
 
-  abstract CharMatcher padding();
+  CharSequence trimTrailingPadding(CharSequence chars) {
+    return checkNotNull(chars);
+  }
 
   // Modified encoding generators
 
@@ -311,22 +325,32 @@ public abstract class BaseEncoding {
    */
   public abstract BaseEncoding lowerCase();
 
+  /**
+   * Returns an encoding that behaves equivalently to this encoding, but decodes letters without
+   * regard to case.
+   *
+   * @throws IllegalStateException if the alphabet used by this encoding contains mixed upper- and
+   *     lower-case characters
+   * @since 32.0.0
+   */
+  public abstract BaseEncoding ignoreCase();
+
   private static final BaseEncoding BASE64 =
       new Base64Encoding(
           "base64()", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", '=');
 
   /**
-   * The "base64" base encoding specified by
-   * <a href="http://tools.ietf.org/html/rfc4648#section-4">RFC 4648 section 4</a>, Base 64
-   * Encoding. (This is the same as the base 64 encoding from
-   * <a href="http://tools.ietf.org/html/rfc3548#section-3">RFC 3548</a>.)
+   * The "base64" base encoding specified by <a
+   * href="http://tools.ietf.org/html/rfc4648#section-4">RFC 4648 section 4</a>, Base 64 Encoding.
+   * (This is the same as the base 64 encoding from <a
+   * href="http://tools.ietf.org/html/rfc3548#section-3">RFC 3548</a>.)
    *
    * <p>The character {@code '='} is used for padding, but can be {@linkplain #omitPadding()
    * omitted} or {@linkplain #withPadChar(char) replaced}.
    *
-   * <p>No line feeds are added by default, as per
-   * <a href="http://tools.ietf.org/html/rfc4648#section-3.1">RFC 4648 section 3.1</a>, Line Feeds
-   * in Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
+   * <p>No line feeds are added by default, as per <a
+   * href="http://tools.ietf.org/html/rfc4648#section-3.1">RFC 4648 section 3.1</a>, Line Feeds in
+   * Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
    */
   public static BaseEncoding base64() {
     return BASE64;
@@ -337,18 +361,18 @@ public abstract class BaseEncoding {
           "base64Url()", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_", '=');
 
   /**
-   * The "base64url" encoding specified by
-   * <a href="http://tools.ietf.org/html/rfc4648#section-5">RFC 4648 section 5</a>, Base 64 Encoding
+   * The "base64url" encoding specified by <a
+   * href="http://tools.ietf.org/html/rfc4648#section-5">RFC 4648 section 5</a>, Base 64 Encoding
    * with URL and Filename Safe Alphabet, also sometimes referred to as the "web safe Base64." (This
-   * is the same as the base 64 encoding with URL and filename safe alphabet from
-   * <a href="http://tools.ietf.org/html/rfc3548#section-4">RFC 3548</a>.)
+   * is the same as the base 64 encoding with URL and filename safe alphabet from <a
+   * href="http://tools.ietf.org/html/rfc3548#section-4">RFC 3548</a>.)
    *
    * <p>The character {@code '='} is used for padding, but can be {@linkplain #omitPadding()
    * omitted} or {@linkplain #withPadChar(char) replaced}.
    *
-   * <p>No line feeds are added by default, as per
-   * <a href="http://tools.ietf.org/html/rfc4648#section-3.1">RFC 4648 section 3.1</a>, Line Feeds
-   * in Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
+   * <p>No line feeds are added by default, as per <a
+   * href="http://tools.ietf.org/html/rfc4648#section-3.1">RFC 4648 section 3.1</a>, Line Feeds in
+   * Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
    */
   public static BaseEncoding base64Url() {
     return BASE64_URL;
@@ -359,15 +383,15 @@ public abstract class BaseEncoding {
 
   /**
    * The "base32" encoding specified by <a href="http://tools.ietf.org/html/rfc4648#section-6">RFC
-   * 4648 section 6</a>, Base 32 Encoding. (This is the same as the base 32 encoding from
-   * <a href="http://tools.ietf.org/html/rfc3548#section-5">RFC 3548</a>.)
+   * 4648 section 6</a>, Base 32 Encoding. (This is the same as the base 32 encoding from <a
+   * href="http://tools.ietf.org/html/rfc3548#section-5">RFC 3548</a>.)
    *
    * <p>The character {@code '='} is used for padding, but can be {@linkplain #omitPadding()
    * omitted} or {@linkplain #withPadChar(char) replaced}.
    *
-   * <p>No line feeds are added by default, as per
-   * <a href="http://tools.ietf.org/html/rfc4648#section-3.1">RFC 4648 section 3.1</a>, Line Feeds
-   * in Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
+   * <p>No line feeds are added by default, as per <a
+   * href="http://tools.ietf.org/html/rfc4648#section-3.1">RFC 4648 section 3.1</a>, Line Feeds in
+   * Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
    */
   public static BaseEncoding base32() {
     return BASE32;
@@ -377,16 +401,16 @@ public abstract class BaseEncoding {
       new StandardBaseEncoding("base32Hex()", "0123456789ABCDEFGHIJKLMNOPQRSTUV", '=');
 
   /**
-   * The "base32hex" encoding specified by
-   * <a href="http://tools.ietf.org/html/rfc4648#section-7">RFC 4648 section 7</a>, Base 32 Encoding
+   * The "base32hex" encoding specified by <a
+   * href="http://tools.ietf.org/html/rfc4648#section-7">RFC 4648 section 7</a>, Base 32 Encoding
    * with Extended Hex Alphabet. There is no corresponding encoding in RFC 3548.
    *
    * <p>The character {@code '='} is used for padding, but can be {@linkplain #omitPadding()
    * omitted} or {@linkplain #withPadChar(char) replaced}.
    *
-   * <p>No line feeds are added by default, as per
-   * <a href="http://tools.ietf.org/html/rfc4648#section-3.1">RFC 4648 section 3.1</a>, Line Feeds
-   * in Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
+   * <p>No line feeds are added by default, as per <a
+   * href="http://tools.ietf.org/html/rfc4648#section-3.1">RFC 4648 section 3.1</a>, Line Feeds in
+   * Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
    */
   public static BaseEncoding base32Hex() {
     return BASE32_HEX;
@@ -396,22 +420,24 @@ public abstract class BaseEncoding {
 
   /**
    * The "base16" encoding specified by <a href="http://tools.ietf.org/html/rfc4648#section-8">RFC
-   * 4648 section 8</a>, Base 16 Encoding. (This is the same as the base 16 encoding from
-   * <a href="http://tools.ietf.org/html/rfc3548#section-6">RFC 3548</a>.) This is commonly known as
+   * 4648 section 8</a>, Base 16 Encoding. (This is the same as the base 16 encoding from <a
+   * href="http://tools.ietf.org/html/rfc3548#section-6">RFC 3548</a>.) This is commonly known as
    * "hexadecimal" format.
    *
    * <p>No padding is necessary in base 16, so {@link #withPadChar(char)} and {@link #omitPadding()}
    * have no effect.
    *
-   * <p>No line feeds are added by default, as per
-   * <a href="http://tools.ietf.org/html/rfc4648#section-3.1">RFC 4648 section 3.1</a>, Line Feeds
-   * in Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
+   * <p>No line feeds are added by default, as per <a
+   * href="http://tools.ietf.org/html/rfc4648#section-3.1">RFC 4648 section 3.1</a>, Line Feeds in
+   * Encoded Data. Line feeds may be added using {@link #withSeparator(String, int)}.
+   *
+   * <p><b>Java 17+ users:</b> Consider using the {@link java.util.HexFormat} API instead.
    */
   public static BaseEncoding base16() {
     return BASE16;
   }
 
-  private static final class Alphabet extends CharMatcher {
+  static final class Alphabet {
     private final String name;
     // this is meant to be immutable -- don't modify it!
     private final char[] chars;
@@ -421,8 +447,13 @@ public abstract class BaseEncoding {
     final int bytesPerChunk;
     private final byte[] decodabet;
     private final boolean[] validPadding;
+    private final boolean ignoreCase;
 
     Alphabet(String name, char[] chars) {
+      this(name, chars, decodabetFor(chars), /* ignoreCase= */ false);
+    }
+
+    private Alphabet(String name, char[] chars, byte[] decodabet, boolean ignoreCase) {
       this.name = checkNotNull(name);
       this.chars = checkNotNull(chars);
       try {
@@ -431,28 +462,19 @@ public abstract class BaseEncoding {
         throw new IllegalArgumentException("Illegal alphabet length " + chars.length, e);
       }
 
-      /*
-       * e.g. for base64, bitsPerChar == 6, charsPerChunk == 4, and bytesPerChunk == 3. This makes
-       * for the smallest chunk size that still has charsPerChunk * bitsPerChar be a multiple of 8.
-       */
-      int gcd = Math.min(8, Integer.lowestOneBit(bitsPerChar));
-      try {
-        this.charsPerChunk = 8 / gcd;
-        this.bytesPerChunk = bitsPerChar / gcd;
-      } catch (ArithmeticException e) {
-        throw new IllegalArgumentException("Illegal alphabet " + new String(chars), e);
-      }
+      // Compute how input bytes are chunked. For example, with base64 we chunk every 3 bytes into
+      // 4 characters. We have bitsPerChar == 6, charsPerChunk == 4, and bytesPerChunk == 3.
+      // We're looking for the smallest charsPerChunk such that bitsPerChar * charsPerChunk is a
+      // multiple of 8. A multiple of 8 has 3 low zero bits, so we just need to figure out how many
+      // extra zero bits we need to add to the end of bitsPerChar to get 3 in total.
+      // The logic here would be wrong for bitsPerChar > 8, but since we require distinct ASCII
+      // characters that can't happen.
+      int zeroesInBitsPerChar = Integer.numberOfTrailingZeros(bitsPerChar);
+      this.charsPerChunk = 1 << (3 - zeroesInBitsPerChar);
+      this.bytesPerChunk = bitsPerChar >> zeroesInBitsPerChar;
 
       this.mask = chars.length - 1;
 
-      byte[] decodabet = new byte[Ascii.MAX + 1];
-      Arrays.fill(decodabet, (byte) -1);
-      for (int i = 0; i < chars.length; i++) {
-        char c = chars[i];
-        checkArgument(CharMatcher.ascii().matches(c), "Non-ASCII character: %s", c);
-        checkArgument(decodabet[c] == -1, "Duplicate character: %s", c);
-        decodabet[c] = (byte) i;
-      }
       this.decodabet = decodabet;
 
       boolean[] validPadding = new boolean[charsPerChunk];
@@ -460,14 +482,53 @@ public abstract class BaseEncoding {
         validPadding[divide(i * 8, bitsPerChar, CEILING)] = true;
       }
       this.validPadding = validPadding;
+      this.ignoreCase = ignoreCase;
+    }
+
+    private static byte[] decodabetFor(char[] chars) {
+      byte[] decodabet = new byte[Ascii.MAX + 1];
+      Arrays.fill(decodabet, (byte) -1);
+      for (int i = 0; i < chars.length; i++) {
+        char c = chars[i];
+        checkArgument(c < decodabet.length, "Non-ASCII character: %s", c);
+        checkArgument(decodabet[c] == -1, "Duplicate character: %s", c);
+        decodabet[c] = (byte) i;
+      }
+      return decodabet;
+    }
+
+    /** Returns an equivalent {@code Alphabet} except it ignores case. */
+    Alphabet ignoreCase() {
+      if (ignoreCase) {
+        return this;
+      }
+
+      // We can't use .clone() because of GWT.
+      byte[] newDecodabet = Arrays.copyOf(decodabet, decodabet.length);
+      for (int upper = 'A'; upper <= 'Z'; upper++) {
+        int lower = upper | 0x20;
+        byte decodeUpper = decodabet[upper];
+        byte decodeLower = decodabet[lower];
+        if (decodeUpper == -1) {
+          newDecodabet[upper] = decodeLower;
+        } else {
+          checkState(
+              decodeLower == -1,
+              "Can't ignoreCase() since '%s' and '%s' encode different values",
+              (char) upper,
+              (char) lower);
+          newDecodabet[lower] = decodeUpper;
+        }
+      }
+      return new Alphabet(name + ".ignoreCase()", chars, newDecodabet, /* ignoreCase= */ true);
     }
 
     char encode(int bits) {
       return chars[bits];
     }
 
-    boolean isValidPaddingStartPosition(int index) {
-      return validPadding[index % charsPerChunk];
+    boolean isValidPaddingStartPosition(long index) {
+      return validPadding[(int) (index % charsPerChunk)];
     }
 
     boolean canDecode(char ch) {
@@ -475,12 +536,18 @@ public abstract class BaseEncoding {
     }
 
     int decode(char ch) throws DecodingException {
-      if (ch > Ascii.MAX || decodabet[ch] == -1) {
-        throw new DecodingException(
-            "Unrecognized character: "
-                + (CharMatcher.invisible().matches(ch) ? "0x" + Integer.toHexString(ch) : ch));
+      if (ch > Ascii.MAX) {
+        throw new DecodingException("Unrecognized character: 0x" + Integer.toHexString(ch));
       }
-      return decodabet[ch];
+      int result = decodabet[ch];
+      if (result == -1) {
+        if (ch <= 0x20 || ch == Ascii.MAX) {
+          throw new DecodingException("Unrecognized character: 0x" + Integer.toHexString(ch));
+        } else {
+          throw new DecodingException("Unrecognized character: " + ch);
+        }
+      }
+      return result;
     }
 
     private boolean hasLowerCase() {
@@ -504,32 +571,31 @@ public abstract class BaseEncoding {
     Alphabet upperCase() {
       if (!hasLowerCase()) {
         return this;
-      } else {
-        checkState(!hasUpperCase(), "Cannot call upperCase() on a mixed-case alphabet");
-        char[] upperCased = new char[chars.length];
-        for (int i = 0; i < chars.length; i++) {
-          upperCased[i] = Ascii.toUpperCase(chars[i]);
-        }
-        return new Alphabet(name + ".upperCase()", upperCased);
       }
+      checkState(!hasUpperCase(), "Cannot call upperCase() on a mixed-case alphabet");
+      char[] upperCased = new char[chars.length];
+      for (int i = 0; i < chars.length; i++) {
+        upperCased[i] = Ascii.toUpperCase(chars[i]);
+      }
+      Alphabet upperCase = new Alphabet(name + ".upperCase()", upperCased);
+      return ignoreCase ? upperCase.ignoreCase() : upperCase;
     }
 
     Alphabet lowerCase() {
       if (!hasUpperCase()) {
         return this;
-      } else {
-        checkState(!hasLowerCase(), "Cannot call lowerCase() on a mixed-case alphabet");
-        char[] lowerCased = new char[chars.length];
-        for (int i = 0; i < chars.length; i++) {
-          lowerCased[i] = Ascii.toLowerCase(chars[i]);
-        }
-        return new Alphabet(name + ".lowerCase()", lowerCased);
       }
+      checkState(!hasLowerCase(), "Cannot call lowerCase() on a mixed-case alphabet");
+      char[] lowerCased = new char[chars.length];
+      for (int i = 0; i < chars.length; i++) {
+        lowerCased[i] = Ascii.toLowerCase(chars[i]);
+      }
+      Alphabet lowerCase = new Alphabet(name + ".lowerCase()", lowerCased);
+      return ignoreCase ? lowerCase.ignoreCase() : lowerCase;
     }
 
-    @Override
     public boolean matches(char c) {
-      return CharMatcher.ascii().matches(c) && decodabet[c] != -1;
+      return c < decodabet.length && decodabet[c] != -1;
     }
 
     @Override
@@ -541,22 +607,21 @@ public abstract class BaseEncoding {
     public boolean equals(@Nullable Object other) {
       if (other instanceof Alphabet) {
         Alphabet that = (Alphabet) other;
-        return Arrays.equals(this.chars, that.chars);
+        return this.ignoreCase == that.ignoreCase && Arrays.equals(this.chars, that.chars);
       }
       return false;
     }
 
     @Override
     public int hashCode() {
-      return Arrays.hashCode(chars);
+      return Arrays.hashCode(chars) + (ignoreCase ? 1231 : 1237);
     }
   }
 
-  static class StandardBaseEncoding extends BaseEncoding {
-    // TODO(lowasser): provide a useful toString
+  private static class StandardBaseEncoding extends BaseEncoding {
     final Alphabet alphabet;
 
-    @Nullable final Character paddingChar;
+    final @Nullable Character paddingChar;
 
     StandardBaseEncoding(String name, String alphabetChars, @Nullable Character paddingChar) {
       this(new Alphabet(name, alphabetChars.toCharArray()), paddingChar);
@@ -572,26 +637,36 @@ public abstract class BaseEncoding {
     }
 
     @Override
-    CharMatcher padding() {
-      return (paddingChar == null) ? CharMatcher.none() : CharMatcher.is(paddingChar.charValue());
-    }
-
-    @Override
     int maxEncodedSize(int bytes) {
       return alphabet.charsPerChunk * divide(bytes, alphabet.bytesPerChunk, CEILING);
     }
 
+    @J2ktIncompatible
     @GwtIncompatible // Writer,OutputStream
     @Override
-    public OutputStream encodingStream(final Writer out) {
+    public OutputStream encodingStream(Writer out) {
       checkNotNull(out);
       return new OutputStream() {
+        @GuardedBy("this")
         int bitBuffer = 0;
+
+        @GuardedBy("this")
         int bitBufferLength = 0;
+
+        @GuardedBy("this")
         int writtenChars = 0;
 
+        @GuardedBy("this")
+        boolean closed = false;
+
         @Override
-        public void write(int b) throws IOException {
+        public synchronized void write(byte[] b, int off, int len) throws IOException {
+          super.write(b, off, len);
+        }
+
+        @Override
+        public synchronized void write(int b) throws IOException {
+          checkOpen();
           bitBuffer <<= 8;
           bitBuffer |= b & 0xFF;
           bitBufferLength += 8;
@@ -604,19 +679,31 @@ public abstract class BaseEncoding {
         }
 
         @Override
-        public void flush() throws IOException {
+        public synchronized void flush() throws IOException {
+          checkOpen();
           out.flush();
         }
 
+        @GuardedBy("this")
+        void checkOpen() throws IOException {
+          if (closed) {
+            throw new IOException("stream closed");
+          }
+        }
+
         @Override
-        public void close() throws IOException {
+        public synchronized void close() throws IOException {
+          if (closed) {
+            return;
+          }
+          closed = true;
           if (bitBufferLength > 0) {
             int charIndex = (bitBuffer << (alphabet.bitsPerChar - bitBufferLength)) & alphabet.mask;
             out.write(alphabet.encode(charIndex));
             writtenChars++;
             if (paddingChar != null) {
               while (writtenChars % alphabet.charsPerChunk != 0) {
-                out.write(paddingChar.charValue());
+                out.write(paddingChar);
                 writtenChars++;
               }
             }
@@ -631,11 +718,11 @@ public abstract class BaseEncoding {
       checkNotNull(target);
       checkPositionIndexes(off, off + len, bytes.length);
       for (int i = 0; i < len; i += alphabet.bytesPerChunk) {
-        encodeChunkTo(target, bytes, off + i, Math.min(alphabet.bytesPerChunk, len - i));
+        encodeChunkTo(target, bytes, off + i, min(alphabet.bytesPerChunk, len - i));
       }
     }
 
-    void encodeChunkTo(Appendable target, byte[] bytes, int off, int len) throws IOException {
+    final void encodeChunkTo(Appendable target, byte[] bytes, int off, int len) throws IOException {
       checkNotNull(target);
       checkPositionIndexes(off, off + len, bytes.length);
       checkArgument(len <= alphabet.bytesPerChunk);
@@ -645,7 +732,7 @@ public abstract class BaseEncoding {
         bitBuffer <<= 8; // Add additional zero byte in the end.
       }
       // Position of first character is length of bitBuffer minus bitsPerChar.
-      final int bitOffset = (len + 1) * 8 - alphabet.bitsPerChar;
+      int bitOffset = (len + 1) * 8 - alphabet.bitsPerChar;
       int bitsProcessed = 0;
       while (bitsProcessed < len * 8) {
         int charIndex = (int) (bitBuffer >>> (bitOffset - bitsProcessed)) & alphabet.mask;
@@ -654,7 +741,7 @@ public abstract class BaseEncoding {
       }
       if (paddingChar != null) {
         while (bitsProcessed < alphabet.bytesPerChunk * 8) {
-          target.append(paddingChar.charValue());
+          target.append(paddingChar);
           bitsProcessed += alphabet.bitsPerChar;
         }
       }
@@ -666,8 +753,25 @@ public abstract class BaseEncoding {
     }
 
     @Override
+    final CharSequence trimTrailingPadding(CharSequence chars) {
+      checkNotNull(chars);
+      if (paddingChar == null) {
+        return chars;
+      }
+      char padChar = paddingChar;
+      int l;
+      for (l = chars.length() - 1; l >= 0; l--) {
+        if (chars.charAt(l) != padChar) {
+          break;
+        }
+      }
+      return chars.subSequence(0, l + 1);
+    }
+
+    @Override
     public boolean canDecode(CharSequence chars) {
-      chars = padding().trimTrailingFrom(chars);
+      checkNotNull(chars);
+      chars = trimTrailingPadding(chars);
       if (!alphabet.isValidPaddingStartPosition(chars.length())) {
         return false;
       }
@@ -682,7 +786,7 @@ public abstract class BaseEncoding {
     @Override
     int decodeTo(byte[] target, CharSequence chars) throws DecodingException {
       checkNotNull(target);
-      chars = padding().trimTrailingFrom(chars);
+      chars = trimTrailingPadding(chars);
       if (!alphabet.isValidPaddingStartPosition(chars.length())) {
         throw new DecodingException("Invalid input length " + chars.length());
       }
@@ -696,7 +800,7 @@ public abstract class BaseEncoding {
             chunk |= alphabet.decode(chars.charAt(charIdx + charsProcessed++));
           }
         }
-        final int minOffset = alphabet.bytesPerChunk * 8 - charsProcessed * alphabet.bitsPerChar;
+        int minOffset = alphabet.bytesPerChunk * 8 - charsProcessed * alphabet.bitsPerChar;
         for (int offset = (alphabet.bytesPerChunk - 1) * 8; offset >= minOffset; offset -= 8) {
           target[bytesWritten++] = (byte) ((chunk >>> offset) & 0xFF);
         }
@@ -704,19 +808,26 @@ public abstract class BaseEncoding {
       return bytesWritten;
     }
 
-    @GwtIncompatible // Reader,InputStream
     @Override
-    public InputStream decodingStream(final Reader reader) {
+    @J2ktIncompatible
+    @GwtIncompatible // Reader,InputStream
+    public InputStream decodingStream(Reader reader) {
       checkNotNull(reader);
       return new InputStream() {
+        @GuardedBy("this")
         int bitBuffer = 0;
+
+        @GuardedBy("this")
         int bitBufferLength = 0;
-        int readChars = 0;
+
+        @GuardedBy("this")
+        long readChars = 0;
+
+        @GuardedBy("this")
         boolean hitPadding = false;
-        final CharMatcher paddingMatcher = padding();
 
         @Override
-        public int read() throws IOException {
+        public synchronized int read() throws IOException {
           while (true) {
             int readChar = reader.read();
             if (readChar == -1) {
@@ -727,7 +838,7 @@ public abstract class BaseEncoding {
             }
             readChars++;
             char ch = (char) readChar;
-            if (paddingMatcher.matches(ch)) {
+            if (paddingChar != null && paddingChar == ch) {
               if (!hitPadding
                   && (readChars == 1 || !alphabet.isValidPaddingStartPosition(readChars - 1))) {
                 throw new DecodingException("Padding cannot start at index " + readChars);
@@ -750,7 +861,28 @@ public abstract class BaseEncoding {
         }
 
         @Override
-        public void close() throws IOException {
+        public synchronized int read(byte[] buf, int off, int len) throws IOException {
+          // Overriding this to work around the fact that InputStream's default implementation of
+          // this method will silently swallow exceptions thrown by the single-byte read() method
+          // (other than on the first call to it), which in this case can cause invalid encoded
+          // strings to not throw an exception.
+          // See https://github.com/google/guava/issues/3542
+          checkPositionIndexes(off, off + len, buf.length);
+
+          int i = off;
+          for (; i < off + len; i++) {
+            int b = read();
+            if (b == -1) {
+              int read = i - off;
+              return read == 0 ? -1 : read;
+            }
+            buf[i] = (byte) b;
+          }
+          return i - off;
+        }
+
+        @Override
+        public synchronized void close() throws IOException {
           reader.close();
         }
       };
@@ -763,8 +895,7 @@ public abstract class BaseEncoding {
 
     @Override
     public BaseEncoding withPadChar(char padChar) {
-      if (8 % alphabet.bitsPerChar == 0
-          || (paddingChar != null && paddingChar.charValue() == padChar)) {
+      if (8 % alphabet.bitsPerChar == 0 || (paddingChar != null && paddingChar == padChar)) {
         return this;
       } else {
         return newInstance(alphabet, padChar);
@@ -773,23 +904,31 @@ public abstract class BaseEncoding {
 
     @Override
     public BaseEncoding withSeparator(String separator, int afterEveryChars) {
-      checkArgument(
-          padding().or(alphabet).matchesNoneOf(separator),
-          "Separator (%s) cannot contain alphabet or padding characters",
-          separator);
+      for (int i = 0; i < separator.length(); i++) {
+        checkArgument(
+            !alphabet.matches(separator.charAt(i)),
+            "Separator (%s) cannot contain alphabet characters",
+            separator);
+      }
+      if (paddingChar != null) {
+        checkArgument(
+            separator.indexOf(paddingChar) < 0,
+            "Separator (%s) cannot contain padding character",
+            separator);
+      }
       return new SeparatedBaseEncoding(this, separator, afterEveryChars);
     }
 
-    private transient BaseEncoding upperCase;
-    private transient BaseEncoding lowerCase;
+    @LazyInit private volatile @Nullable BaseEncoding upperCase;
+    @LazyInit private volatile @Nullable BaseEncoding lowerCase;
+    @LazyInit private volatile @Nullable BaseEncoding ignoreCase;
 
     @Override
     public BaseEncoding upperCase() {
       BaseEncoding result = upperCase;
       if (result == null) {
         Alphabet upper = alphabet.upperCase();
-        result = upperCase =
-            (upper == alphabet) ? this : newInstance(upper, paddingChar);
+        result = upperCase = (upper == alphabet) ? this : newInstance(upper, paddingChar);
       }
       return result;
     }
@@ -799,8 +938,17 @@ public abstract class BaseEncoding {
       BaseEncoding result = lowerCase;
       if (result == null) {
         Alphabet lower = alphabet.lowerCase();
-        result = lowerCase =
-            (lower == alphabet) ? this : newInstance(lower, paddingChar);
+        result = lowerCase = (lower == alphabet) ? this : newInstance(lower, paddingChar);
+      }
+      return result;
+    }
+
+    @Override
+    public BaseEncoding ignoreCase() {
+      BaseEncoding result = ignoreCase;
+      if (result == null) {
+        Alphabet ignore = alphabet.ignoreCase();
+        result = ignoreCase = (ignore == alphabet) ? this : newInstance(ignore, paddingChar);
       }
       return result;
     }
@@ -810,9 +958,9 @@ public abstract class BaseEncoding {
     }
 
     @Override
-    public String toString() {
+    public final String toString() {
       StringBuilder builder = new StringBuilder("BaseEncoding.");
-      builder.append(alphabet.toString());
+      builder.append(alphabet);
       if (8 % alphabet.bitsPerChar != 0) {
         if (paddingChar == null) {
           builder.append(".omitPadding()");
@@ -824,22 +972,22 @@ public abstract class BaseEncoding {
     }
 
     @Override
-    public boolean equals(@Nullable Object other) {
+    public final boolean equals(@Nullable Object other) {
       if (other instanceof StandardBaseEncoding) {
         StandardBaseEncoding that = (StandardBaseEncoding) other;
         return this.alphabet.equals(that.alphabet)
-            && Objects.equal(this.paddingChar, that.paddingChar);
+            && Objects.equals(this.paddingChar, that.paddingChar);
       }
       return false;
     }
 
     @Override
-    public int hashCode() {
+    public final int hashCode() {
       return alphabet.hashCode() ^ Objects.hashCode(paddingChar);
     }
   }
 
-  static final class Base16Encoding extends StandardBaseEncoding {
+  private static final class Base16Encoding extends StandardBaseEncoding {
     final char[] encoding = new char[512];
 
     Base16Encoding(String name, String alphabetChars) {
@@ -886,7 +1034,7 @@ public abstract class BaseEncoding {
     }
   }
 
-  static final class Base64Encoding extends StandardBaseEncoding {
+  private static final class Base64Encoding extends StandardBaseEncoding {
     Base64Encoding(String name, String alphabetChars, @Nullable Character paddingChar) {
       this(new Alphabet(name, alphabetChars.toCharArray()), paddingChar);
     }
@@ -902,7 +1050,7 @@ public abstract class BaseEncoding {
       checkPositionIndexes(off, off + len, bytes.length);
       int i = off;
       for (int remaining = len; remaining >= 3; remaining -= 3) {
-        int chunk = (bytes[i++] & 0xFF) << 16 | (bytes[i++] & 0xFF) << 8 | bytes[i++] & 0xFF;
+        int chunk = (bytes[i++] & 0xFF) << 16 | (bytes[i++] & 0xFF) << 8 | (bytes[i++] & 0xFF);
         target.append(alphabet.encode(chunk >>> 18));
         target.append(alphabet.encode((chunk >>> 12) & 0x3F));
         target.append(alphabet.encode((chunk >>> 6) & 0x3F));
@@ -916,7 +1064,7 @@ public abstract class BaseEncoding {
     @Override
     int decodeTo(byte[] target, CharSequence chars) throws DecodingException {
       checkNotNull(target);
-      chars = padding().trimTrailingFrom(chars);
+      chars = trimTrailingPadding(chars);
       if (!alphabet.isValidPaddingStartPosition(chars.length())) {
         throw new DecodingException("Invalid input length " + chars.length());
       }
@@ -943,8 +1091,9 @@ public abstract class BaseEncoding {
     }
   }
 
-  @GwtIncompatible // Reader
-  static Reader ignoringReader(final Reader delegate, final CharMatcher toIgnore) {
+  @J2ktIncompatible
+  @GwtIncompatible
+  static Reader ignoringReader(Reader delegate, String toIgnore) {
     checkNotNull(delegate);
     checkNotNull(toIgnore);
     return new Reader() {
@@ -953,12 +1102,12 @@ public abstract class BaseEncoding {
         int readChar;
         do {
           readChar = delegate.read();
-        } while (readChar != -1 && toIgnore.matches((char) readChar));
+        } while (readChar != -1 && toIgnore.indexOf((char) readChar) >= 0);
         return readChar;
       }
 
       @Override
-      public int read(char[] cbuf, int off, int len) throws IOException {
+      public int read(char[] cbuf, int off, int len) {
         throw new UnsupportedOperationException();
       }
 
@@ -970,7 +1119,7 @@ public abstract class BaseEncoding {
   }
 
   static Appendable separatingAppendable(
-      final Appendable delegate, final String separator, final int afterEveryChars) {
+      Appendable delegate, String separator, int afterEveryChars) {
     checkNotNull(delegate);
     checkNotNull(separator);
     checkArgument(afterEveryChars > 0);
@@ -989,30 +1138,29 @@ public abstract class BaseEncoding {
       }
 
       @Override
-      public Appendable append(CharSequence chars, int off, int len) throws IOException {
+      public Appendable append(@Nullable CharSequence chars, int off, int len) {
         throw new UnsupportedOperationException();
       }
 
       @Override
-      public Appendable append(CharSequence chars) throws IOException {
+      public Appendable append(@Nullable CharSequence chars) {
         throw new UnsupportedOperationException();
       }
     };
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // Writer
-  static Writer separatingWriter(
-      final Writer delegate, final String separator, final int afterEveryChars) {
-    final Appendable seperatingAppendable =
-        separatingAppendable(delegate, separator, afterEveryChars);
+  static Writer separatingWriter(Writer delegate, String separator, int afterEveryChars) {
+    Appendable separatingAppendable = separatingAppendable(delegate, separator, afterEveryChars);
     return new Writer() {
       @Override
       public void write(int c) throws IOException {
-        seperatingAppendable.append((char) c);
+        separatingAppendable.append((char) c);
       }
 
       @Override
-      public void write(char[] chars, int off, int len) throws IOException {
+      public void write(char[] chars, int off, int len) {
         throw new UnsupportedOperationException();
       }
 
@@ -1032,7 +1180,6 @@ public abstract class BaseEncoding {
     private final BaseEncoding delegate;
     private final String separator;
     private final int afterEveryChars;
-    private final CharMatcher separatorChars;
 
     SeparatedBaseEncoding(BaseEncoding delegate, String separator, int afterEveryChars) {
       this.delegate = checkNotNull(delegate);
@@ -1040,24 +1187,24 @@ public abstract class BaseEncoding {
       this.afterEveryChars = afterEveryChars;
       checkArgument(
           afterEveryChars > 0, "Cannot add a separator after every %s chars", afterEveryChars);
-      this.separatorChars = CharMatcher.anyOf(separator).precomputed();
     }
 
     @Override
-    CharMatcher padding() {
-      return delegate.padding();
+    CharSequence trimTrailingPadding(CharSequence chars) {
+      return delegate.trimTrailingPadding(chars);
     }
 
     @Override
     int maxEncodedSize(int bytes) {
       int unseparatedSize = delegate.maxEncodedSize(bytes);
       return unseparatedSize
-          + separator.length() * divide(Math.max(0, unseparatedSize - 1), afterEveryChars, FLOOR);
+          + separator.length() * divide(max(0, unseparatedSize - 1), afterEveryChars, FLOOR);
     }
 
+    @J2ktIncompatible
     @GwtIncompatible // Writer,OutputStream
     @Override
-    public OutputStream encodingStream(final Writer output) {
+    public OutputStream encodingStream(Writer output) {
       return delegate.encodingStream(separatingWriter(output, separator, afterEveryChars));
     }
 
@@ -1073,18 +1220,33 @@ public abstract class BaseEncoding {
 
     @Override
     public boolean canDecode(CharSequence chars) {
-      return delegate.canDecode(separatorChars.removeFrom(chars));
+      StringBuilder builder = new StringBuilder();
+      for (int i = 0; i < chars.length(); i++) {
+        char c = chars.charAt(i);
+        if (separator.indexOf(c) < 0) {
+          builder.append(c);
+        }
+      }
+      return delegate.canDecode(builder);
     }
 
     @Override
     int decodeTo(byte[] target, CharSequence chars) throws DecodingException {
-      return delegate.decodeTo(target, separatorChars.removeFrom(chars));
+      StringBuilder stripped = new StringBuilder(chars.length());
+      for (int i = 0; i < chars.length(); i++) {
+        char c = chars.charAt(i);
+        if (separator.indexOf(c) < 0) {
+          stripped.append(c);
+        }
+      }
+      return delegate.decodeTo(target, stripped);
     }
 
-    @GwtIncompatible // Reader,InputStream
     @Override
-    public InputStream decodingStream(final Reader reader) {
-      return delegate.decodingStream(ignoringReader(reader, separatorChars));
+    @J2ktIncompatible
+    @GwtIncompatible // Reader,InputStream
+    public InputStream decodingStream(Reader reader) {
+      return delegate.decodingStream(ignoringReader(reader, separator));
     }
 
     @Override
@@ -1110,6 +1272,11 @@ public abstract class BaseEncoding {
     @Override
     public BaseEncoding lowerCase() {
       return delegate.lowerCase().withSeparator(separator, afterEveryChars);
+    }
+
+    @Override
+    public BaseEncoding ignoreCase() {
+      return delegate.ignoreCase().withSeparator(separator, afterEveryChars);
     }
 
     @Override

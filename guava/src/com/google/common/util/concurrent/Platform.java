@@ -14,17 +14,49 @@
 
 package com.google.common.util.concurrent;
 
-import com.google.common.annotations.GwtCompatible;
-import javax.annotation.Nullable;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static java.lang.Thread.currentThread;
 
-/**
- * Methods factored out so that they can be emulated differently in GWT.
- */
-@GwtCompatible(emulated = true)
+import com.google.common.annotations.GwtCompatible;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import org.jspecify.annotations.Nullable;
+
+/** Methods factored out so that they can be emulated differently in GWT. */
+@GwtCompatible
 final class Platform {
   static boolean isInstanceOfThrowableClass(
       @Nullable Throwable t, Class<? extends Throwable> expectedClass) {
     return expectedClass.isInstance(t);
+  }
+
+  static void restoreInterruptIfIsInterruptedException(Throwable t) {
+    checkNotNull(t); // to satisfy NullPointerTester
+    if (t instanceof InterruptedException) {
+      currentThread().interrupt();
+    }
+  }
+
+  static void interruptCurrentThread() {
+    Thread.currentThread().interrupt();
+  }
+
+  static void rethrowIfErrorOtherThanStackOverflow(Throwable t) {
+    checkNotNull(t);
+    if (t instanceof Error && !(t instanceof StackOverflowError)) {
+      throw (Error) t;
+    }
+  }
+
+  static <V extends @Nullable Object> V get(AbstractFuture<V> future)
+      throws InterruptedException, ExecutionException {
+    return future.blockingGet();
+  }
+
+  static <V extends @Nullable Object> V get(AbstractFuture<V> future, long timeout, TimeUnit unit)
+      throws InterruptedException, ExecutionException, TimeoutException {
+    return future.blockingGet(timeout, unit);
   }
 
   private Platform() {}

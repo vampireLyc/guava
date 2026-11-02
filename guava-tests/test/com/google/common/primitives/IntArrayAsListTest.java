@@ -17,9 +17,11 @@
 package com.google.common.primitives;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.lang.System.arraycopy;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.testing.ListTestSuiteBuilder;
 import com.google.common.collect.testing.SampleElements;
@@ -31,50 +33,50 @@ import java.util.List;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Test suite covering {@link Ints#asList(int[])}.
  *
  * @author Kevin Bourrillion
  */
-@GwtCompatible(emulated = true)
+@GwtCompatible
 @SuppressWarnings("cast") // redundant casts are intentional and harmless
+@NullUnmarked
+@AndroidIncompatible // test-suite builders
 public class IntArrayAsListTest extends TestCase {
 
   private static List<Integer> asList(Integer[] values) {
     int[] temp = new int[values.length];
     for (int i = 0; i < values.length; i++) {
-      temp[i] = checkNotNull(values[i]);  // checkNotNull for GWT (do not optimize).
+      temp[i] = checkNotNull(values[i]); // checkNotNull for GWT (do not optimize).
     }
     return Ints.asList(temp);
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // suite
   public static Test suite() {
     List<ListTestSuiteBuilder<Integer>> builders =
         ImmutableList.of(
-            ListTestSuiteBuilder.using(new IntsAsListGenerator())
-                .named("Ints.asList"),
-
+            ListTestSuiteBuilder.using(new IntsAsListGenerator()).named("Ints.asList"),
             ListTestSuiteBuilder.using(new IntsAsListHeadSubListGenerator())
                 .named("Ints.asList, head subList"),
-
             ListTestSuiteBuilder.using(new IntsAsListTailSubListGenerator())
                 .named("Ints.asList, tail subList"),
-
             ListTestSuiteBuilder.using(new IntsAsListMiddleSubListGenerator())
-                .named("Ints.asList, middle subList")
-        );
+                .named("Ints.asList, middle subList"));
 
     TestSuite suite = new TestSuite();
     for (ListTestSuiteBuilder<Integer> builder : builders) {
       suite.addTest(
           builder
-          .withFeatures(CollectionSize.ONE,
-                        CollectionSize.SEVERAL,
-                        CollectionFeature.RESTRICTS_ELEMENTS,
-                        ListFeature.SUPPORTS_SET)
-          .createTestSuite());
+              .withFeatures(
+                  CollectionSize.ONE,
+                  CollectionSize.SEVERAL,
+                  CollectionFeature.RESTRICTS_ELEMENTS,
+                  ListFeature.SUPPORTS_SET)
+              .createTestSuite());
     }
     return suite;
   }
@@ -83,13 +85,15 @@ public class IntArrayAsListTest extends TestCase {
   // public named classes with a public default constructor.
 
   public static final class IntsAsListGenerator extends TestIntegerListGenerator {
-    @Override protected List<Integer> create(Integer[] elements) {
+    @Override
+    List<Integer> create(Integer[] elements) {
       return asList(elements);
     }
   }
 
   public static final class IntsAsListHeadSubListGenerator extends TestIntegerListGenerator {
-    @Override protected List<Integer> create(Integer[] elements) {
+    @Override
+    List<Integer> create(Integer[] elements) {
       Integer[] suffix = {Integer.MIN_VALUE, Integer.MAX_VALUE};
       Integer[] all = concat(elements, suffix);
       return asList(all).subList(0, elements.length);
@@ -97,7 +101,8 @@ public class IntArrayAsListTest extends TestCase {
   }
 
   public static final class IntsAsListTailSubListGenerator extends TestIntegerListGenerator {
-    @Override protected List<Integer> create(Integer[] elements) {
+    @Override
+    List<Integer> create(Integer[] elements) {
       Integer[] prefix = {(int) 86, (int) 99};
       Integer[] all = concat(prefix, elements);
       return asList(all).subList(2, elements.length + 2);
@@ -105,7 +110,8 @@ public class IntArrayAsListTest extends TestCase {
   }
 
   public static final class IntsAsListMiddleSubListGenerator extends TestIntegerListGenerator {
-    @Override protected List<Integer> create(Integer[] elements) {
+    @Override
+    List<Integer> create(Integer[] elements) {
       Integer[] prefix = {Integer.MIN_VALUE, Integer.MAX_VALUE};
       Integer[] suffix = {(int) 86, (int) 99};
       Integer[] all = concat(concat(prefix, elements), suffix);
@@ -115,13 +121,12 @@ public class IntArrayAsListTest extends TestCase {
 
   private static Integer[] concat(Integer[] left, Integer[] right) {
     Integer[] result = new Integer[left.length + right.length];
-    System.arraycopy(left, 0, result, 0, left.length);
-    System.arraycopy(right, 0, result, left.length, right.length);
+    arraycopy(left, 0, result, 0, left.length);
+    arraycopy(right, 0, result, left.length, right.length);
     return result;
   }
 
-  public static abstract class TestIntegerListGenerator
-      implements TestListGenerator<Integer> {
+  public abstract static class TestIntegerListGenerator implements TestListGenerator<Integer> {
     @Override
     public SampleElements<Integer> samples() {
       return new SampleIntegers();
@@ -138,12 +143,13 @@ public class IntArrayAsListTest extends TestCase {
     }
 
     /**
-     * Creates a new collection containing the given elements; implement this
-     * method instead of {@link #create(Object...)}.
+     * Creates a new collection containing the given elements; implement this method instead of
+     * {@link #create(Object...)}.
      */
-    protected abstract List<Integer> create(Integer[] elements);
+    abstract List<Integer> create(Integer[] elements);
 
-    @Override public Integer[] createArray(int length) {
+    @Override
+    public Integer[] createArray(int length) {
       return new Integer[length];
     }
 

@@ -15,11 +15,14 @@
 package com.google.common.hash;
 
 import com.google.common.annotations.Beta;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Preconditions;
+import java.io.InvalidObjectException;
+import java.io.ObjectInputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.nio.charset.Charset;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Funnels for common types. All implementations are serializable.
@@ -27,13 +30,12 @@ import javax.annotation.Nullable;
  * @author Dimitris Andreou
  * @since 11.0
  */
+@J2ktIncompatible
 @Beta
 public final class Funnels {
   private Funnels() {}
 
-  /**
-   * Returns a funnel that extracts the bytes from a {@code byte} array.
-   */
+  /** Returns a funnel that extracts the bytes from a {@code byte} array. */
   public static Funnel<byte[]> byteArrayFunnel() {
     return ByteArrayFunnel.INSTANCE;
   }
@@ -41,6 +43,7 @@ public final class Funnels {
   private enum ByteArrayFunnel implements Funnel<byte[]> {
     INSTANCE;
 
+    @Override
     public void funnel(byte[] from, PrimitiveSink into) {
       into.putBytes(from);
     }
@@ -53,8 +56,8 @@ public final class Funnels {
 
   /**
    * Returns a funnel that extracts the characters from a {@code CharSequence}, a character at a
-   * time, without performing any encoding. If you need to use a specific encoding, use
-   * {@link Funnels#stringFunnel(Charset)} instead.
+   * time, without performing any encoding. If you need to use a specific encoding, use {@link
+   * Funnels#stringFunnel(Charset)} instead.
    *
    * @since 15.0 (since 11.0 as {@code Funnels.stringFunnel()}.
    */
@@ -65,6 +68,7 @@ public final class Funnels {
   private enum UnencodedCharsFunnel implements Funnel<CharSequence> {
     INSTANCE;
 
+    @Override
     public void funnel(CharSequence from, PrimitiveSink into) {
       into.putUnencodedChars(from);
     }
@@ -85,13 +89,14 @@ public final class Funnels {
     return new StringCharsetFunnel(charset);
   }
 
-  private static class StringCharsetFunnel implements Funnel<CharSequence>, Serializable {
+  private static final class StringCharsetFunnel implements Funnel<CharSequence> {
     private final Charset charset;
 
     StringCharsetFunnel(Charset charset) {
       this.charset = Preconditions.checkNotNull(charset);
     }
 
+    @Override
     public void funnel(CharSequence from, PrimitiveSink into) {
       into.putString(from, charset);
     }
@@ -119,7 +124,11 @@ public final class Funnels {
       return new SerializedForm(charset);
     }
 
-    private static class SerializedForm implements Serializable {
+    private void readObject(ObjectInputStream stream) throws InvalidObjectException {
+      throw new InvalidObjectException("Use SerializedForm");
+    }
+
+    private static final class SerializedForm implements Serializable {
       private final String charsetCanonicalName;
 
       SerializedForm(Charset charset) {
@@ -146,6 +155,7 @@ public final class Funnels {
   private enum IntegerFunnel implements Funnel<Integer> {
     INSTANCE;
 
+    @Override
     public void funnel(Integer from, PrimitiveSink into) {
       into.putInt(from);
     }
@@ -162,17 +172,20 @@ public final class Funnels {
    *
    * @since 15.0
    */
-  public static <E> Funnel<Iterable<? extends E>> sequentialFunnel(Funnel<E> elementFunnel) {
-    return new SequentialFunnel<E>(elementFunnel);
+  public static <E extends @Nullable Object> Funnel<Iterable<? extends E>> sequentialFunnel(
+      Funnel<E> elementFunnel) {
+    return new SequentialFunnel<>(elementFunnel);
   }
 
-  private static class SequentialFunnel<E> implements Funnel<Iterable<? extends E>>, Serializable {
+  private static final class SequentialFunnel<E extends @Nullable Object>
+      implements Funnel<Iterable<? extends E>> {
     private final Funnel<E> elementFunnel;
 
     SequentialFunnel(Funnel<E> elementFunnel) {
       this.elementFunnel = Preconditions.checkNotNull(elementFunnel);
     }
 
+    @Override
     public void funnel(Iterable<? extends E> from, PrimitiveSink into) {
       for (E e : from) {
         elementFunnel.funnel(e, into);
@@ -197,6 +210,8 @@ public final class Funnels {
     public int hashCode() {
       return SequentialFunnel.class.hashCode() ^ elementFunnel.hashCode();
     }
+
+    private static final long serialVersionUID = 9033121045301066662L;
   }
 
   /**
@@ -211,6 +226,7 @@ public final class Funnels {
   private enum LongFunnel implements Funnel<Long> {
     INSTANCE;
 
+    @Override
     public void funnel(Long from, PrimitiveSink into) {
       into.putLong(from);
     }
@@ -235,7 +251,7 @@ public final class Funnels {
     return new SinkAsStream(sink);
   }
 
-  private static class SinkAsStream extends OutputStream {
+  private static final class SinkAsStream extends OutputStream {
     final PrimitiveSink sink;
 
     SinkAsStream(PrimitiveSink sink) {

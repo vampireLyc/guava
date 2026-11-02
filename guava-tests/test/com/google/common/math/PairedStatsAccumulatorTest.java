@@ -43,10 +43,15 @@ import static com.google.common.math.StatsTesting.assertVerticalLinearTransforma
 import static com.google.common.math.StatsTesting.createFilledPairedStatsAccumulator;
 import static com.google.common.math.StatsTesting.createPartitionedFilledPairedStatsAccumulator;
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
+import static java.util.Collections.nCopies;
+import static org.junit.Assert.assertThrows;
 
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.math.StatsTesting.ManyValues;
-import java.util.Collections;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Tests for {@link PairedStatsAccumulator}. This tests the stats methods for instances built with
@@ -56,6 +61,9 @@ import junit.framework.TestCase;
  *
  * @author Pete Gillin
  */
+@NullUnmarked
+@J2ktIncompatible
+@GwtIncompatible
 public class PairedStatsAccumulatorTest extends TestCase {
 
   private PairedStatsAccumulator emptyAccumulator;
@@ -99,27 +107,24 @@ public class PairedStatsAccumulatorTest extends TestCase {
 
     horizontalValuesAccumulator =
         createFilledPairedStatsAccumulator(
-            MANY_VALUES, Collections.nCopies(MANY_VALUES_COUNT, OTHER_ONE_VALUE));
+            MANY_VALUES, nCopies(MANY_VALUES_COUNT, OTHER_ONE_VALUE));
     horizontalValuesAccumulatorByAddAllPartitionedPairedStats =
         createPartitionedFilledPairedStatsAccumulator(
-            MANY_VALUES, Collections.nCopies(MANY_VALUES_COUNT, OTHER_ONE_VALUE), 2);
+            MANY_VALUES, nCopies(MANY_VALUES_COUNT, OTHER_ONE_VALUE), 2);
 
     verticalValuesAccumulator =
         createFilledPairedStatsAccumulator(
-            Collections.nCopies(OTHER_MANY_VALUES_COUNT, ONE_VALUE), OTHER_MANY_VALUES);
+            nCopies(OTHER_MANY_VALUES_COUNT, ONE_VALUE), OTHER_MANY_VALUES);
     verticalValuesAccumulatorByAddAllPartitionedPairedStats =
         createPartitionedFilledPairedStatsAccumulator(
-            Collections.nCopies(OTHER_MANY_VALUES_COUNT, ONE_VALUE), OTHER_MANY_VALUES, 2);
+            nCopies(OTHER_MANY_VALUES_COUNT, ONE_VALUE), OTHER_MANY_VALUES, 2);
 
     constantValuesAccumulator =
         createFilledPairedStatsAccumulator(
-            Collections.nCopies(MANY_VALUES_COUNT, ONE_VALUE),
-            Collections.nCopies(MANY_VALUES_COUNT, OTHER_ONE_VALUE));
+            nCopies(MANY_VALUES_COUNT, ONE_VALUE), nCopies(MANY_VALUES_COUNT, OTHER_ONE_VALUE));
     constantValuesAccumulatorByAddAllPartitionedPairedStats =
         createPartitionedFilledPairedStatsAccumulator(
-            Collections.nCopies(MANY_VALUES_COUNT, ONE_VALUE),
-            Collections.nCopies(MANY_VALUES_COUNT, OTHER_ONE_VALUE),
-            2);
+            nCopies(MANY_VALUES_COUNT, ONE_VALUE), nCopies(MANY_VALUES_COUNT, OTHER_ONE_VALUE), 2);
   }
 
   public void testCount() {
@@ -173,20 +178,12 @@ public class PairedStatsAccumulatorTest extends TestCase {
   }
 
   public void testPopulationCovariance() {
-    try {
-      emptyAccumulator.populationCovariance();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      emptyAccumulatorByAddAllEmptyPairedStats.populationCovariance();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    assertThat(oneValueAccumulator.populationCovariance()).isWithin(0.0).of(0.0);
-    assertThat(oneValueAccumulatorByAddAllEmptyPairedStats.populationCovariance())
-        .isWithin(0.0)
-        .of(0.0);
+    assertThrows(IllegalStateException.class, () -> emptyAccumulator.populationCovariance());
+    assertThrows(
+        IllegalStateException.class,
+        () -> emptyAccumulatorByAddAllEmptyPairedStats.populationCovariance());
+    assertThat(oneValueAccumulator.populationCovariance()).isEqualTo(0.0);
+    assertThat(oneValueAccumulatorByAddAllEmptyPairedStats.populationCovariance()).isEqualTo(0.0);
     assertThat(twoValuesAccumulator.populationCovariance())
         .isWithin(ALLOWED_ERROR)
         .of(TWO_VALUES_SUM_OF_PRODUCTS_OF_DELTAS / 2);
@@ -210,17 +207,17 @@ public class PairedStatsAccumulatorTest extends TestCase {
       double populationCovarianceByAddAllPartitionedPairedStats =
           accumulatorByAddAllPartitionedPairedStats.populationCovariance();
       if (values.hasAnyNonFinite()) {
-        assertThat(populationCovariance).named("population covariance of " + values).isNaN();
-        assertThat(populationCovarianceByAddAllPartitionedPairedStats)
-            .named("population covariance by addAll(PairedStats) of " + values)
+        assertWithMessage("population covariance of %s", values).that(populationCovariance).isNaN();
+        assertWithMessage("population covariance by addAll(PairedStats) of %s", values)
+            .that(populationCovarianceByAddAllPartitionedPairedStats)
             .isNaN();
       } else {
-        assertThat(populationCovariance)
-            .named("population covariance of " + values)
+        assertWithMessage("population covariance of %s", values)
+            .that(populationCovariance)
             .isWithin(ALLOWED_ERROR)
             .of(MANY_VALUES_SUM_OF_PRODUCTS_OF_DELTAS / MANY_VALUES_COUNT);
-        assertThat(populationCovarianceByAddAllPartitionedPairedStats)
-            .named("population covariance by addAll(PairedStats) of " + values)
+        assertWithMessage("population covariance by addAll(PairedStats) of %s", values)
+            .that(populationCovarianceByAddAllPartitionedPairedStats)
             .isWithin(ALLOWED_ERROR)
             .of(MANY_VALUES_SUM_OF_PRODUCTS_OF_DELTAS / MANY_VALUES_COUNT);
       }
@@ -240,26 +237,14 @@ public class PairedStatsAccumulatorTest extends TestCase {
   }
 
   public void testSampleCovariance() {
-    try {
-      emptyAccumulator.sampleCovariance();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      emptyAccumulatorByAddAllEmptyPairedStats.sampleCovariance();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      oneValueAccumulator.sampleCovariance();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      oneValueAccumulatorByAddAllEmptyPairedStats.sampleCovariance();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
+    assertThrows(IllegalStateException.class, () -> emptyAccumulator.sampleCovariance());
+    assertThrows(
+        IllegalStateException.class,
+        () -> emptyAccumulatorByAddAllEmptyPairedStats.sampleCovariance());
+    assertThrows(IllegalStateException.class, () -> oneValueAccumulator.sampleCovariance());
+    assertThrows(
+        IllegalStateException.class,
+        () -> oneValueAccumulatorByAddAllEmptyPairedStats.sampleCovariance());
     assertThat(twoValuesAccumulator.sampleCovariance())
         .isWithin(ALLOWED_ERROR)
         .of(TWO_VALUES_SUM_OF_PRODUCTS_OF_DELTAS);
@@ -287,26 +272,16 @@ public class PairedStatsAccumulatorTest extends TestCase {
   }
 
   public void testPearsonsCorrelationCoefficient() {
-    try {
-      emptyAccumulator.pearsonsCorrelationCoefficient();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      emptyAccumulatorByAddAllEmptyPairedStats.pearsonsCorrelationCoefficient();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      oneValueAccumulator.pearsonsCorrelationCoefficient();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      oneValueAccumulatorByAddAllEmptyPairedStats.pearsonsCorrelationCoefficient();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
+    assertThrows(
+        IllegalStateException.class, () -> emptyAccumulator.pearsonsCorrelationCoefficient());
+    assertThrows(
+        IllegalStateException.class,
+        () -> emptyAccumulatorByAddAllEmptyPairedStats.pearsonsCorrelationCoefficient());
+    assertThrows(
+        IllegalStateException.class, () -> oneValueAccumulator.pearsonsCorrelationCoefficient());
+    assertThrows(
+        IllegalStateException.class,
+        () -> oneValueAccumulatorByAddAllEmptyPairedStats.pearsonsCorrelationCoefficient());
     assertThat(twoValuesAccumulator.pearsonsCorrelationCoefficient())
         .isWithin(ALLOWED_ERROR)
         .of(
@@ -340,22 +315,22 @@ public class PairedStatsAccumulatorTest extends TestCase {
       double pearsonsCorrelationCoefficientByAddAllPartitionedPairedStats =
           accumulatorByAddAllPartitionedPairedStats.pearsonsCorrelationCoefficient();
       if (values.hasAnyNonFinite()) {
-        assertThat(pearsonsCorrelationCoefficient)
-            .named("Pearson's correlation coefficient of " + values)
+        assertWithMessage("Pearson's correlation coefficient of %s", values)
+            .that(pearsonsCorrelationCoefficient)
             .isNaN();
-        assertThat(pearsonsCorrelationCoefficient)
-            .named("Pearson's correlation coefficient by addAll(PairedStats) of " + values)
+        assertWithMessage("Pearson's correlation coefficient by addAll(PairedStats) of %s", values)
+            .that(pearsonsCorrelationCoefficient)
             .isNaN();
       } else {
-        assertThat(pearsonsCorrelationCoefficient)
-            .named("Pearson's correlation coefficient of " + values)
+        assertWithMessage("Pearson's correlation coefficient of %s", values)
+            .that(pearsonsCorrelationCoefficient)
             .isWithin(ALLOWED_ERROR)
             .of(
                 accumulator.populationCovariance()
                     / (accumulator.xStats().populationStandardDeviation()
                         * accumulator.yStats().populationStandardDeviation()));
-        assertThat(pearsonsCorrelationCoefficientByAddAllPartitionedPairedStats)
-            .named("Pearson's correlation coefficient by addAll(PairedStats) of " + values)
+        assertWithMessage("Pearson's correlation coefficient by addAll(PairedStats) of %s", values)
+            .that(pearsonsCorrelationCoefficientByAddAllPartitionedPairedStats)
             .isWithin(ALLOWED_ERROR)
             .of(
                 accumulatorByAddAllPartitionedPairedStats.populationCovariance()
@@ -367,59 +342,41 @@ public class PairedStatsAccumulatorTest extends TestCase {
                             .populationStandardDeviation()));
       }
     }
-    try {
-      horizontalValuesAccumulator.pearsonsCorrelationCoefficient();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      horizontalValuesAccumulatorByAddAllPartitionedPairedStats.pearsonsCorrelationCoefficient();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      verticalValuesAccumulator.pearsonsCorrelationCoefficient();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      verticalValuesAccumulatorByAddAllPartitionedPairedStats.pearsonsCorrelationCoefficient();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      constantValuesAccumulator.pearsonsCorrelationCoefficient();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      constantValuesAccumulatorByAddAllPartitionedPairedStats.pearsonsCorrelationCoefficient();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
+    assertThrows(
+        IllegalStateException.class,
+        () -> horizontalValuesAccumulator.pearsonsCorrelationCoefficient());
+    assertThrows(
+        IllegalStateException.class,
+        () ->
+            horizontalValuesAccumulatorByAddAllPartitionedPairedStats
+                .pearsonsCorrelationCoefficient());
+    assertThrows(
+        IllegalStateException.class,
+        () -> verticalValuesAccumulator.pearsonsCorrelationCoefficient());
+    assertThrows(
+        IllegalStateException.class,
+        () ->
+            verticalValuesAccumulatorByAddAllPartitionedPairedStats
+                .pearsonsCorrelationCoefficient());
+    assertThrows(
+        IllegalStateException.class,
+        () -> constantValuesAccumulator.pearsonsCorrelationCoefficient());
+    assertThrows(
+        IllegalStateException.class,
+        () ->
+            constantValuesAccumulatorByAddAllPartitionedPairedStats
+                .pearsonsCorrelationCoefficient());
   }
 
   public void testLeastSquaresFit() {
-    try {
-      emptyAccumulator.leastSquaresFit();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      emptyAccumulatorByAddAllEmptyPairedStats.leastSquaresFit();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      oneValueAccumulator.leastSquaresFit();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      oneValueAccumulatorByAddAllEmptyPairedStats.leastSquaresFit();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
+    assertThrows(IllegalStateException.class, () -> emptyAccumulator.leastSquaresFit());
+    assertThrows(
+        IllegalStateException.class,
+        () -> emptyAccumulatorByAddAllEmptyPairedStats.leastSquaresFit());
+    assertThrows(IllegalStateException.class, () -> oneValueAccumulator.leastSquaresFit());
+    assertThrows(
+        IllegalStateException.class,
+        () -> oneValueAccumulatorByAddAllEmptyPairedStats.leastSquaresFit());
     assertDiagonalLinearTransformation(
         twoValuesAccumulator.leastSquaresFit(),
         twoValuesAccumulator.xStats().mean(),
@@ -473,26 +430,18 @@ public class PairedStatsAccumulatorTest extends TestCase {
       }
     }
     assertHorizontalLinearTransformation(
-        horizontalValuesAccumulator.leastSquaresFit(),
-        horizontalValuesAccumulator.yStats().mean());
+        horizontalValuesAccumulator.leastSquaresFit(), horizontalValuesAccumulator.yStats().mean());
     assertHorizontalLinearTransformation(
         horizontalValuesAccumulatorByAddAllPartitionedPairedStats.leastSquaresFit(),
         horizontalValuesAccumulatorByAddAllPartitionedPairedStats.yStats().mean());
     assertVerticalLinearTransformation(
-        verticalValuesAccumulator.leastSquaresFit(),
-        verticalValuesAccumulator.xStats().mean());
+        verticalValuesAccumulator.leastSquaresFit(), verticalValuesAccumulator.xStats().mean());
     assertVerticalLinearTransformation(
         verticalValuesAccumulatorByAddAllPartitionedPairedStats.leastSquaresFit(),
         verticalValuesAccumulatorByAddAllPartitionedPairedStats.xStats().mean());
-    try {
-      constantValuesAccumulator.leastSquaresFit();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    try {
-      constantValuesAccumulatorByAddAllPartitionedPairedStats.leastSquaresFit();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
+    assertThrows(IllegalStateException.class, () -> constantValuesAccumulator.leastSquaresFit());
+    assertThrows(
+        IllegalStateException.class,
+        () -> constantValuesAccumulatorByAddAllPartitionedPairedStats.leastSquaresFit());
   }
 }

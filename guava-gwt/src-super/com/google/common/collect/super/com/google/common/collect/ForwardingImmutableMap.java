@@ -21,7 +21,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * GWT implementation of {@link ImmutableMap} that forwards to another map.
@@ -37,47 +37,55 @@ public abstract class ForwardingImmutableMap<K, V> extends ImmutableMap<K, V> {
   }
 
   @SuppressWarnings("unchecked")
-  ForwardingImmutableMap(Entry<? extends K, ? extends V>... entries) {
+  ForwardingImmutableMap(boolean throwIfDuplicateKeys, Entry<? extends K, ? extends V>... entries) {
     Map<K, V> delegate = Maps.newLinkedHashMap();
     for (Entry<? extends K, ? extends V> entry : entries) {
       K key = checkNotNull(entry.getKey());
       V previous = delegate.put(key, checkNotNull(entry.getValue()));
-      if (previous != null) {
+      if (throwIfDuplicateKeys && previous != null) {
         throw new IllegalArgumentException("duplicate key: " + key);
       }
     }
     this.delegate = Collections.unmodifiableMap(delegate);
   }
 
+  @Override
   boolean isPartialView() {
     return false;
   }
 
+  @Override
   public final boolean isEmpty() {
     return delegate.isEmpty();
   }
 
+  @Override
   public final boolean containsKey(@Nullable Object key) {
     return Maps.safeContainsKey(delegate, key);
   }
 
+  @Override
   public final boolean containsValue(@Nullable Object value) {
     return delegate.containsValue(value);
   }
 
-  public V get(@Nullable Object key) {
+  @Override
+  public @Nullable V get(@Nullable Object key) {
     return (key == null) ? null : Maps.safeGet(delegate, key);
   }
 
-  @Override ImmutableSet<Entry<K, V>> createEntrySet() {
+  @Override
+  ImmutableSet<Entry<K, V>> createEntrySet() {
     return ImmutableSet.unsafeDelegate(
         new ForwardingSet<Entry<K, V>>() {
-          @Override protected Set<Entry<K, V>> delegate() {
+          @Override
+          protected Set<Entry<K, V>> delegate() {
             return delegate.entrySet();
           }
-          @Override public boolean contains(Object object) {
-            if (object instanceof Entry<?, ?>
-                && ((Entry<?, ?>) object).getKey() == null) {
+
+          @Override
+          public boolean contains(@Nullable Object object) {
+            if (object instanceof Entry<?, ?> && ((Entry<?, ?>) object).getKey() == null) {
               return false;
             }
             try {
@@ -86,39 +94,49 @@ public abstract class ForwardingImmutableMap<K, V> extends ImmutableMap<K, V> {
               return false;
             }
           }
-          @Override public <T> T[] toArray(T[] array) {
+
+          @Override
+          @SuppressWarnings("nullness") // b/192354773 in our checker affects toArray declarations
+          public <T extends @Nullable Object> T[] toArray(T[] array) {
             T[] result = super.toArray(array);
             if (size() < result.length) {
               // It works around a GWT bug where elements after last is not
               // properly null'ed.
-              result[size()] = null;
+              @Nullable Object[] unsoundlyCovariantArray = result;
+              unsoundlyCovariantArray[size()] = null;
             }
             return result;
           }
         });
   }
 
-  @Override ImmutableSet<K> createKeySet() {
+  @Override
+  ImmutableSet<K> createKeySet() {
     return ImmutableSet.unsafeDelegate(delegate.keySet());
   }
 
-  @Override ImmutableCollection<V> createValues() {
+  @Override
+  ImmutableCollection<V> createValues() {
     return ImmutableCollection.unsafeDelegate(delegate.values());
   }
 
-  @Override public int size() {
+  @Override
+  public int size() {
     return delegate.size();
   }
 
-  @Override public boolean equals(@Nullable Object object) {
+  @Override
+  public boolean equals(@Nullable Object object) {
     return delegate.equals(object);
   }
 
-  @Override public int hashCode() {
+  @Override
+  public int hashCode() {
     return delegate.hashCode();
   }
 
-  @Override public String toString() {
+  @Override
+  public String toString() {
     return delegate.toString();
   }
 }

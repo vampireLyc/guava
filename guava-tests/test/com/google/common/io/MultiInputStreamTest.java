@@ -16,19 +16,24 @@
 
 package com.google.common.io;
 
-import com.google.common.collect.Lists;
+import static com.google.common.truth.Truth.assertThat;
+import static java.util.Collections.nCopies;
+import static java.util.Collections.singleton;
+
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Test class for {@link MultiInputStream}.
  *
  * @author Chris Nokleberg
  */
+@NullUnmarked
 public class MultiInputStreamTest extends IoTestCase {
 
   public void testJoin() throws Exception {
@@ -45,28 +50,32 @@ public class MultiInputStreamTest extends IoTestCase {
   }
 
   public void testOnlyOneOpen() throws Exception {
-    final ByteSource source = newByteSource(0, 50);
-    final int[] counter = new int[1];
-    ByteSource checker = new ByteSource() {
-      @Override
-      public InputStream openStream() throws IOException {
-        if (counter[0]++ != 0) {
-          throw new IllegalStateException("More than one source open");
-        }
-        return new FilterInputStream(source.openStream()) {
-          @Override public void close() throws IOException {
-            super.close();
-            counter[0]--;
+    ByteSource source = newByteSource(0, 50);
+    ByteSource checker =
+        new ByteSource() {
+
+          int counter = 0;
+
+          @Override
+          public InputStream openStream() throws IOException {
+            if (counter++ != 0) {
+              throw new IllegalStateException("More than one source open");
+            }
+            return new FilterInputStream(source.openStream()) {
+              @Override
+              public void close() throws IOException {
+                super.close();
+                counter--;
+              }
+            };
           }
         };
-      }
-    };
     byte[] result = ByteSource.concat(checker, checker, checker).read();
-    assertEquals(150, result.length);
+    assertThat(result).hasLength(150);
   }
 
-  private void joinHelper(Integer... spans) throws Exception {
-    List<ByteSource> sources = Lists.newArrayList();
+  private static void joinHelper(Integer... spans) throws Exception {
+    List<ByteSource> sources = new ArrayList<>();
     int start = 0;
     for (Integer span : spans) {
       sources.add(newByteSource(start, span));
@@ -93,17 +102,21 @@ public class MultiInputStreamTest extends IoTestCase {
 
   @SuppressWarnings("CheckReturnValue") // these calls to skip always return 0
   public void testSkip() throws Exception {
-    MultiInputStream multi = new MultiInputStream(
-        Collections.singleton(new ByteSource() {
-          @Override
-          public InputStream openStream() {
-            return new ByteArrayInputStream(newPreFilledByteArray(0, 50)) {
-              @Override public long skip(long n) {
-                return 0;
-              }
-            };
-          }
-        }).iterator());
+    MultiInputStream multi =
+        new MultiInputStream(
+            singleton(
+                    new ByteSource() {
+                      @Override
+                      public InputStream openStream() {
+                        return new ByteArrayInputStream(newPreFilledByteArray(0, 50)) {
+                          @Override
+                          public long skip(long n) {
+                            return 0;
+                          }
+                        };
+                      }
+                    })
+                .iterator());
     assertEquals(0, multi.skip(-1));
     assertEquals(0, multi.skip(-1));
     assertEquals(0, multi.skip(0));
@@ -111,7 +124,23 @@ public class MultiInputStreamTest extends IoTestCase {
     assertEquals(20, multi.read());
   }
 
-  private static ByteSource newByteSource(final int start, final int size) {
+  public void testReadSingle_noStackOverflow() throws IOException {
+    // https://github.com/google/guava/issues/2996
+    // no data, just testing that there's no StackOverflowException
+    assertEquals(-1, tenMillionEmptySources().read());
+  }
+
+  public void testReadArray_noStackOverflow() throws IOException {
+    // https://github.com/google/guava/issues/2996
+    // no data, just testing that there's no StackOverflowException
+    assertEquals(-1, tenMillionEmptySources().read(new byte[1]));
+  }
+
+  private static MultiInputStream tenMillionEmptySources() throws IOException {
+    return new MultiInputStream(nCopies(10_000_000, ByteSource.empty()).iterator());
+  }
+
+  private static ByteSource newByteSource(int start, int size) {
     return new ByteSource() {
       @Override
       public InputStream openStream() {

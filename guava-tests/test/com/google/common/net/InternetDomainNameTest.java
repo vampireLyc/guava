@@ -16,220 +16,273 @@
 
 package com.google.common.net;
 
+import static com.google.common.base.Strings.repeat;
+import static com.google.common.collect.Iterables.concat;
+import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
+
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Ascii;
-import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.testing.EqualsTester;
 import com.google.common.testing.NullPointerTester;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * {@link TestCase} for {@link InternetDomainName}.
  *
  * @author Craig Berry
  */
-@GwtCompatible(emulated = true)
+@GwtCompatible
+@NullUnmarked
 public final class InternetDomainNameTest extends TestCase {
   private static final InternetDomainName UNICODE_EXAMPLE =
       InternetDomainName.from("j\u00f8rpeland.no");
   private static final InternetDomainName PUNYCODE_EXAMPLE =
       InternetDomainName.from("xn--jrpeland-54a.no");
 
-  /**
-   * The Greek letter delta, used in unicode testing.
-   */
+  /** The Greek letter delta, used in unicode testing. */
   private static final String DELTA = "\u0394";
 
+  /** A domain part which is valid under lenient validation, but invalid under strict validation. */
+  @SuppressWarnings("InlineMeInliner") // String.repeat unavailable under Java 8
+  static final String LOTS_OF_DELTAS = repeat(DELTA, 62);
+
+  @SuppressWarnings("InlineMeInliner") // String.repeat unavailable under Java 8
+  private static final String ALMOST_TOO_MANY_LEVELS = repeat("a.", 127);
+
+  @SuppressWarnings("InlineMeInliner") // String.repeat unavailable under Java 8
+  private static final String ALMOST_TOO_LONG = repeat("aaaaa.", 40) + "1234567890.c";
+
+  private static final ImmutableSet<String> VALID_NAME =
+      ImmutableSet.of(
+          // keep-sorted start
+          "123.cn",
+          "8server.shop",
+          "a" + DELTA + "b.com",
+          "abc.a23",
+          "biz.com.ua",
+          "f--1.com",
+          "f--o",
+          "f-_-o.cOM",
+          "f11-1.com",
+          "fOo",
+          "f_a",
+          "foo.com",
+          "foo.net.us\uFF61ocm",
+          "woo.com.",
+          "www",
+          "x",
+          ALMOST_TOO_LONG,
+          ALMOST_TOO_MANY_LEVELS
+          // keep-sorted end
+          );
+
+  private static final ImmutableSet<String> INVALID_NAME =
+      ImmutableSet.of(
+          // keep-sorted start
+          " ",
+          "",
+          ".",
+          "..",
+          "...",
+          "..bar.com",
+          "..quiffle.com",
+          ".foo.com",
+          "127.0.0.1",
+          "13",
+          "::1",
+          "_bar.quux",
+          "a" + DELTA + " .com",
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+          "abc.12c",
+          "baz..com",
+          "fleeb.com..",
+          "foo!bar.com",
+          "foo+bar.com",
+          "foo-.com",
+          ALMOST_TOO_LONG + ".c",
+          ALMOST_TOO_MANY_LEVELS + "com"
+          // keep-sorted end
+          );
+
+  private static final ImmutableSet<String> RS =
+      ImmutableSet.of(
+          // keep-sorted start
+          "\u7f51\u7edc.Cn", // "网络.Cn"
+          "co.uk",
+          "co.uk.", // Trailing dot
+          "co\uFF61uk", // Alternate dot character
+          "com",
+          "gov.ck",
+          "org.ck",
+          "org.mK",
+          "us",
+          // keep-sorted end
+          "j\u00f8rpeland.no", // "jorpeland.no" (first o slashed)
+          "xn--jrpeland-54a.no" // IDNA (punycode) encoding of above
+          );
+
+  private static final ImmutableSet<String> PS_NOT_RS = ImmutableSet.of("blogspot.com", "uk.com");
+
+  private static final ImmutableSet<String> PS =
+      ImmutableSet.<String>builder().addAll(RS).addAll(PS_NOT_RS).build();
+
+  private static final ImmutableSet<String> NO_PS =
+      ImmutableSet.of("www", "foo.ihopethiswillneverbeapublicsuffix", "x.y.z");
+
   /**
-   * A domain part which is valid under lenient validation, but invalid under
-   * strict validation.
+   * Having a public suffix is equivalent to having a registry suffix, because all registry suffixes
+   * are public suffixes, and all public suffixes have registry suffixes.
    */
-  static final String LOTS_OF_DELTAS = Strings.repeat(DELTA, 62);
+  private static final ImmutableSet<String> NO_RS = NO_PS;
 
-  private static final String ALMOST_TOO_MANY_LEVELS =
-      Strings.repeat("a.", 127);
+  private static final ImmutableSet<String> NON_PS =
+      ImmutableSet.of(
+          // keep-sorted start
+          "dominio.com.co",
+          "foo.bar.ca",
+          "foo.bar.co.il",
+          "foo.bar.com",
+          "foo.blogspot.co.uk",
+          "foo.blogspot.com",
+          "foo.ca",
+          "foo.eDu.au",
+          "foo.uk.com",
+          "home.netscape.com",
+          "pvt.k12.ca.us",
+          "state.CA.us",
+          "utenti.blah.IT",
+          "web.MIT.edu",
+          "www.google.com",
+          "www.state.pa.us",
+          "www4.yahoo.co.uk"
+          // keep-sorted end
+          );
 
-  private static final String ALMOST_TOO_LONG =
-      Strings.repeat("aaaaa.", 40) + "1234567890.c";
+  private static final ImmutableSet<String> NON_RS =
+      ImmutableSet.<String>builder().addAll(NON_PS).addAll(PS_NOT_RS).build();
 
-  private static final ImmutableSet<String> VALID_NAME = ImmutableSet.of(
-      "foo.com",
-      "f-_-o.cOM",
-      "f--1.com",
-      "f11-1.com",
-      "www",
-      "abc.a23",
-      "biz.com.ua",
-      "x",
-      "fOo",
-      "f--o",
-      "f_a",
-      "foo.net.us\uFF61ocm",
-      "woo.com.",
-      "a" + DELTA + "b.com",
-      ALMOST_TOO_MANY_LEVELS,
-      ALMOST_TOO_LONG);
-
-  private static final ImmutableSet<String> INVALID_NAME = ImmutableSet.of(
-      "",
-      " ",
-      "127.0.0.1",
-      "::1", "13",
-      "abc.12c",
-      "foo-.com",
-      "_bar.quux",
-      "foo+bar.com",
-      "foo!bar.com",
-      ".foo.com",
-      "..bar.com",
-      "baz..com",
-      "..quiffle.com",
-      "fleeb.com..",
-      ".",
-      "..",
-      "...",
-      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
-      "a" + DELTA + " .com",
-      ALMOST_TOO_MANY_LEVELS + "com",
-      ALMOST_TOO_LONG + ".c");
-
-  private static final ImmutableSet<String> PS = ImmutableSet.of(
-      "com",
-      "co.uk",
-      "foo.bd",
-      "xxxxxx.bd",
-      "org.mK",
-      "us",
-      "uk\uFF61com.",  // Alternate dot character
-      "\u7f51\u7edc.Cn",  // "网络.Cn"
-      "j\u00f8rpeland.no",  // "jorpeland.no" (first o slashed)
-      "xn--jrpeland-54a.no"  // IDNA (punycode) encoding of above
-  );
-
-  private static final ImmutableSet<String> NO_PS = ImmutableSet.of(
-      "www", "foo.ihopethiswillneverbeapublicsuffix", "x.y.z");
-
-  private static final ImmutableSet<String> NON_PS = ImmutableSet.of(
-      "foo.bar.com", "foo.ca", "foo.bar.ca",
-      "foo.bar.co.il", "state.CA.us", "www.state.pa.us", "pvt.k12.ca.us",
-      "www.google.com", "www4.yahoo.co.uk", "home.netscape.com",
-      "web.MIT.edu", "foo.eDu.au", "utenti.blah.IT", "dominio.com.co");
-
-  private static final ImmutableSet<String> TOP_PRIVATE_DOMAIN =
+  private static final ImmutableSet<String> TOP_UNDER_REGISTRY_SUFFIX =
       ImmutableSet.of("google.com", "foo.Co.uk", "foo.ca.us.");
 
-  private static final ImmutableSet<String> UNDER_PRIVATE_DOMAIN =
+  private static final ImmutableSet<String> TOP_PRIVATE_DOMAIN =
+      ImmutableSet.of("google.com", "foo.Co.uk", "foo.ca.us.", "foo.blogspot.com");
+
+  private static final ImmutableSet<String> UNDER_TOP_UNDER_REGISTRY_SUFFIX =
       ImmutableSet.of("foo.bar.google.com", "a.b.co.uk", "x.y.ca.us");
 
-  private static final ImmutableSet<String> VALID_IP_ADDRS = ImmutableSet.of(
-      "1.2.3.4", "127.0.0.1", "::1", "2001:db8::1");
+  private static final ImmutableSet<String> UNDER_PRIVATE_DOMAIN =
+      ImmutableSet.of("foo.bar.google.com", "a.b.co.uk", "x.y.ca.us", "a.b.blogspot.com");
 
-  private static final ImmutableSet<String> INVALID_IP_ADDRS = ImmutableSet.of(
-      "", "1", "1.2.3", "...", "1.2.3.4.5", "400.500.600.700",
-      ":", ":::1", "2001:db8:");
+  private static final ImmutableSet<String> VALID_IP_ADDRS =
+      ImmutableSet.of("1.2.3.4", "127.0.0.1", "::1", "2001:db8::1");
+
+  private static final ImmutableSet<String> INVALID_IP_ADDRS =
+      ImmutableSet.of(
+          "", "1", "1.2.3", "...", "1.2.3.4.5", "400.500.600.700", ":", ":::1", "2001:db8:");
 
   private static final ImmutableSet<String> SOMEWHERE_UNDER_PS =
       ImmutableSet.of(
-          "foo.bar.google.com",
+          // keep-sorted start
+          "1.fm",
           "a.b.c.1.2.3.ca.us",
-          "site.jp",
-          "uomi-online.kir.jp",
+          "a\u7f51\u7edcA.\u7f51\u7edc.Cn", // "a网络A.网络.Cn"
+          "cnn.ca",
+          "cool.co.uk",
+          "cool.de",
+          "cool.dk",
+          "cool.es",
+          "cool.nl",
+          "cool.se",
+          "cool\uFF61fr", // Alternate dot character
+          "foo.bar.google.com",
+          "google.Co.uK",
+          "google.com",
+          "home.netscape.com",
+          "it-trace.ch",
+          "jobs.kt.com.",
           "jprs.co.jp",
-          "site.quick.jp",
-          "site.tenki.jp",
-          "site.or.jp",
-          "site.gr.jp",
-          "site.ne.jp",
+          "kt.co",
+          "ledger-enquirer.com",
+          "members.blah.nl.",
+          "pvt.k12.ca.us",
           "site.ac.jp",
           "site.ad.jp",
-          "site.ed.jp",
-          "site.geo.jp",
-          "site.go.jp",
-          "site.lg.jp",
-          "1.fm",
           "site.cc",
+          "site.ed.jp",
           "site.ee",
           "site.fi",
           "site.fm",
+          "site.geo.jp",
+          "site.go.jp",
           "site.gr",
-          "www.leguide.ma",
+          "site.gr.jp",
+          "site.jp",
+          "site.lg.jp",
           "site.ma",
-          "some.org.mk",
           "site.mk",
+          "site.ne.jp",
+          "site.or.jp",
+          "site.quick.jp",
+          "site.tenki.jp",
           "site.tv",
           "site.us",
-          "www.odev.us",
-          "www.GOOGLE.com",
-          "www.com",
-          "google.com",
-          "www7.google.co.uk",
-          "google.Co.uK",
-          "jobs.kt.com.",
-          "home.netscape.com",
-          "web.stanford.edu",
+          "some.org.mk",
           "stanford.edu",
           "state.ca.us",
-          "www.state.ca.us",
-          "state.ca.us",
-          "pvt.k12.ca.us",
-          "www.rave.ca.",
-          "cnn.ca",
-          "ledger-enquirer.com",
-          "it-trace.ch",
-          "cool.dk",
-          "cool.co.uk",
-          "cool.de",
-          "cool.es",
-          "cool\uFF61fr", // Alternate dot character
-          "cool.nl",
-          "members.blah.nl.",
-          "cool.se",
+          "uomi-online.kir.jp",
           "utenti.blah.it",
-          "kt.co",
-          "a\u7f51\u7edcA.\u7f51\u7edc.Cn"  // "a网络A.网络.Cn"
-      );
+          "web.stanford.edu",
+          "www.GOOGLE.com",
+          "www.com",
+          "www.leguide.ma",
+          "www.odev.us",
+          "www.rave.ca.",
+          "www.state.ca.us",
+          "www7.google.co.uk"
+          // keep-sorted end
+          );
+
+  private static final ImmutableSet<String> SOMEWHERE_UNDER_RS =
+      ImmutableSet.<String>builder().addAll(SOMEWHERE_UNDER_PS).addAll(PS_NOT_RS).build();
 
   public void testValid() {
     for (String name : VALID_NAME) {
-      InternetDomainName.from(name);
+      InternetDomainName unused = InternetDomainName.from(name);
     }
   }
 
   public void testInvalid() {
     for (String name : INVALID_NAME) {
-      try {
-        InternetDomainName.from(name);
-        fail("Should have been invalid: '" + name + "'");
-      } catch (IllegalArgumentException expected) {
-        // Expected case
-      }
+      assertThrows(IllegalArgumentException.class, () -> InternetDomainName.from(name));
     }
   }
 
   public void testPublicSuffix() {
     for (String name : PS) {
-      final InternetDomainName domain = InternetDomainName.from(name);
+      InternetDomainName domain = InternetDomainName.from(name);
       assertTrue(name, domain.isPublicSuffix());
       assertTrue(name, domain.hasPublicSuffix());
       assertFalse(name, domain.isUnderPublicSuffix());
       assertFalse(name, domain.isTopPrivateDomain());
-      assertEquals(domain, domain.publicSuffix());
+      assertThat(domain.publicSuffix()).isEqualTo(domain);
     }
 
     for (String name : NO_PS) {
-      final InternetDomainName domain = InternetDomainName.from(name);
+      InternetDomainName domain = InternetDomainName.from(name);
       assertFalse(name, domain.isPublicSuffix());
       assertFalse(name, domain.hasPublicSuffix());
       assertFalse(name, domain.isUnderPublicSuffix());
       assertFalse(name, domain.isTopPrivateDomain());
-      assertNull(domain.publicSuffix());
+      assertThat(domain.publicSuffix()).isNull();
     }
 
     for (String name : NON_PS) {
-      final InternetDomainName domain = InternetDomainName.from(name);
+      InternetDomainName domain = InternetDomainName.from(name);
       assertFalse(name, domain.isPublicSuffix());
       assertTrue(name, domain.hasPublicSuffix());
       assertTrue(name, domain.isUnderPublicSuffix());
@@ -238,7 +291,7 @@ public final class InternetDomainNameTest extends TestCase {
 
   public void testUnderPublicSuffix() {
     for (String name : SOMEWHERE_UNDER_PS) {
-      final InternetDomainName domain = InternetDomainName.from(name);
+      InternetDomainName domain = InternetDomainName.from(name);
       assertFalse(name, domain.isPublicSuffix());
       assertTrue(name, domain.hasPublicSuffix());
       assertTrue(name, domain.isUnderPublicSuffix());
@@ -247,18 +300,18 @@ public final class InternetDomainNameTest extends TestCase {
 
   public void testTopPrivateDomain() {
     for (String name : TOP_PRIVATE_DOMAIN) {
-      final InternetDomainName domain = InternetDomainName.from(name);
+      InternetDomainName domain = InternetDomainName.from(name);
       assertFalse(name, domain.isPublicSuffix());
       assertTrue(name, domain.hasPublicSuffix());
       assertTrue(name, domain.isUnderPublicSuffix());
       assertTrue(name, domain.isTopPrivateDomain());
-      assertEquals(domain.parent(), domain.publicSuffix());
+      assertThat(domain.publicSuffix()).isEqualTo(domain.parent());
     }
   }
 
   public void testUnderPrivateDomain() {
     for (String name : UNDER_PRIVATE_DOMAIN) {
-      final InternetDomainName domain = InternetDomainName.from(name);
+      InternetDomainName domain = InternetDomainName.from(name);
       assertFalse(name, domain.isPublicSuffix());
       assertTrue(name, domain.hasPublicSuffix());
       assertTrue(name, domain.isUnderPublicSuffix());
@@ -266,74 +319,111 @@ public final class InternetDomainNameTest extends TestCase {
     }
   }
 
-  public void testParent() {
-    assertEquals(
-        "com",
-        InternetDomainName.from("google.com").parent().toString());
-    assertEquals(
-        "uk",
-        InternetDomainName.from("co.uk").parent().toString());
-    assertEquals(
-        "google.com",
-        InternetDomainName.from("www.google.com").parent().toString());
-
-    try {
-      InternetDomainName.from("com").parent();
-      fail("'com' should throw ISE on .parent() call");
-    } catch (IllegalStateException expected) {
+  public void testRegistrySuffix() {
+    for (String name : RS) {
+      InternetDomainName domain = InternetDomainName.from(name);
+      assertTrue(name, domain.isRegistrySuffix());
+      assertTrue(name, domain.hasRegistrySuffix());
+      assertFalse(name, domain.isUnderRegistrySuffix());
+      assertFalse(name, domain.isTopDomainUnderRegistrySuffix());
+      assertThat(domain.registrySuffix()).isEqualTo(domain);
     }
+
+    for (String name : NO_RS) {
+      InternetDomainName domain = InternetDomainName.from(name);
+      assertFalse(name, domain.isRegistrySuffix());
+      assertFalse(name, domain.hasRegistrySuffix());
+      assertFalse(name, domain.isUnderRegistrySuffix());
+      assertFalse(name, domain.isTopDomainUnderRegistrySuffix());
+      assertThat(domain.registrySuffix()).isNull();
+    }
+
+    for (String name : NON_RS) {
+      InternetDomainName domain = InternetDomainName.from(name);
+      assertFalse(name, domain.isRegistrySuffix());
+      assertTrue(name, domain.hasRegistrySuffix());
+      assertTrue(name, domain.isUnderRegistrySuffix());
+    }
+  }
+
+  public void testUnderRegistrySuffix() {
+    for (String name : SOMEWHERE_UNDER_RS) {
+      InternetDomainName domain = InternetDomainName.from(name);
+      assertFalse(name, domain.isRegistrySuffix());
+      assertTrue(name, domain.hasRegistrySuffix());
+      assertTrue(name, domain.isUnderRegistrySuffix());
+    }
+  }
+
+  public void testTopDomainUnderRegistrySuffix() {
+    for (String name : TOP_UNDER_REGISTRY_SUFFIX) {
+      InternetDomainName domain = InternetDomainName.from(name);
+      assertFalse(name, domain.isRegistrySuffix());
+      assertTrue(name, domain.hasRegistrySuffix());
+      assertTrue(name, domain.isUnderRegistrySuffix());
+      assertTrue(name, domain.isTopDomainUnderRegistrySuffix());
+      assertThat(domain.registrySuffix()).isEqualTo(domain.parent());
+    }
+  }
+
+  public void testUnderTopDomainUnderRegistrySuffix() {
+    for (String name : UNDER_TOP_UNDER_REGISTRY_SUFFIX) {
+      InternetDomainName domain = InternetDomainName.from(name);
+      assertFalse(name, domain.isRegistrySuffix());
+      assertTrue(name, domain.hasRegistrySuffix());
+      assertTrue(name, domain.isUnderRegistrySuffix());
+      assertFalse(name, domain.isTopDomainUnderRegistrySuffix());
+    }
+  }
+
+  public void testParent() {
+    assertThat(InternetDomainName.from("google.com").parent().toString()).isEqualTo("com");
+    assertThat(InternetDomainName.from("co.uk").parent().toString()).isEqualTo("uk");
+    assertThat(InternetDomainName.from("www.google.com").parent().toString())
+        .isEqualTo("google.com");
+
+    assertThrows(IllegalStateException.class, () -> InternetDomainName.from("com").parent());
   }
 
   public void testChild() {
     InternetDomainName domain = InternetDomainName.from("foo.com");
 
-    assertEquals("www.foo.com", domain.child("www").toString());
+    assertThat(domain.child("www").toString()).isEqualTo("www.foo.com");
 
-    try {
-      domain.child("www.");
-      fail("www..google.com should have been invalid");
-    } catch (IllegalArgumentException expected) {
-      // Expected outcome
-    }
+    assertThrows(IllegalArgumentException.class, () -> domain.child("www."));
   }
 
   public void testParentChild() {
     InternetDomainName origin = InternetDomainName.from("foo.com");
     InternetDomainName parent = origin.parent();
-    assertEquals("com", parent.toString());
+    assertThat(parent.toString()).isEqualTo("com");
 
     // These would throw an exception if leniency were not preserved during parent() and child()
     // calls.
     InternetDomainName child = parent.child(LOTS_OF_DELTAS);
-    child.child(LOTS_OF_DELTAS);
+    InternetDomainName unused = child.child(LOTS_OF_DELTAS);
   }
 
   public void testValidTopPrivateDomain() {
     InternetDomainName googleDomain = InternetDomainName.from("google.com");
 
-    assertEquals(googleDomain, googleDomain.topPrivateDomain());
-    assertEquals(googleDomain, googleDomain.child("mail").topPrivateDomain());
-    assertEquals(googleDomain, googleDomain.child("foo.bar").topPrivateDomain());
+    assertThat(googleDomain.topPrivateDomain()).isEqualTo(googleDomain);
+    assertThat(googleDomain.child("mail").topPrivateDomain()).isEqualTo(googleDomain);
+    assertThat(googleDomain.child("foo.bar").topPrivateDomain()).isEqualTo(googleDomain);
   }
 
   public void testInvalidTopPrivateDomain() {
-    ImmutableSet<String> badCookieDomains =
-        ImmutableSet.of("co.uk", "foo", "com");
+    ImmutableSet<String> badCookieDomains = ImmutableSet.of("co.uk", "foo", "com");
 
     for (String domain : badCookieDomains) {
-      try {
-        InternetDomainName.from(domain).topPrivateDomain();
-        fail(domain);
-      } catch (IllegalStateException expected) {
-      }
+      assertThrows(
+          IllegalStateException.class, () -> InternetDomainName.from(domain).topPrivateDomain());
     }
   }
 
   public void testIsValid() {
-    final Iterable<String> validCases = Iterables.concat(
-        VALID_NAME, PS, NO_PS, NON_PS);
-    final Iterable<String> invalidCases = Iterables.concat(
-        INVALID_NAME, VALID_IP_ADDRS, INVALID_IP_ADDRS);
+    Iterable<String> validCases = concat(VALID_NAME, PS, NO_PS, NON_PS);
+    Iterable<String> invalidCases = concat(INVALID_NAME, VALID_IP_ADDRS, INVALID_IP_ADDRS);
 
     for (String valid : validCases) {
       assertTrue(valid, InternetDomainName.isValid(valid));
@@ -361,33 +451,51 @@ public final class InternetDomainNameTest extends TestCase {
         expectedName = expectedName.substring(0, expectedName.length() - 1);
       }
 
-      assertEquals(expectedName, domain.toString());
+      assertThat(domain.toString()).isEqualTo(expectedName);
     }
   }
 
-  public void testExclusion() {
+  public void testPublicSuffixExclusion() {
     InternetDomainName domain = InternetDomainName.from("foo.city.yokohama.jp");
     assertTrue(domain.hasPublicSuffix());
-    assertEquals("yokohama.jp", domain.publicSuffix().toString());
+    assertThat(domain.publicSuffix().toString()).isEqualTo("yokohama.jp");
 
     // Behold the weirdness!
     assertFalse(domain.publicSuffix().isPublicSuffix());
   }
 
-  public void testMultipleUnders() {
+  public void testPublicSuffixMultipleUnders() {
     // PSL has both *.uk and *.sch.uk; the latter should win.
-    // See http://code.google.com/p/guava-libraries/issues/detail?id=1176
+    // See https://github.com/google/guava/issues/1176
 
     InternetDomainName domain = InternetDomainName.from("www.essex.sch.uk");
     assertTrue(domain.hasPublicSuffix());
-    assertEquals("essex.sch.uk", domain.publicSuffix().toString());
-    assertEquals("www.essex.sch.uk", domain.topPrivateDomain().toString());
+    assertThat(domain.publicSuffix().toString()).isEqualTo("essex.sch.uk");
+    assertThat(domain.topPrivateDomain().toString()).isEqualTo("www.essex.sch.uk");
+  }
+
+  public void testRegistrySuffixExclusion() {
+    InternetDomainName domain = InternetDomainName.from("foo.city.yokohama.jp");
+    assertTrue(domain.hasRegistrySuffix());
+    assertThat(domain.registrySuffix().toString()).isEqualTo("yokohama.jp");
+
+    // Behold the weirdness!
+    assertFalse(domain.registrySuffix().isRegistrySuffix());
+  }
+
+  public void testRegistrySuffixMultipleUnders() {
+    // PSL has both *.uk and *.sch.uk; the latter should win.
+    // See https://github.com/google/guava/issues/1176
+
+    InternetDomainName domain = InternetDomainName.from("www.essex.sch.uk");
+    assertTrue(domain.hasRegistrySuffix());
+    assertThat(domain.registrySuffix().toString()).isEqualTo("essex.sch.uk");
+    assertThat(domain.topDomainUnderRegistrySuffix().toString()).isEqualTo("www.essex.sch.uk");
   }
 
   public void testEquality() {
     new EqualsTester()
-        .addEqualityGroup(
-            idn("google.com"), idn("google.com"), idn("GOOGLE.COM"))
+        .addEqualityGroup(idn("google.com"), idn("google.com"), idn("GOOGLE.COM"))
         .addEqualityGroup(idn("www.google.com"))
         .addEqualityGroup(UNICODE_EXAMPLE)
         .addEqualityGroup(PUNYCODE_EXAMPLE)
@@ -398,9 +506,10 @@ public final class InternetDomainNameTest extends TestCase {
     return InternetDomainName.from(domain);
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // NullPointerTester
   public void testNulls() {
-    final NullPointerTester tester = new NullPointerTester();
+    NullPointerTester tester = new NullPointerTester();
 
     tester.testAllPublicStaticMethods(InternetDomainName.class);
     tester.testAllPublicInstanceMethods(InternetDomainName.from("google.com"));

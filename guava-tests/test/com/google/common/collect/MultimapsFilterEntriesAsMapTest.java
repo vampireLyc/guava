@@ -21,19 +21,22 @@ import com.google.common.base.Predicate;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Tests for Multimaps.filterEntries().asMap().
  *
  * @author Jared Levy
  */
-@GwtIncompatible(value = "untested")
-public class MultimapsFilterEntriesAsMapTest
-    extends AbstractMultimapAsMapImplementsMapTest {
-  private static final Predicate<Map.Entry<String, Integer>> PREDICATE
-      = new Predicate<Map.Entry<String, Integer>>() {
-        @Override public boolean apply(Entry<String, Integer> entry) {
-          return !"badkey".equals(entry.getKey()) && 55556 != entry.getValue();
+@GwtIncompatible // untested
+@NullUnmarked
+public class MultimapsFilterEntriesAsMapTest extends AbstractMultimapAsMapImplementsMapTest {
+  private static final Predicate<Entry<String, Integer>> PREDICATE =
+      new Predicate<Entry<String, Integer>>() {
+        @Override
+        public boolean apply(Entry<String, Integer> entry) {
+          return !Objects.equals(entry.getKey(), "badkey") && entry.getValue() != 55556;
         }
       };
 
@@ -41,7 +44,7 @@ public class MultimapsFilterEntriesAsMapTest
     super(true, true, false);
   }
 
-  private Multimap<String, Integer> createMultimap() {
+  private static Multimap<String, Integer> createMultimap() {
     Multimap<String, Integer> unfiltered = HashMultimap.create();
     unfiltered.put("zero", 55556);
     unfiltered.put("one", 55556);
@@ -49,12 +52,14 @@ public class MultimapsFilterEntriesAsMapTest
     return Multimaps.filterEntries(unfiltered, PREDICATE);
   }
 
-  @Override protected Map<String, Collection<Integer>> makeEmptyMap() {
+  @Override
+  protected Map<String, Collection<Integer>> makeEmptyMap() {
     Multimap<String, Integer> multimap = createMultimap();
     return multimap.asMap();
   }
 
-  @Override protected Map<String, Collection<Integer>> makePopulatedMap() {
+  @Override
+  protected Map<String, Collection<Integer>> makePopulatedMap() {
     Multimap<String, Integer> multimap = createMultimap();
     populate(multimap);
     return multimap.asMap();

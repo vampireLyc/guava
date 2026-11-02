@@ -17,11 +17,11 @@
 package com.google.common.collect.testing.google;
 
 import com.google.common.annotations.GwtCompatible;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 
 /**
- * A generic JUnit test which tests unconditional {@code setCount()} operations
- * on a multiset. Can't be invoked directly; please see
- * {@link MultisetTestSuiteBuilder}.
+ * A generic JUnit test which tests unconditional {@code setCount()} operations on a multiset. Can't
+ * be invoked directly; please see {@link MultisetTestSuiteBuilder}.
  *
  * @author Chris Povirk
  */
@@ -40,6 +40,7 @@ public class MultisetSetCountUnconditionallyTester<E> extends AbstractMultisetSe
     setCount(element, count);
   }
 
+  @CanIgnoreReturnValue
   private int setCount(E element, int count) {
     return getMultiset().setCount(element, count);
   }

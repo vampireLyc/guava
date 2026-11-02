@@ -19,80 +19,90 @@ package com.google.common.collect;
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.testing.MapInterfaceTest;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
+import org.jspecify.annotations.NullMarked;
 
 /**
- * Test {@link Multimap#asMap()} for a {@link Multimaps#forMap} multimap with
- * {@link MapInterfaceTest}.
+ * Test {@link Multimap#asMap()} for a {@link Multimaps#forMap} multimap with {@link
+ * MapInterfaceTest}.
  *
  * @author Jared Levy
  */
 @GwtCompatible
-public class ForMapMultimapAsMapImplementsMapTest
-    extends AbstractMultimapAsMapImplementsMapTest {
+@NullMarked
+public class ForMapMultimapAsMapImplementsMapTest extends AbstractMultimapAsMapImplementsMapTest {
 
   public ForMapMultimapAsMapImplementsMapTest() {
     super(true, true, true);
   }
 
-  @Override protected Map<String, Collection<Integer>> makeEmptyMap() {
-    Map<String, Integer> map = Maps.newHashMap();
+  @Override
+  protected Map<String, Collection<Integer>> makeEmptyMap() {
+    Map<String, Integer> map = new HashMap<>();
     return Multimaps.forMap(map).asMap();
   }
 
-  @Override protected Map<String, Collection<Integer>> makePopulatedMap() {
-    Map<String, Integer> map = Maps.newHashMap();
+  @Override
+  protected Map<String, Collection<Integer>> makePopulatedMap() {
+    Map<String, Integer> map = new HashMap<>();
     map.put("foo", 1);
     map.put("bar", 2);
     map.put("cow", 3);
     return Multimaps.forMap(map).asMap();
   }
 
-  @Override public void testEntrySetRemoveAllNullFromEmpty() {
+  @Override
+  public void testEntrySetRemoveAllNullFromEmpty() {
     try {
       super.testEntrySetRemoveAllNullFromEmpty();
     } catch (RuntimeException tolerated) {
-      // GWT's HashMap.entrySet().removeAll(null) doesn't throws NPE.
+      // GWT's HashMap.entrySet().removeAll(null) doesn't throw NPE.
     }
   }
 
-  @Override public void testEntrySetRetainAllNullFromEmpty() {
+  @Override
+  public void testEntrySetRetainAllNullFromEmpty() {
     try {
       super.testEntrySetRetainAllNullFromEmpty();
     } catch (RuntimeException tolerated) {
-      // GWT's HashMap.entrySet().retainAll(null) doesn't throws NPE.
+      // GWT's HashMap.entrySet().retainAll(null) doesn't throw NPE.
     }
   }
 
-  @Override public void testKeySetRemoveAllNullFromEmpty() {
+  @Override
+  public void testKeySetRemoveAllNullFromEmpty() {
     try {
       super.testKeySetRemoveAllNullFromEmpty();
     } catch (RuntimeException tolerated) {
-      // GWT's HashMap.keySet().removeAll(null) doesn't throws NPE.
+      // GWT's HashMap.keySet().removeAll(null) doesn't throw NPE.
     }
   }
 
-  @Override public void testKeySetRetainAllNullFromEmpty() {
+  @Override
+  public void testKeySetRetainAllNullFromEmpty() {
     try {
       super.testKeySetRetainAllNullFromEmpty();
     } catch (RuntimeException tolerated) {
-      // GWT's HashMap.keySet().retainAll(null) doesn't throws NPE.
+      // GWT's HashMap.keySet().retainAll(null) doesn't throw NPE.
     }
   }
 
-  @Override public void testValuesRemoveAllNullFromEmpty() {
+  @Override
+  public void testValuesRemoveAllNullFromEmpty() {
     try {
       super.testValuesRemoveAllNullFromEmpty();
     } catch (RuntimeException tolerated) {
-      // GWT's HashMap.values().removeAll(null) doesn't throws NPE.
+      // GWT's HashMap.values().removeAll(null) doesn't throw NPE.
     }
   }
 
-  @Override public void testValuesRetainAllNullFromEmpty() {
+  @Override
+  public void testValuesRetainAllNullFromEmpty() {
     try {
       super.testValuesRemoveAllNullFromEmpty();
     } catch (RuntimeException tolerated) {
-      // GWT's HashMap.values().retainAll(null) doesn't throws NPE.
+      // GWT's HashMap.values().retainAll(null) doesn't throw NPE.
     }
   }
 }

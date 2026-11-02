@@ -18,12 +18,14 @@ package com.google.common.eventbus;
 
 import com.google.caliper.BeforeExperiment;
 import com.google.caliper.Benchmark;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Benchmark for {@link EventBus}.
  *
  * @author Eric Fellheimer
  */
+@NullUnmarked
 public class EventBusBenchmark {
 
   private EventBus eventBus;
@@ -34,7 +36,8 @@ public class EventBusBenchmark {
     eventBus.register(this);
   }
 
-  @Benchmark void postStrings(int reps) {
+  @Benchmark
+  void postStrings(int reps) {
     for (int i = 0; i < reps; i++) {
       eventBus.post("hello there");
     }

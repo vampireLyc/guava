@@ -33,7 +33,6 @@ import java.util.Iterator;
  */
 @GwtCompatible
 public class BiMapRemoveTester<K, V> extends AbstractBiMapTester<K, V> {
-  @SuppressWarnings("unchecked")
   @MapFeature.Require(SUPPORTS_REMOVE)
   @CollectionSize.Require(absent = ZERO)
   public void testRemoveKeyRemovesFromInverse() {
@@ -41,7 +40,6 @@ public class BiMapRemoveTester<K, V> extends AbstractBiMapTester<K, V> {
     expectMissing(e0());
   }
 
-  @SuppressWarnings("unchecked")
   @MapFeature.Require(SUPPORTS_REMOVE)
   @CollectionSize.Require(absent = ZERO)
   public void testRemoveKeyFromKeySetRemovesFromInverse() {
@@ -49,7 +47,6 @@ public class BiMapRemoveTester<K, V> extends AbstractBiMapTester<K, V> {
     expectMissing(e0());
   }
 
-  @SuppressWarnings("unchecked")
   @MapFeature.Require(SUPPORTS_REMOVE)
   @CollectionSize.Require(absent = ZERO)
   public void testRemoveFromValuesRemovesFromInverse() {
@@ -57,7 +54,6 @@ public class BiMapRemoveTester<K, V> extends AbstractBiMapTester<K, V> {
     expectMissing(e0());
   }
 
-  @SuppressWarnings("unchecked")
   @MapFeature.Require(SUPPORTS_REMOVE)
   @CollectionSize.Require(absent = ZERO)
   public void testRemoveFromInverseRemovesFromForward() {
@@ -65,7 +61,6 @@ public class BiMapRemoveTester<K, V> extends AbstractBiMapTester<K, V> {
     expectMissing(e0());
   }
 
-  @SuppressWarnings("unchecked")
   @MapFeature.Require(SUPPORTS_REMOVE)
   @CollectionSize.Require(absent = ZERO)
   public void testRemoveFromInverseKeySetRemovesFromForward() {
@@ -73,7 +68,6 @@ public class BiMapRemoveTester<K, V> extends AbstractBiMapTester<K, V> {
     expectMissing(e0());
   }
 
-  @SuppressWarnings("unchecked")
   @MapFeature.Require(SUPPORTS_REMOVE)
   @CollectionSize.Require(absent = ZERO)
   public void testRemoveFromInverseValuesRemovesFromInverse() {

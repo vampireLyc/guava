@@ -16,13 +16,16 @@
 
 package com.google.common.collect.testing.testers;
 
+import static com.google.common.collect.testing.Helpers.copyToList;
+import static com.google.common.collect.testing.Helpers.getMethod;
 import static com.google.common.collect.testing.features.CollectionFeature.SUPPORTS_REMOVE;
 import static com.google.common.collect.testing.features.CollectionSize.ONE;
 import static com.google.common.collect.testing.features.CollectionSize.SEVERAL;
 import static com.google.common.collect.testing.features.CollectionSize.ZERO;
+import static java.util.Collections.sort;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtIncompatible;
-import com.google.common.collect.testing.Helpers;
 import com.google.common.collect.testing.features.CollectionFeature;
 import com.google.common.collect.testing.features.CollectionSize;
 import java.lang.reflect.Method;
@@ -34,8 +37,8 @@ import java.util.NavigableSet;
 import java.util.TreeSet;
 
 /**
- * A generic JUnit test which tests operations on a NavigableSet. Can't be
- * invoked directly; please see {@code NavigableSetTestSuiteBuilder}.
+ * A generic JUnit test which tests operations on a NavigableSet. Can't be invoked directly; please
+ * see {@code NavigableSetTestSuiteBuilder}.
  *
  * @author Jesse Wilson
  * @author Louis Wasserman
@@ -54,10 +57,10 @@ public class NavigableSetNavigationTester<E> extends AbstractSetTester<E> {
     super.setUp();
     navigableSet = (NavigableSet<E>) getSet();
     values =
-        Helpers.copyToList(
+        copyToList(
             getSubjectGenerator()
                 .getSampleElements(getSubjectGenerator().getCollectionSize().getNumElements()));
-    Collections.sort(values, navigableSet.comparator());
+    sort(values, navigableSet.comparator());
 
     // some tests assume SEVERAL == 3
     if (values.size() >= 1) {
@@ -69,10 +72,7 @@ public class NavigableSetNavigationTester<E> extends AbstractSetTester<E> {
     }
   }
 
-  /**
-   * Resets the contents of navigableSet to have elements a, c, for the
-   * navigation tests.
-   */
+  /** Resets the contents of navigableSet to have elements a, c, for the navigation tests. */
   protected void resetWithHole() {
     super.resetContainer(getSubjectGenerator().create(a, c));
     navigableSet = (NavigableSet<E>) getSet();
@@ -124,16 +124,12 @@ public class NavigableSetNavigationTester<E> extends AbstractSetTester<E> {
   @CollectionSize.Require(SEVERAL)
   public void testPollFirst() {
     assertEquals(a, navigableSet.pollFirst());
-    assertEquals(values.subList(1, values.size()), Helpers.copyToList(navigableSet));
+    assertEquals(values.subList(1, values.size()), copyToList(navigableSet));
   }
 
   @CollectionFeature.Require(absent = SUPPORTS_REMOVE)
   public void testPollFirstUnsupported() {
-    try {
-      navigableSet.pollFirst();
-      fail();
-    } catch (UnsupportedOperationException e) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> navigableSet.pollFirst());
   }
 
   @CollectionSize.Require(SEVERAL)
@@ -205,21 +201,17 @@ public class NavigableSetNavigationTester<E> extends AbstractSetTester<E> {
   @CollectionSize.Require(SEVERAL)
   public void testPollLast() {
     assertEquals(c, navigableSet.pollLast());
-    assertEquals(values.subList(0, values.size() - 1), Helpers.copyToList(navigableSet));
+    assertEquals(values.subList(0, values.size() - 1), copyToList(navigableSet));
   }
 
   @CollectionFeature.Require(absent = SUPPORTS_REMOVE)
   public void testPollLastUnsupported() {
-    try {
-      navigableSet.pollLast();
-      fail();
-    } catch (UnsupportedOperationException e) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> navigableSet.pollLast());
   }
 
   @CollectionSize.Require(SEVERAL)
   public void testDescendingNavigation() {
-    List<E> descending = new ArrayList<E>();
+    List<E> descending = new ArrayList<>();
     for (Iterator<E> i = navigableSet.descendingIterator(); i.hasNext(); ) {
       descending.add(i.next());
     }
@@ -250,10 +242,10 @@ public class NavigableSetNavigationTester<E> extends AbstractSetTester<E> {
    */
   public static Method[] getHoleMethods() {
     return new Method[] {
-      Helpers.getMethod(NavigableSetNavigationTester.class, "testLowerHole"),
-      Helpers.getMethod(NavigableSetNavigationTester.class, "testFloorHole"),
-      Helpers.getMethod(NavigableSetNavigationTester.class, "testCeilingHole"),
-      Helpers.getMethod(NavigableSetNavigationTester.class, "testHigherHole"),
+      getMethod(NavigableSetNavigationTester.class, "testLowerHole"),
+      getMethod(NavigableSetNavigationTester.class, "testFloorHole"),
+      getMethod(NavigableSetNavigationTester.class, "testCeilingHole"),
+      getMethod(NavigableSetNavigationTester.class, "testHigherHole"),
     };
   }
 }

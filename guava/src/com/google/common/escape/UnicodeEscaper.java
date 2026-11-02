@@ -15,24 +15,25 @@
 package com.google.common.escape;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.lang.Character.charCount;
+import static java.lang.System.arraycopy;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtCompatible;
+import org.jspecify.annotations.Nullable;
 
 /**
  * An {@link Escaper} that converts literal text into a format safe for inclusion in a particular
  * context (such as an XML document). Typically (but not always), the inverse process of
  * "unescaping" the text is performed automatically by the relevant parser.
  *
- * <p>For example, an XML escaper would convert the literal string {@code
- * "Foo<Bar>"} into {@code "Foo&lt;Bar&gt;"} to prevent {@code "<Bar>"} from being confused with an
- * XML tag. When the resulting XML document is parsed, the parser API will return this text as the
- * original literal string {@code
- * "Foo<Bar>"}.
+ * <p>For example, an XML escaper would convert the literal string {@code "Foo<Bar>"} into {@code
+ * "Foo&lt;Bar&gt;"} to prevent {@code "<Bar>"} from being confused with an XML tag. When the
+ * resulting XML document is parsed, the parser API will return this text as the original literal
+ * string {@code "Foo<Bar>"}.
  *
  * <p><b>Note:</b> This class is similar to {@link CharEscaper} but with one very important
- * difference. A CharEscaper can only process Java
- * <a href="http://en.wikipedia.org/wiki/UTF-16">UTF16</a> characters in isolation and may not cope
+ * difference. A CharEscaper can only process Java <a
+ * href="http://en.wikipedia.org/wiki/UTF-16">UTF16</a> characters in isolation and may not cope
  * when it encounters surrogate pairs. This class facilitates the correct escaping of all Unicode
  * characters.
  *
@@ -43,15 +44,15 @@ import com.google.common.annotations.GwtCompatible;
  * <p>A {@code UnicodeEscaper} instance is required to be stateless, and safe when used concurrently
  * by multiple threads.
  *
- * <p>Popular escapers are defined as constants in classes like
- * {@link com.google.common.html.HtmlEscapers} and {@link com.google.common.xml.XmlEscapers}. To
- * create your own escapers extend this class and implement the {@link #escape(int)} method.
+ * <p>Popular escapers are defined as constants in classes like {@link
+ * com.google.common.html.HtmlEscapers} and {@link com.google.common.xml.XmlEscapers}. To create
+ * your own escapers extend this class and implement the {@link #escape(int)} method.
  *
  * @author David Beaumont
  * @since 15.0
  */
-@Beta
 @GwtCompatible
+@SuppressWarnings("EscapedEntity") // We do mean for the user to see "&lt;" etc.
 public abstract class UnicodeEscaper extends Escaper {
   /** The amount of padding (chars) to use when growing the escape buffer. */
   private static final int DEST_PAD = 32;
@@ -78,7 +79,37 @@ public abstract class UnicodeEscaper extends Escaper {
    * @param cp the Unicode code point to escape if necessary
    * @return the replacement characters, or {@code null} if no escaping was needed
    */
-  protected abstract char[] escape(int cp);
+  protected abstract char @Nullable [] escape(int cp);
+
+  final char @Nullable [] escapeInternal(int cp) {
+    return escape(cp);
+  }
+
+  /**
+   * Returns the escaped form of a given literal string.
+   *
+   * <p>If you are escaping input in arbitrary successive chunks, then it is not generally safe to
+   * use this method. If an input string ends with an unmatched high surrogate character, then this
+   * method will throw {@link IllegalArgumentException}. You should ensure your input is valid <a
+   * href="http://en.wikipedia.org/wiki/UTF-16">UTF-16</a> before calling this method.
+   *
+   * <p><b>Note:</b> When implementing an escaper it is a good idea to override this method for
+   * efficiency by inlining the implementation of {@link #nextEscapeIndex(CharSequence, int, int)}
+   * directly. Doing this for {@link com.google.common.net.PercentEscaper} more than doubled the
+   * performance for unescaped strings (as measured by {@code CharEscapersBenchmark}).
+   *
+   * @param string the literal string to be escaped
+   * @return the escaped form of {@code string}
+   * @throws NullPointerException if {@code string} is null
+   * @throws IllegalArgumentException if invalid surrogate characters are encountered
+   */
+  @Override
+  public String escape(String string) {
+    checkNotNull(string);
+    int end = string.length();
+    int index = nextEscapeIndex(string, 0, end);
+    return index == end ? string : escapeSlow(string, index);
+  }
 
   /**
    * Scans a sub-sequence of characters from a given {@link CharSequence}, returning the index of
@@ -109,35 +140,9 @@ public abstract class UnicodeEscaper extends Escaper {
       if (cp < 0 || escape(cp) != null) {
         break;
       }
-      index += Character.isSupplementaryCodePoint(cp) ? 2 : 1;
+      index += charCount(cp);
     }
     return index;
-  }
-
-  /**
-   * Returns the escaped form of a given literal string.
-   *
-   * <p>If you are escaping input in arbitrary successive chunks, then it is not generally safe to
-   * use this method. If an input string ends with an unmatched high surrogate character, then this
-   * method will throw {@link IllegalArgumentException}. You should ensure your input is valid
-   * <a href="http://en.wikipedia.org/wiki/UTF-16">UTF-16</a> before calling this method.
-   *
-   * <p><b>Note:</b> When implementing an escaper it is a good idea to override this method for
-   * efficiency by inlining the implementation of {@link #nextEscapeIndex(CharSequence, int, int)}
-   * directly. Doing this for {@link com.google.common.net.PercentEscaper} more than doubled the
-   * performance for unescaped strings (as measured by {@link CharEscapersBenchmark}).
-   *
-   * @param string the literal string to be escaped
-   * @return the escaped form of {@code string}
-   * @throws NullPointerException if {@code string} is null
-   * @throws IllegalArgumentException if invalid surrogate characters are encountered
-   */
-  @Override
-  public String escape(String string) {
-    checkNotNull(string);
-    int end = string.length();
-    int index = nextEscapeIndex(string, 0, end);
-    return index == end ? string : escapeSlow(string, index);
   }
 
   /**
@@ -146,8 +151,8 @@ public abstract class UnicodeEscaper extends Escaper {
    * protected to allow subclasses to override the fastpath escaping function to inline their
    * escaping test. See {@link CharEscaperBuilder} for an example usage.
    *
-   * <p>This method is not reentrant and may only be invoked by the top level
-   * {@link #escape(String)} method.
+   * <p>This method is not reentrant and may only be invoked by the top level {@link
+   * #escape(String)} method.
    *
    * @param s the literal string to be escaped
    * @param index the index to start escaping from
@@ -172,7 +177,7 @@ public abstract class UnicodeEscaper extends Escaper {
       // (for performance reasons) yield some false positives but it must never
       // give false negatives.
       char[] escaped = escape(cp);
-      int nextIndex = index + (Character.isSupplementaryCodePoint(cp) ? 2 : 1);
+      int nextIndex = index + charCount(cp);
       if (escaped != null) {
         int charsSkipped = index - unescapedChunkStart;
 
@@ -189,7 +194,7 @@ public abstract class UnicodeEscaper extends Escaper {
           destIndex += charsSkipped;
         }
         if (escaped.length > 0) {
-          System.arraycopy(escaped, 0, dest, destIndex, escaped.length);
+          arraycopy(escaped, 0, dest, destIndex, escaped.length);
           destIndex += escaped.length;
         }
         // If we dealt with an escaped character, reset the unescaped range.
@@ -219,21 +224,22 @@ public abstract class UnicodeEscaper extends Escaper {
    * this method will never fail silently when encountering an invalid surrogate pair.
    *
    * <p>The behaviour of this method is as follows:
+   *
    * <ol>
-   * <li>If {@code index >= end}, {@link IndexOutOfBoundsException} is thrown.
-   * <li><b>If the character at the specified index is not a surrogate, it is returned.</b>
-   * <li>If the first character was a high surrogate value, then an attempt is made to read the next
-   *     character.
-   *     <ol>
-   *     <li><b>If the end of the sequence was reached, the negated value of the trailing high
-   *         surrogate is returned.</b>
-   *     <li><b>If the next character was a valid low surrogate, the code point value of the
-   *         high/low surrogate pair is returned.</b>
-   *     <li>If the next character was not a low surrogate value, then {@link
-   *         IllegalArgumentException} is thrown.
-   *     </ol>
-   * <li>If the first character was a low surrogate value, {@link IllegalArgumentException} is
-   *     thrown.
+   *   <li>If {@code index >= end}, {@link IndexOutOfBoundsException} is thrown.
+   *   <li><b>If the character at the specified index is not a surrogate, it is returned.</b>
+   *   <li>If the first character was a high surrogate value, then an attempt is made to read the
+   *       next character.
+   *       <ol>
+   *         <li><b>If the end of the sequence was reached, the negated value of the trailing high
+   *             surrogate is returned.</b>
+   *         <li><b>If the next character was a valid low surrogate, the code point value of the
+   *             high/low surrogate pair is returned.</b>
+   *         <li>If the next character was not a low surrogate value, then {@link
+   *             IllegalArgumentException} is thrown.
+   *       </ol>
+   *   <li>If the first character was a low surrogate value, {@link IllegalArgumentException} is
+   *       thrown.
    * </ol>
    *
    * @param seq the sequence of characters from which to decode the code point
@@ -285,6 +291,10 @@ public abstract class UnicodeEscaper extends Escaper {
     throw new IndexOutOfBoundsException("Index exceeds specified range");
   }
 
+  static int codePointAtInternal(CharSequence seq, int index, int end) {
+    return codePointAt(seq, index, end);
+  }
+
   /**
    * Helper method to grow the character buffer as needed, this only happens once in a while so it's
    * ok if it's in a method call. If the index passed in is 0 then no copying will be done.
@@ -295,7 +305,7 @@ public abstract class UnicodeEscaper extends Escaper {
     }
     char[] copy = new char[size];
     if (index > 0) {
-      System.arraycopy(dest, 0, copy, 0, index);
+      arraycopy(dest, 0, copy, 0, index);
     }
     return copy;
   }

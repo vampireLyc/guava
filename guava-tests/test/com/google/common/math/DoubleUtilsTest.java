@@ -17,54 +17,51 @@
 package com.google.common.math;
 
 import static com.google.common.math.MathTesting.ALL_BIGINTEGER_CANDIDATES;
-import static com.google.common.math.MathTesting.FINITE_DOUBLE_CANDIDATES;
 import static com.google.common.math.MathTesting.POSITIVE_FINITE_DOUBLE_CANDIDATES;
+import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
+import com.google.common.annotations.GwtIncompatible;
+import com.google.errorprone.annotations.FormatMethod;
 import java.math.BigInteger;
 import junit.framework.TestCase;
-import sun.misc.FpUtils;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Tests for {@link DoubleUtils}.
  *
  * @author Louis Wasserman
  */
+@GwtIncompatible
+@NullUnmarked
 public class DoubleUtilsTest extends TestCase {
-  @AndroidIncompatible // no FpUtils
-  public void testNextDown() {
-    for (double d : FINITE_DOUBLE_CANDIDATES) {
-      assertEquals(FpUtils.nextDown(d), DoubleUtils.nextDown(d));
-    }
-  }
-
   @AndroidIncompatible // TODO(cpovirk): File bug for BigDecimal.doubleValue().
   public void testBigToDouble() {
     for (BigInteger b : ALL_BIGINTEGER_CANDIDATES) {
       if (b.doubleValue() != DoubleUtils.bigToDouble(b)) {
         failFormat(
             "Converting %s to double: expected doubleValue %s but got bigToDouble %s",
-            b,
-            b.doubleValue(),
-            DoubleUtils.bigToDouble(b));
+            b, b.doubleValue(), DoubleUtils.bigToDouble(b));
       }
     }
   }
 
   public void testEnsureNonNegative() {
-    assertEquals(0.0, DoubleUtils.ensureNonNegative(0.0));
+    assertThat(DoubleUtils.ensureNonNegative(0.0)).isEqualTo(0.0);
     for (double positiveValue : POSITIVE_FINITE_DOUBLE_CANDIDATES) {
-      assertEquals(positiveValue, DoubleUtils.ensureNonNegative(positiveValue));
-      assertEquals(0.0, DoubleUtils.ensureNonNegative(-positiveValue));
+      assertThat(DoubleUtils.ensureNonNegative(positiveValue)).isEqualTo(positiveValue);
+      assertThat(DoubleUtils.ensureNonNegative(-positiveValue)).isEqualTo(0.0);
     }
-    assertEquals(Double.POSITIVE_INFINITY, DoubleUtils.ensureNonNegative(Double.POSITIVE_INFINITY));
-    assertEquals(0.0, DoubleUtils.ensureNonNegative(Double.NEGATIVE_INFINITY));
-    try {
-      DoubleUtils.ensureNonNegative(Double.NaN);
-      fail("Expected IllegalArgumentException from ensureNonNegative(Double.NaN)");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThat(DoubleUtils.ensureNonNegative(Double.POSITIVE_INFINITY)).isPositiveInfinity();
+    assertThat(DoubleUtils.ensureNonNegative(Double.NEGATIVE_INFINITY)).isEqualTo(0.0);
+    assertThrows(IllegalArgumentException.class, () -> DoubleUtils.ensureNonNegative(Double.NaN));
   }
 
+  public void testOneBits() {
+    assertEquals(DoubleUtils.ONE_BITS, Double.doubleToRawLongBits(1.0));
+  }
+
+  @FormatMethod
   private static void failFormat(String template, Object... args) {
     fail(String.format(template, args));
   }

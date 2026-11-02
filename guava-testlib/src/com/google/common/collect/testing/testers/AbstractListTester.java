@@ -16,11 +16,15 @@
 
 package com.google.common.collect.testing.testers;
 
+import static com.google.common.collect.testing.Helpers.copyToList;
+
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.testing.AbstractCollectionTester;
-import com.google.common.collect.testing.Helpers;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Base class for list testers.
@@ -28,7 +32,8 @@ import java.util.List;
  * @author George van den Driessche
  */
 @GwtCompatible
-public class AbstractListTester<E> extends AbstractCollectionTester<E> {
+@NullMarked
+public class AbstractListTester<E extends @Nullable Object> extends AbstractCollectionTester<E> {
   /*
    * Previously we had a field named list that was initialized to the value of
    * collection in setUp(), but that caused problems when a tester changed the
@@ -40,14 +45,14 @@ public class AbstractListTester<E> extends AbstractCollectionTester<E> {
 
   /**
    * {@inheritDoc}
-   * <p>
-   * The {@code AbstractListTester} implementation overrides
-   * {@link AbstractCollectionTester#expectContents(Collection)} to verify that
-   * the order of the elements in the list under test matches what is expected.
+   *
+   * <p>The {@code AbstractListTester} implementation overrides {@link
+   * AbstractCollectionTester#expectContents(Collection)} to verify that the order of the elements
+   * in the list under test matches what is expected.
    */
   @Override
   protected void expectContents(Collection<E> expectedCollection) {
-    List<E> expectedList = Helpers.copyToList(expectedCollection);
+    List<E> expectedList = copyToList(expectedCollection);
     // Avoid expectEquals() here to delay reason manufacture until necessary.
     if (getList().size() != expectedList.size()) {
       fail("size mismatch: " + reportContext(expectedList));
@@ -55,16 +60,15 @@ public class AbstractListTester<E> extends AbstractCollectionTester<E> {
     for (int i = 0; i < expectedList.size(); i++) {
       E expected = expectedList.get(i);
       E actual = getList().get(i);
-      if (expected != actual && (expected == null || !expected.equals(actual))) {
+      if (!Objects.equals(actual, expected)) {
         fail("mismatch at index " + i + ": " + reportContext(expectedList));
       }
     }
   }
 
   /**
-   * Used to delay string formatting until actually required, as it
-   * otherwise shows up in the test execution profile when running an
-   * extremely large numbers of tests.
+   * Used to delay string formatting until actually required, as it otherwise shows up in the test
+   * execution profile when running an extremely large numbers of tests.
    */
   private String reportContext(List<E> expected) {
     return Platform.format(

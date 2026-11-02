@@ -16,12 +16,14 @@
 
 package com.google.common.collect.testing;
 
+import static com.google.common.collect.testing.Helpers.copyToList;
+
 import com.google.common.annotations.GwtIncompatible;
 import java.util.List;
 
 /**
- * Creates, based on your criteria, a JUnit test suite that exhaustively tests
- * a ConcurrentNavigableMap implementation.
+ * Creates, based on your criteria, a JUnit test suite that exhaustively tests a
+ * ConcurrentNavigableMap implementation.
  *
  * @author Louis Wasserman
  */
@@ -32,14 +34,15 @@ public class ConcurrentNavigableMapTestSuiteBuilder<K, V>
   public static <K, V> ConcurrentNavigableMapTestSuiteBuilder<K, V> using(
       TestSortedMapGenerator<K, V> generator) {
     ConcurrentNavigableMapTestSuiteBuilder<K, V> result =
-        new ConcurrentNavigableMapTestSuiteBuilder<K, V>();
+        new ConcurrentNavigableMapTestSuiteBuilder<>();
     result.usingGenerator(generator);
     return result;
   }
 
+  @SuppressWarnings("rawtypes") // class literals
   @Override
   protected List<Class<? extends AbstractTester>> getTesters() {
-    List<Class<? extends AbstractTester>> testers = Helpers.copyToList(super.getTesters());
+    List<Class<? extends AbstractTester>> testers = copyToList(super.getTesters());
     testers.addAll(ConcurrentMapTestSuiteBuilder.TESTERS);
     return testers;
   }

@@ -14,12 +14,13 @@
 
 package com.google.common.net;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Preconditions;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.net.InetAddress;
 import java.text.ParseException;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A syntactically valid host specifier, suitable for use in a URI. This may be either a numeric IP
@@ -29,19 +30,26 @@ import javax.annotation.Nullable;
  * URI, the domain name case is further restricted to include only those domain names which end in a
  * recognized public suffix; see {@link InternetDomainName#isPublicSuffix()} for details.
  *
+ * <p>In this context, "URI" is used in the general sense, and {@code HostSpecifier} does not
+ * guarantee that every URI or URL parser will accept the original input without additional
+ * normalization. {@code HostSpecifier} follows the syntactic rules of {@link InetAddresses} and
+ * {@link InternetDomainName}, including their documented acceptance of some inputs that particular
+ * URI implementations may reject, such as non-ASCII digits, non-ASCII domain names, or domain
+ * labels containing underscores.
+ *
  * <p>Note that no network lookups are performed by any {@code HostSpecifier} methods. No attempt is
  * made to verify that a provided specifier corresponds to a real or accessible host. Only syntactic
  * and pattern-based checks are performed.
  *
  * <p>If you know that a given string represents a numeric IP address, use {@link InetAddresses} to
  * obtain and manipulate a {@link java.net.InetAddress} instance from it rather than using this
- * class. Similarly, if you know that a given string represents a domain name, use
- * {@link InternetDomainName} rather than this class.
+ * class. Similarly, if you know that a given string represents a domain name, use {@link
+ * InternetDomainName} rather than this class.
  *
  * @author Craig Berry
  * @since 5.0
  */
-@Beta
+@J2ktIncompatible
 @GwtIncompatible
 public final class HostSpecifier {
 
@@ -57,11 +65,12 @@ public final class HostSpecifier {
    * instead.
    *
    * <p>The specifier must be in one of these formats:
+   *
    * <ul>
-   * <li>A domain name, like {@code google.com}
-   * <li>A IPv4 address string, like {@code 127.0.0.1}
-   * <li>An IPv6 address string with or without brackets, like {@code [2001:db8::1]} or
-   *     {@code 2001:db8::1}
+   *   <li>A domain name, like {@code google.com}
+   *   <li>A IPv4 address string, like {@code 127.0.0.1}
+   *   <li>An IPv6 address string with or without brackets, like {@code [2001:db8::1]} or {@code
+   *       2001:db8::1}
    * </ul>
    *
    * @throws IllegalArgumentException if the specifier is not valid.
@@ -69,9 +78,9 @@ public final class HostSpecifier {
   public static HostSpecifier fromValid(String specifier) {
     // Verify that no port was specified, and strip optional brackets from
     // IPv6 literals.
-    final HostAndPort parsedHost = HostAndPort.fromString(specifier);
+    HostAndPort parsedHost = HostAndPort.fromString(specifier);
     Preconditions.checkArgument(!parsedHost.hasPort());
-    final String host = parsedHost.getHost();
+    String host = parsedHost.getHost();
 
     // Try to interpret the specifier as an IP address. Note we build
     // the address rather than using the .is* methods because we want to
@@ -91,7 +100,7 @@ public final class HostSpecifier {
     // It is not any kind of IP address; must be a domain name or invalid.
 
     // TODO(user): different versions of this for different factories?
-    final InternetDomainName domain = InternetDomainName.from(host);
+    InternetDomainName domain = InternetDomainName.from(host);
 
     if (domain.hasPublicSuffix()) {
       return new HostSpecifier(domain.toString());
@@ -108,6 +117,7 @@ public final class HostSpecifier {
    *
    * @throws ParseException if the specifier is not valid.
    */
+  @CanIgnoreReturnValue // TODO(b/219820829): consider removing
   public static HostSpecifier from(String specifier) throws ParseException {
     try {
       return fromValid(specifier);
@@ -128,7 +138,7 @@ public final class HostSpecifier {
    */
   public static boolean isValid(String specifier) {
     try {
-      fromValid(specifier);
+      HostSpecifier unused = fromValid(specifier);
       return true;
     } catch (IllegalArgumentException e) {
       return false;
@@ -142,7 +152,7 @@ public final class HostSpecifier {
     }
 
     if (other instanceof HostSpecifier) {
-      final HostSpecifier that = (HostSpecifier) other;
+      HostSpecifier that = (HostSpecifier) other;
       return this.canonicalForm.equals(that.canonicalForm);
     }
 

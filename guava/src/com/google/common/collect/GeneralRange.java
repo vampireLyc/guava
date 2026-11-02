@@ -18,34 +18,35 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.BoundType.CLOSED;
 import static com.google.common.collect.BoundType.OPEN;
+import static com.google.common.collect.NullnessCasts.uncheckedCastNullableTToT;
 
 import com.google.common.annotations.GwtCompatible;
-import com.google.common.base.Objects;
+import com.google.errorprone.annotations.concurrent.LazyInit;
 import java.io.Serializable;
 import java.util.Comparator;
-import javax.annotation.Nullable;
+import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 
 /**
- * A generalized interval on any ordering, for internal use. Supports {@code null}. Unlike
- * {@link Range}, this allows the use of an arbitrary comparator. This is designed for use in the
+ * A generalized interval on any ordering, for internal use. Supports {@code null}. Unlike {@link
+ * Range}, this allows the use of an arbitrary comparator. This is designed for use in the
  * implementation of subcollections of sorted collection types.
  *
  * <p>Whenever possible, use {@code Range} instead, which is better supported.
  *
  * @author Louis Wasserman
  */
-@GwtCompatible(serializable = true)
-final class GeneralRange<T> implements Serializable {
-  /**
-   * Converts a Range to a GeneralRange.
-   */
+@GwtCompatible
+final class GeneralRange<T extends @Nullable Object> implements Serializable {
+  /** Converts a Range to a GeneralRange. */
+  @SuppressWarnings("rawtypes") // https://github.com/google/guava/issues/989
   static <T extends Comparable> GeneralRange<T> from(Range<T> range) {
-    @Nullable T lowerEndpoint = range.hasLowerBound() ? range.lowerEndpoint() : null;
+    T lowerEndpoint = range.hasLowerBound() ? range.lowerEndpoint() : null;
     BoundType lowerBoundType = range.hasLowerBound() ? range.lowerBoundType() : OPEN;
 
-    @Nullable T upperEndpoint = range.hasUpperBound() ? range.upperEndpoint() : null;
+    T upperEndpoint = range.hasUpperBound() ? range.upperEndpoint() : null;
     BoundType upperBoundType = range.hasUpperBound() ? range.upperBoundType() : OPEN;
-    return new GeneralRange<T>(
+    return new GeneralRange<>(
         Ordering.natural(),
         range.hasLowerBound(),
         lowerEndpoint,
@@ -55,50 +56,48 @@ final class GeneralRange<T> implements Serializable {
         upperBoundType);
   }
 
-  /**
-   * Returns the whole range relative to the specified comparator.
-   */
-  static <T> GeneralRange<T> all(Comparator<? super T> comparator) {
-    return new GeneralRange<T>(comparator, false, null, OPEN, false, null, OPEN);
+  /** Returns the whole range relative to the specified comparator. */
+  static <T extends @Nullable Object> GeneralRange<T> all(Comparator<? super T> comparator) {
+    return new GeneralRange<>(comparator, false, null, OPEN, false, null, OPEN);
   }
 
   /**
    * Returns everything above the endpoint relative to the specified comparator, with the specified
    * endpoint behavior.
    */
-  static <T> GeneralRange<T> downTo(
-      Comparator<? super T> comparator, @Nullable T endpoint, BoundType boundType) {
-    return new GeneralRange<T>(comparator, true, endpoint, boundType, false, null, OPEN);
+  static <T extends @Nullable Object> GeneralRange<T> downTo(
+      Comparator<? super T> comparator, @ParametricNullness T endpoint, BoundType boundType) {
+    return new GeneralRange<>(comparator, true, endpoint, boundType, false, null, OPEN);
   }
 
   /**
    * Returns everything below the endpoint relative to the specified comparator, with the specified
    * endpoint behavior.
    */
-  static <T> GeneralRange<T> upTo(
-      Comparator<? super T> comparator, @Nullable T endpoint, BoundType boundType) {
-    return new GeneralRange<T>(comparator, false, null, OPEN, true, endpoint, boundType);
+  static <T extends @Nullable Object> GeneralRange<T> upTo(
+      Comparator<? super T> comparator, @ParametricNullness T endpoint, BoundType boundType) {
+    return new GeneralRange<>(comparator, false, null, OPEN, true, endpoint, boundType);
   }
 
   /**
    * Returns everything between the endpoints relative to the specified comparator, with the
    * specified endpoint behavior.
    */
-  static <T> GeneralRange<T> range(
+  static <T extends @Nullable Object> GeneralRange<T> range(
       Comparator<? super T> comparator,
-      @Nullable T lower,
+      @ParametricNullness T lower,
       BoundType lowerType,
-      @Nullable T upper,
+      @ParametricNullness T upper,
       BoundType upperType) {
-    return new GeneralRange<T>(comparator, true, lower, lowerType, true, upper, upperType);
+    return new GeneralRange<>(comparator, true, lower, lowerType, true, upper, upperType);
   }
 
   private final Comparator<? super T> comparator;
   private final boolean hasLowerBound;
-  @Nullable private final T lowerEndpoint;
+  private final @Nullable T lowerEndpoint;
   private final BoundType lowerBoundType;
   private final boolean hasUpperBound;
-  @Nullable private final T upperEndpoint;
+  private final @Nullable T upperEndpoint;
   private final BoundType upperBoundType;
 
   private GeneralRange(
@@ -117,19 +116,31 @@ final class GeneralRange<T> implements Serializable {
     this.upperEndpoint = upperEndpoint;
     this.upperBoundType = checkNotNull(upperBoundType);
 
+    // Trigger any exception that the comparator would throw for the endpoints.
+    /*
+     * uncheckedCastNullableTToT is safe as long as the callers are careful to pass a "real" T
+     * whenever they pass `true` for the matching `has*Bound` parameter.
+     */
     if (hasLowerBound) {
-      comparator.compare(lowerEndpoint, lowerEndpoint);
+      int unused =
+          comparator.compare(
+              uncheckedCastNullableTToT(lowerEndpoint), uncheckedCastNullableTToT(lowerEndpoint));
     }
     if (hasUpperBound) {
-      comparator.compare(upperEndpoint, upperEndpoint);
+      int unused =
+          comparator.compare(
+              uncheckedCastNullableTToT(upperEndpoint), uncheckedCastNullableTToT(upperEndpoint));
     }
+
     if (hasLowerBound && hasUpperBound) {
-      int cmp = comparator.compare(lowerEndpoint, upperEndpoint);
+      int cmp =
+          comparator.compare(
+              uncheckedCastNullableTToT(lowerEndpoint), uncheckedCastNullableTToT(upperEndpoint));
       // be consistent with Range
       checkArgument(
           cmp <= 0, "lowerEndpoint (%s) > upperEndpoint (%s)", lowerEndpoint, upperEndpoint);
       if (cmp == 0) {
-        checkArgument(lowerBoundType != OPEN | upperBoundType != OPEN);
+        checkArgument(lowerBoundType != OPEN || upperBoundType != OPEN);
       }
     }
   }
@@ -147,41 +158,45 @@ final class GeneralRange<T> implements Serializable {
   }
 
   boolean isEmpty() {
-    return (hasUpperBound() && tooLow(getUpperEndpoint()))
-        || (hasLowerBound() && tooHigh(getLowerEndpoint()));
+    // The casts are safe because of the has*Bound() checks.
+    return (hasUpperBound() && tooLow(uncheckedCastNullableTToT(getUpperEndpoint())))
+        || (hasLowerBound() && tooHigh(uncheckedCastNullableTToT(getLowerEndpoint())));
   }
 
-  boolean tooLow(@Nullable T t) {
+  boolean tooLow(@ParametricNullness T t) {
     if (!hasLowerBound()) {
       return false;
     }
-    T lbound = getLowerEndpoint();
+    // The cast is safe because of the hasLowerBound() check.
+    T lbound = uncheckedCastNullableTToT(getLowerEndpoint());
     int cmp = comparator.compare(t, lbound);
     return cmp < 0 | (cmp == 0 & getLowerBoundType() == OPEN);
   }
 
-  boolean tooHigh(@Nullable T t) {
+  boolean tooHigh(@ParametricNullness T t) {
     if (!hasUpperBound()) {
       return false;
     }
-    T ubound = getUpperEndpoint();
+    // The cast is safe because of the hasUpperBound() check.
+    T ubound = uncheckedCastNullableTToT(getUpperEndpoint());
     int cmp = comparator.compare(t, ubound);
     return cmp > 0 | (cmp == 0 & getUpperBoundType() == OPEN);
   }
 
-  boolean contains(@Nullable T t) {
+  boolean contains(@ParametricNullness T t) {
     return !tooLow(t) && !tooHigh(t);
   }
 
   /**
    * Returns the intersection of the two ranges, or an empty range if their intersection is empty.
    */
+  @SuppressWarnings("nullness") // TODO(cpovirk): Add casts as needed. Will be noisy and annoying...
   GeneralRange<T> intersect(GeneralRange<T> other) {
     checkNotNull(other);
     checkArgument(comparator.equals(other.comparator));
 
     boolean hasLowBound = this.hasLowerBound;
-    @Nullable T lowEnd = getLowerEndpoint();
+    T lowEnd = getLowerEndpoint();
     BoundType lowType = getLowerBoundType();
     if (!hasLowerBound()) {
       hasLowBound = other.hasLowerBound;
@@ -196,7 +211,7 @@ final class GeneralRange<T> implements Serializable {
     }
 
     boolean hasUpBound = this.hasUpperBound;
-    @Nullable T upEnd = getUpperEndpoint();
+    T upEnd = getUpperEndpoint();
     BoundType upType = getUpperBoundType();
     if (!hasUpperBound()) {
       hasUpBound = other.hasUpperBound;
@@ -220,7 +235,7 @@ final class GeneralRange<T> implements Serializable {
       }
     }
 
-    return new GeneralRange<T>(comparator, hasLowBound, lowEnd, lowType, hasUpBound, upEnd, upType);
+    return new GeneralRange<>(comparator, hasLowBound, lowEnd, lowType, hasUpBound, upEnd, upType);
   }
 
   @Override
@@ -232,15 +247,15 @@ final class GeneralRange<T> implements Serializable {
           && hasUpperBound == r.hasUpperBound
           && getLowerBoundType().equals(r.getLowerBoundType())
           && getUpperBoundType().equals(r.getUpperBoundType())
-          && Objects.equal(getLowerEndpoint(), r.getLowerEndpoint())
-          && Objects.equal(getUpperEndpoint(), r.getUpperEndpoint());
+          && Objects.equals(getLowerEndpoint(), r.getLowerEndpoint())
+          && Objects.equals(getUpperEndpoint(), r.getUpperEndpoint());
     }
     return false;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(
+    return Objects.hash(
         comparator,
         getLowerEndpoint(),
         getLowerBoundType(),
@@ -248,17 +263,15 @@ final class GeneralRange<T> implements Serializable {
         getUpperBoundType());
   }
 
-  private transient GeneralRange<T> reverse;
+  @LazyInit private transient @Nullable GeneralRange<T> reverse;
 
-  /**
-   * Returns the same range relative to the reversed comparator.
-   */
+  /** Returns the same range relative to the reversed comparator. */
   GeneralRange<T> reverse() {
     GeneralRange<T> result = reverse;
     if (result == null) {
       result =
-          new GeneralRange<T>(
-              Ordering.from(comparator).reverse(),
+          new GeneralRange<>(
+              reverseComparator(comparator),
               hasUpperBound,
               getUpperEndpoint(),
               getUpperBoundType(),
@@ -266,9 +279,15 @@ final class GeneralRange<T> implements Serializable {
               getLowerEndpoint(),
               getLowerBoundType());
       result.reverse = this;
-      return this.reverse = result;
+      this.reverse = result;
     }
     return result;
+  }
+
+  // This method helps J2KT's type inference.
+  private static <T extends @Nullable Object> Comparator<T> reverseComparator(
+      Comparator<T> comparator) {
+    return Ordering.from(comparator).reverse();
   }
 
   @Override
@@ -282,7 +301,7 @@ final class GeneralRange<T> implements Serializable {
         + (upperBoundType == CLOSED ? ']' : ')');
   }
 
-  T getLowerEndpoint() {
+  @Nullable T getLowerEndpoint() {
     return lowerEndpoint;
   }
 
@@ -290,7 +309,7 @@ final class GeneralRange<T> implements Serializable {
     return lowerBoundType;
   }
 
-  T getUpperEndpoint() {
+  @Nullable T getUpperEndpoint() {
     return upperEndpoint;
   }
 

@@ -16,6 +16,8 @@
 
 package com.google.common.collect;
 
+import static com.google.common.collect.Lists.newArrayList;
+
 import com.google.common.base.Function;
 import com.google.common.collect.testing.ListTestSuiteBuilder;
 import com.google.common.collect.testing.TestStringListGenerator;
@@ -31,6 +33,8 @@ import java.util.ListIterator;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.jspecify.annotations.NullUnmarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Tests for {@code ForwardingList}.
@@ -38,6 +42,7 @@ import junit.framework.TestSuite;
  * @author Robert Konigsberg
  * @author Louis Wasserman
  */
+@NullUnmarked
 public class ForwardingListTest extends TestCase {
   static final class StandardImplForwardingList<T> extends ForwardingList<T> {
     private final List<T> backingList;
@@ -46,114 +51,144 @@ public class ForwardingListTest extends TestCase {
       this.backingList = backingList;
     }
 
-    @Override protected List<T> delegate() {
+    @Override
+    protected List<T> delegate() {
       return backingList;
     }
 
-    @Override public boolean add(T element) {
+    @Override
+    public boolean add(T element) {
       return standardAdd(element);
     }
 
-    @Override public boolean addAll(Collection<? extends T> collection) {
+    @Override
+    public boolean addAll(Collection<? extends T> collection) {
       return standardAddAll(collection);
     }
 
-    @Override public void clear() {
-      standardClear();
-    }
-
-    @Override public boolean contains(Object object) {
-      return standardContains(object);
-    }
-
-    @Override public boolean containsAll(Collection<?> collection) {
-      return standardContainsAll(collection);
-    }
-
-    @Override public boolean remove(Object object) {
-      return standardRemove(object);
-    }
-
-    @Override public boolean removeAll(Collection<?> collection) {
-      return standardRemoveAll(collection);
-    }
-
-    @Override public boolean retainAll(Collection<?> collection) {
-      return standardRetainAll(collection);
-    }
-
-    @Override public Object[] toArray() {
-      return standardToArray();
-    }
-
-    @Override public <T> T[] toArray(T[] array) {
-      return standardToArray(array);
-    }
-
-    @Override public String toString() {
-      return standardToString();
-    }
-
-    @Override public boolean addAll(
-        int index, Collection<? extends T> elements) {
+    @Override
+    public boolean addAll(int index, Collection<? extends T> elements) {
       return standardAddAll(index, elements);
     }
 
-    @Override public boolean equals(Object object) {
+    @Override
+    public void clear() {
+      standardClear();
+    }
+
+    @Override
+    public boolean contains(Object object) {
+      return standardContains(object);
+    }
+
+    @Override
+    public boolean containsAll(Collection<?> collection) {
+      return standardContainsAll(collection);
+    }
+
+    @Override
+    public boolean remove(Object object) {
+      return standardRemove(object);
+    }
+
+    @Override
+    public boolean removeAll(Collection<?> collection) {
+      return standardRemoveAll(collection);
+    }
+
+    @Override
+    public boolean retainAll(Collection<?> collection) {
+      return standardRetainAll(collection);
+    }
+
+    @Override
+    public Object[] toArray() {
+      return standardToArray();
+    }
+
+    @Override
+    public <T> T[] toArray(T[] array) {
+      return standardToArray(array);
+    }
+
+    @Override
+    public String toString() {
+      return standardToString();
+    }
+
+    @Override
+    public boolean equals(@Nullable Object object) {
       return standardEquals(object);
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
       return standardHashCode();
     }
 
-    @Override public int indexOf(Object element) {
+    @Override
+    public int indexOf(Object element) {
       return standardIndexOf(element);
     }
 
-    @Override public int lastIndexOf(Object element) {
+    @Override
+    public int lastIndexOf(Object element) {
       return standardLastIndexOf(element);
     }
 
-    @Override public Iterator<T> iterator() {
+    @Override
+    public Iterator<T> iterator() {
       return listIterator();
     }
 
-    @Override public ListIterator<T> listIterator() {
+    @Override
+    public ListIterator<T> listIterator() {
       return listIterator(0);
     }
 
-    @Override public ListIterator<T> listIterator(int index) {
+    @Override
+    public ListIterator<T> listIterator(int index) {
       return standardListIterator(index);
     }
 
-    @Override public List<T> subList(int fromIndex, int toIndex) {
+    @Override
+    public List<T> subList(int fromIndex, int toIndex) {
       return standardSubList(fromIndex, toIndex);
     }
   }
 
+  @AndroidIncompatible // test-suite builders
   public static Test suite() {
     TestSuite suite = new TestSuite();
 
     suite.addTestSuite(ForwardingListTest.class);
-    suite.addTest(ListTestSuiteBuilder.using(new TestStringListGenerator() {
+    suite.addTest(
+        ListTestSuiteBuilder.using(
+                new TestStringListGenerator() {
 
-      @Override protected List<String> create(String[] elements) {
-        return new StandardImplForwardingList<String>(
-            Lists.newArrayList(elements));
-      }
-    }).named("ForwardingList[ArrayList] with standard implementations")
-        .withFeatures(CollectionSize.ANY, CollectionFeature.ALLOWS_NULL_VALUES,
-            ListFeature.GENERAL_PURPOSE).createTestSuite());
-    suite.addTest(ListTestSuiteBuilder.using(new TestStringListGenerator() {
+                  @Override
+                  protected List<String> create(String[] elements) {
+                    return new StandardImplForwardingList<>(newArrayList(elements));
+                  }
+                })
+            .named("ForwardingList[ArrayList] with standard implementations")
+            .withFeatures(
+                CollectionSize.ANY,
+                CollectionFeature.ALLOWS_NULL_VALUES,
+                ListFeature.GENERAL_PURPOSE)
+            .createTestSuite());
+    suite.addTest(
+        ListTestSuiteBuilder.using(
+                new TestStringListGenerator() {
 
-      @Override protected List<String> create(String[] elements) {
-        return new StandardImplForwardingList<String>(
-            ImmutableList.copyOf(elements));
-      }
-    }).named("ForwardingList[ImmutableList] with standard implementations")
-        .withFeatures(CollectionSize.ANY, CollectionFeature.ALLOWS_NULL_QUERIES)
-        .createTestSuite());
+                  @Override
+                  protected List<String> create(String[] elements) {
+                    return new StandardImplForwardingList<>(ImmutableList.copyOf(elements));
+                  }
+                })
+            .named("ForwardingList[ImmutableList] with standard implementations")
+            .withFeatures(CollectionSize.ANY, CollectionFeature.ALLOWS_NULL_QUERIES)
+            .createTestSuite());
 
     return suite;
   }
@@ -161,11 +196,14 @@ public class ForwardingListTest extends TestCase {
   @SuppressWarnings({"rawtypes", "unchecked"})
   public void testForwarding() {
     new ForwardingWrapperTester()
-        .testForwarding(List.class, new Function<List, List>() {
-          @Override public List apply(List delegate) {
-            return wrap(delegate);
-          }
-        });
+        .testForwarding(
+            List.class,
+            new Function<List, List>() {
+              @Override
+              public List apply(List delegate) {
+                return wrap(delegate);
+              }
+            });
   }
 
   public void testEquals() {
@@ -177,9 +215,10 @@ public class ForwardingListTest extends TestCase {
         .testEquals();
   }
 
-  private static <T> List<T> wrap(final List<T> delegate) {
+  private static <T> List<T> wrap(List<T> delegate) {
     return new ForwardingList<T>() {
-      @Override protected List<T> delegate() {
+      @Override
+      protected List<T> delegate() {
         return delegate;
       }
     };

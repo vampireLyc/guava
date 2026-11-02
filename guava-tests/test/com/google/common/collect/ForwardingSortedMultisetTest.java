@@ -14,6 +14,8 @@
 
 package com.google.common.collect;
 
+import static java.util.Arrays.asList;
+
 import com.google.common.base.Function;
 import com.google.common.collect.Multiset.Entry;
 import com.google.common.collect.testing.features.CollectionFeature;
@@ -22,21 +24,22 @@ import com.google.common.collect.testing.google.SortedMultisetTestSuiteBuilder;
 import com.google.common.collect.testing.google.TestStringMultisetGenerator;
 import com.google.common.testing.EqualsTester;
 import com.google.common.testing.ForwardingWrapperTester;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableSet;
-import javax.annotation.Nullable;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.jspecify.annotations.NullUnmarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Tests for {@link ForwardingSortedMultiset}.
  *
  * @author Louis Wasserman
  */
+@NullUnmarked
 public class ForwardingSortedMultisetTest extends TestCase {
   static class StandardImplForwardingSortedMultiset<E> extends ForwardingSortedMultiset<E> {
     private final SortedMultiset<E> backingMultiset;
@@ -56,10 +59,7 @@ public class ForwardingSortedMultisetTest extends TestCase {
 
         @Override
         Iterator<Entry<E>> entryIterator() {
-          return backingMultiset
-              .descendingMultiset()
-              .entrySet()
-              .iterator();
+          return backingMultiset.descendingMultiset().entrySet().iterator();
         }
       };
     }
@@ -176,28 +176,32 @@ public class ForwardingSortedMultisetTest extends TestCase {
     }
   }
 
+  @AndroidIncompatible // test-suite builders
   public static Test suite() {
     TestSuite suite = new TestSuite();
 
     suite.addTestSuite(ForwardingSortedMultisetTest.class);
-    suite.addTest(SortedMultisetTestSuiteBuilder
-        .using(new TestStringMultisetGenerator() {
-          @Override
-          protected Multiset<String> create(String[] elements) {
-            return new StandardImplForwardingSortedMultiset<String>(
-                TreeMultiset.create(Arrays.asList(elements)));
-          }
+    suite.addTest(
+        SortedMultisetTestSuiteBuilder.using(
+                new TestStringMultisetGenerator() {
+                  @Override
+                  protected Multiset<String> create(String[] elements) {
+                    return new StandardImplForwardingSortedMultiset<>(
+                        TreeMultiset.create(asList(elements)));
+                  }
 
-          @Override
-          public List<String> order(List<String> insertionOrder) {
-            return Ordering.natural().sortedCopy(insertionOrder);
-          }
-        })
-        .named("ForwardingSortedMultiset with standard impls")
-        .withFeatures(
-            CollectionSize.ANY, CollectionFeature.KNOWN_ORDER, CollectionFeature.GENERAL_PURPOSE,
-            CollectionFeature.ALLOWS_NULL_QUERIES)
-        .createTestSuite());
+                  @Override
+                  public List<String> order(List<String> insertionOrder) {
+                    return Ordering.natural().sortedCopy(insertionOrder);
+                  }
+                })
+            .named("ForwardingSortedMultiset with standard impls")
+            .withFeatures(
+                CollectionSize.ANY,
+                CollectionFeature.KNOWN_ORDER,
+                CollectionFeature.GENERAL_PURPOSE,
+                CollectionFeature.ALLOWS_NULL_QUERIES)
+            .createTestSuite());
 
     return suite;
   }
@@ -205,11 +209,14 @@ public class ForwardingSortedMultisetTest extends TestCase {
   @SuppressWarnings({"rawtypes", "unchecked"})
   public void testForwarding() {
     new ForwardingWrapperTester()
-        .testForwarding(SortedMultiset.class, new Function<SortedMultiset, SortedMultiset>() {
-          @Override public SortedMultiset apply(SortedMultiset delegate) {
-            return wrap(delegate);
-          }
-        });
+        .testForwarding(
+            SortedMultiset.class,
+            new Function<SortedMultiset, SortedMultiset>() {
+              @Override
+              public SortedMultiset apply(SortedMultiset delegate) {
+                return wrap(delegate);
+              }
+            });
   }
 
   public void testEquals() {
@@ -221,9 +228,10 @@ public class ForwardingSortedMultisetTest extends TestCase {
         .testEquals();
   }
 
-  private static <T> SortedMultiset<T> wrap(final SortedMultiset<T> delegate) {
+  private static <T> SortedMultiset<T> wrap(SortedMultiset<T> delegate) {
     return new ForwardingSortedMultiset<T>() {
-      @Override protected SortedMultiset<T> delegate() {
+      @Override
+      protected SortedMultiset<T> delegate() {
         return delegate;
       }
     };

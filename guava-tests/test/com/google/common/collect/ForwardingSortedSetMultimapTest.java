@@ -20,22 +20,27 @@ import com.google.common.base.Function;
 import com.google.common.testing.EqualsTester;
 import com.google.common.testing.ForwardingWrapperTester;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Unit test for {@link ForwardingSortedSetMultimap}.
  *
  * @author Kurt Alfred Kluever
  */
+@NullUnmarked
 public class ForwardingSortedSetMultimapTest extends TestCase {
 
   @SuppressWarnings("rawtypes")
   public void testForwarding() {
-    new ForwardingWrapperTester().testForwarding(
-        SortedSetMultimap.class, new Function<SortedSetMultimap, SortedSetMultimap>() {
-          @Override public SortedSetMultimap apply(SortedSetMultimap delegate) {
-            return wrap(delegate);
-          }
-        });
+    new ForwardingWrapperTester()
+        .testForwarding(
+            SortedSetMultimap.class,
+            new Function<SortedSetMultimap, SortedSetMultimap<?, ?>>() {
+              @Override
+              public SortedSetMultimap<?, ?> apply(SortedSetMultimap delegate) {
+                return wrap((SortedSetMultimap<?, ?>) delegate);
+              }
+            });
   }
 
   public void testEquals() {
@@ -47,9 +52,10 @@ public class ForwardingSortedSetMultimapTest extends TestCase {
         .testEquals();
   }
 
-  private static <K, V> SortedSetMultimap<K, V> wrap(final SortedSetMultimap<K, V> delegate) {
+  private static <K, V> SortedSetMultimap<K, V> wrap(SortedSetMultimap<K, V> delegate) {
     return new ForwardingSortedSetMultimap<K, V>() {
-      @Override protected SortedSetMultimap<K, V> delegate() {
+      @Override
+      protected SortedSetMultimap<K, V> delegate() {
         return delegate;
       }
     };

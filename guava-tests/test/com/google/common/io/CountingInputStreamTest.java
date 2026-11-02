@@ -17,20 +17,24 @@
 package com.google.common.io;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Unit tests for {@link CountingInputStream}.
  *
  * @author Chris Nokleberg
  */
+@NullUnmarked
 public class CountingInputStreamTest extends IoTestCase {
   private CountingInputStream counter;
 
-  @Override protected void setUp() throws Exception {
+  @Override
+  protected void setUp() throws Exception {
     super.setUp();
     counter = new CountingInputStream(new ByteArrayInputStream(new byte[20]));
   }
@@ -89,28 +93,20 @@ public class CountingInputStreamTest extends IoTestCase {
   }
 
   public void testMarkNotSet() {
-    try {
-      counter.reset();
-      fail();
-    } catch (IOException expected) {
-      assertThat(expected).hasMessage("Mark not set");
-    }
+    IOException expected = assertThrows(IOException.class, () -> counter.reset());
+    assertThat(expected).hasMessageThat().isEqualTo("Mark not set");
   }
 
   public void testMarkNotSupported() {
     counter = new CountingInputStream(new UnmarkableInputStream());
 
-    try {
-      counter.reset();
-      fail();
-    } catch (IOException expected) {
-      assertThat(expected).hasMessage("Mark not supported");
-    }
+    IOException expected = assertThrows(IOException.class, () -> counter.reset());
+    assertThat(expected).hasMessageThat().isEqualTo("Mark not supported");
   }
 
   private static class UnmarkableInputStream extends InputStream {
     @Override
-    public int read() throws IOException {
+    public int read() {
       return 0;
     }
 

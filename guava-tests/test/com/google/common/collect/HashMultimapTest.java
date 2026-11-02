@@ -16,8 +16,11 @@
 
 package com.google.common.collect;
 
+import static org.junit.Assert.assertThrows;
+
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.testing.features.CollectionFeature;
 import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.collect.testing.features.MapFeature;
@@ -27,39 +30,45 @@ import java.util.Map.Entry;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.jspecify.annotations.NullMarked;
 
 /**
  * Unit tests for {@link HashMultimap}.
  *
  * @author Jared Levy
  */
-@GwtCompatible(emulated = true)
+@GwtCompatible
+@NullMarked
 public class HashMultimapTest extends TestCase {
 
+  @J2ktIncompatible
   @GwtIncompatible // suite
+  @AndroidIncompatible // test-suite builders
   public static Test suite() {
     TestSuite suite = new TestSuite();
-    suite.addTest(SetMultimapTestSuiteBuilder.using(new TestStringSetMultimapGenerator() {
-          @Override
-          protected SetMultimap<String, String> create(Entry<String, String>[] entries) {
-            SetMultimap<String, String> multimap = HashMultimap.create();
-            for (Entry<String, String> entry : entries) {
-              multimap.put(entry.getKey(), entry.getValue());
-            }
-            return multimap;
-          }
-        })
-        .named("HashMultimap")
-        .withFeatures(
-            MapFeature.ALLOWS_NULL_KEYS,
-            MapFeature.ALLOWS_NULL_VALUES,
-            MapFeature.ALLOWS_ANY_NULL_QUERIES,
-            MapFeature.GENERAL_PURPOSE,
-            MapFeature.FAILS_FAST_ON_CONCURRENT_MODIFICATION,
-            CollectionFeature.SUPPORTS_ITERATOR_REMOVE,
-            CollectionFeature.SERIALIZABLE,
-            CollectionSize.ANY)
-        .createTestSuite());
+    suite.addTest(
+        SetMultimapTestSuiteBuilder.using(
+                new TestStringSetMultimapGenerator() {
+                  @Override
+                  protected SetMultimap<String, String> create(Entry<String, String>[] entries) {
+                    SetMultimap<String, String> multimap = HashMultimap.create();
+                    for (Entry<String, String> entry : entries) {
+                      multimap.put(entry.getKey(), entry.getValue());
+                    }
+                    return multimap;
+                  }
+                })
+            .named("HashMultimap")
+            .withFeatures(
+                MapFeature.ALLOWS_NULL_KEYS,
+                MapFeature.ALLOWS_NULL_VALUES,
+                MapFeature.ALLOWS_ANY_NULL_QUERIES,
+                MapFeature.GENERAL_PURPOSE,
+                MapFeature.FAILS_FAST_ON_CONCURRENT_MODIFICATION,
+                CollectionFeature.SUPPORTS_ITERATOR_REMOVE,
+                CollectionFeature.SERIALIZABLE,
+                CollectionSize.ANY)
+            .createTestSuite());
     suite.addTestSuite(HashMultimapTest.class);
     return suite;
   }
@@ -97,15 +106,9 @@ public class HashMultimapTest extends TestCase {
   }
 
   public void testCreateFromIllegalSizes() {
-    try {
-      HashMultimap.create(-20, 15);
-      fail();
-    } catch (IllegalArgumentException expected) {}
+    assertThrows(IllegalArgumentException.class, () -> HashMultimap.create(-20, 15));
 
-    try {
-      HashMultimap.create(20, -15);
-      fail();
-    } catch (IllegalArgumentException expected) {}
+    assertThrows(IllegalArgumentException.class, () -> HashMultimap.create(20, -15));
   }
 
   public void testEmptyMultimapsEqual() {

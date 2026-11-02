@@ -16,29 +16,37 @@
 
 package com.google.common.testing;
 
+import static com.google.common.testing.SerializableTester.reserializeAndAssert;
+import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
+
 import java.io.Serializable;
 import junit.framework.AssertionFailedError;
-import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
+import org.jspecify.annotations.Nullable;
+import org.junit.Test;
 
 /**
  * Tests for {@link SerializableTester}.
  *
  * @author Nick Kralevich
  */
-public class SerializableTesterTest extends TestCase {
-  public void testStringAssertions() {
+@NullUnmarked
+public class SerializableTesterTest {
+  @Test
+  public void stringAssertions() {
     String original = "hello world";
-    String copy = SerializableTester.reserializeAndAssert(original);
-    assertEquals(original, copy);
-    assertNotSame(original, copy);
+    String copy = reserializeAndAssert(original);
+    assertThat(copy).isNotSameInstanceAs(original);
   }
 
-  public void testClassWhichDoesNotImplementEquals() {
-    ClassWhichDoesNotImplementEquals orig =
-        new ClassWhichDoesNotImplementEquals();
+  @Test
+  public void classWhichDoesNotImplementEquals() {
+    ClassWhichDoesNotImplementEquals orig = new ClassWhichDoesNotImplementEquals();
     boolean errorNotThrown = false;
     try {
-      SerializableTester.reserializeAndAssert(orig);
+      reserializeAndAssert(orig);
       errorNotThrown = true;
     } catch (AssertionFailedError error) {
       // expected
@@ -47,12 +55,13 @@ public class SerializableTesterTest extends TestCase {
     assertFalse(errorNotThrown);
   }
 
-  public void testClassWhichIsAlwaysEqualButHasDifferentHashcodes() {
+  @Test
+  public void classWhichIsAlwaysEqualButHasDifferentHashcodes() {
     ClassWhichIsAlwaysEqualButHasDifferentHashcodes orig =
         new ClassWhichIsAlwaysEqualButHasDifferentHashcodes();
     boolean errorNotThrown = false;
     try {
-      SerializableTester.reserializeAndAssert(orig);
+      reserializeAndAssert(orig);
       errorNotThrown = true;
     } catch (AssertionFailedError error) {
       // expected
@@ -61,12 +70,12 @@ public class SerializableTesterTest extends TestCase {
     assertFalse(errorNotThrown);
   }
 
-  public void testObjectWhichIsEqualButChangesClass() {
-    ObjectWhichIsEqualButChangesClass orig =
-        new ObjectWhichIsEqualButChangesClass();
+  @Test
+  public void objectWhichIsEqualButChangesClass() {
+    ObjectWhichIsEqualButChangesClass orig = new ObjectWhichIsEqualButChangesClass();
     boolean errorNotThrown = false;
     try {
-      SerializableTester.reserializeAndAssert(orig);
+      reserializeAndAssert(orig);
       errorNotThrown = true;
     } catch (AssertionFailedError error) {
       // expected
@@ -75,29 +84,26 @@ public class SerializableTesterTest extends TestCase {
     assertFalse(errorNotThrown);
   }
 
-  private static class ClassWhichDoesNotImplementEquals
-      implements Serializable {
+  private static class ClassWhichDoesNotImplementEquals implements Serializable {
     private static final long serialVersionUID = 1L;
   }
 
-  private static class ClassWhichIsAlwaysEqualButHasDifferentHashcodes
-      implements Serializable {
+  private static class ClassWhichIsAlwaysEqualButHasDifferentHashcodes implements Serializable {
     private static final long serialVersionUID = 2L;
 
+    @SuppressWarnings("EqualsHashCode")
     @Override
-    public boolean equals(Object other) {
+    public boolean equals(@Nullable Object other) {
       return (other instanceof ClassWhichIsAlwaysEqualButHasDifferentHashcodes);
     }
   }
 
-  private static class ObjectWhichIsEqualButChangesClass
-      implements Serializable {
+  private static class ObjectWhichIsEqualButChangesClass implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @Override
-    public boolean equals(Object other) {
-      return (other instanceof ObjectWhichIsEqualButChangesClass
-          || other instanceof OtherForm);
+    public boolean equals(@Nullable Object other) {
+      return (other instanceof ObjectWhichIsEqualButChangesClass || other instanceof OtherForm);
     }
 
     @Override
@@ -111,9 +117,8 @@ public class SerializableTesterTest extends TestCase {
 
     private static class OtherForm implements Serializable {
       @Override
-      public boolean equals(Object other) {
-        return (other instanceof ObjectWhichIsEqualButChangesClass
-            || other instanceof OtherForm);
+      public boolean equals(@Nullable Object other) {
+        return (other instanceof ObjectWhichIsEqualButChangesClass || other instanceof OtherForm);
       }
 
       @Override

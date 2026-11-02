@@ -16,6 +16,8 @@
 
 package com.google.common.io;
 
+import org.jspecify.annotations.NullUnmarked;
+
 /**
  * Interface for a supplier of streams that can report whether a stream was opened and whether that
  * stream was closed. Intended for use in a test where only a single stream should be opened and
@@ -23,15 +25,12 @@ package com.google.common.io;
  *
  * @author Colin Decker
  */
+@NullUnmarked
 public interface TestStreamSupplier {
 
-  /**
-   * Returns whether or not a new stream was opened.
-   */
+  /** Returns whether or not a new stream was opened. */
   boolean wasStreamOpened();
 
-  /**
-   * Returns whether or not an open stream was closed.
-   */
+  /** Returns whether or not an open stream was closed. */
   boolean wasStreamClosed();
 }

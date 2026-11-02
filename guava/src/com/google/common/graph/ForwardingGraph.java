@@ -26,16 +26,20 @@ import java.util.Set;
  */
 abstract class ForwardingGraph<N> extends AbstractGraph<N> {
 
-  protected abstract BaseGraph<N> delegate();
+  abstract BaseGraph<N> delegate();
 
   @Override
   public Set<N> nodes() {
     return delegate().nodes();
   }
 
+  /**
+   * Defer to {@link AbstractGraph#edges()} (based on {@link #successors(Object)}) for full edges()
+   * implementation.
+   */
   @Override
-  public Set<EndpointPair<N>> edges() {
-    return delegate().edges();
+  protected long edgeCount() {
+    return delegate().edges().size();
   }
 
   @Override
@@ -54,32 +58,52 @@ abstract class ForwardingGraph<N> extends AbstractGraph<N> {
   }
 
   @Override
-  public Set<N> adjacentNodes(Object node) {
+  public ElementOrder<N> incidentEdgeOrder() {
+    return delegate().incidentEdgeOrder();
+  }
+
+  @Override
+  public Set<N> adjacentNodes(N node) {
     return delegate().adjacentNodes(node);
   }
 
   @Override
-  public Set<N> predecessors(Object node) {
+  public Set<N> predecessors(N node) {
     return delegate().predecessors(node);
   }
 
   @Override
-  public Set<N> successors(Object node) {
+  public Set<N> successors(N node) {
     return delegate().successors(node);
   }
 
   @Override
-  public int degree(Object node) {
+  public Set<EndpointPair<N>> incidentEdges(N node) {
+    return delegate().incidentEdges(node);
+  }
+
+  @Override
+  public int degree(N node) {
     return delegate().degree(node);
   }
 
   @Override
-  public int inDegree(Object node) {
+  public int inDegree(N node) {
     return delegate().inDegree(node);
   }
 
   @Override
-  public int outDegree(Object node) {
+  public int outDegree(N node) {
     return delegate().outDegree(node);
+  }
+
+  @Override
+  public boolean hasEdgeConnecting(N nodeU, N nodeV) {
+    return delegate().hasEdgeConnecting(nodeU, nodeV);
+  }
+
+  @Override
+  public boolean hasEdgeConnecting(EndpointPair<N> endpoints) {
+    return delegate().hasEdgeConnecting(endpoints);
   }
 }

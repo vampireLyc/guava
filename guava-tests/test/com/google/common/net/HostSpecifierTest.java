@@ -17,22 +17,28 @@
 package com.google.common.net;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.ImmutableList;
 import com.google.common.testing.EqualsTester;
 import com.google.common.testing.NullPointerTester;
 import java.text.ParseException;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
- * {@link TestCase} for {@link HostSpecifier}.  This is a relatively
- * cursory test, as HostSpecifier is a thin wrapper around
- * {@link InetAddresses} and {@link InternetDomainName}; the unit tests for
- * those classes explore numerous corner cases.  The intent here is to
- * confirm that everything is wired up properly.
+ * {@link TestCase} for {@link HostSpecifier}. This is a relatively cursory test, as HostSpecifier
+ * is a thin wrapper around {@link InetAddresses} and {@link InternetDomainName}; the unit tests for
+ * those classes explore numerous corner cases. The intent here is to confirm that everything is
+ * wired up properly.
  *
  * @author Craig Berry
  */
+@NullUnmarked
+@GwtIncompatible
+@J2ktIncompatible
 public final class HostSpecifierTest extends TestCase {
 
   private static final ImmutableList<String> GOOD_IPS =
@@ -74,8 +80,7 @@ public final class HostSpecifierTest extends TestCase {
   public void testEquality() {
     new EqualsTester()
         .addEqualityGroup(spec("1.2.3.4"), spec("1.2.3.4"))
-        .addEqualityGroup(
-            spec("2001:db8::1"), spec("2001:db8::1"), spec("[2001:db8::1]"))
+        .addEqualityGroup(spec("2001:db8::1"), spec("2001:db8::1"), spec("[2001:db8::1]"))
         .addEqualityGroup(spec("2001:db8::2"))
         .addEqualityGroup(spec("google.com"), spec("google.com"))
         .addEqualityGroup(spec("www.google.com"))
@@ -87,34 +92,25 @@ public final class HostSpecifierTest extends TestCase {
   }
 
   public void testNulls() {
-    final NullPointerTester tester = new NullPointerTester();
+    NullPointerTester tester = new NullPointerTester();
 
     tester.testAllPublicStaticMethods(HostSpecifier.class);
     tester.testAllPublicInstanceMethods(HostSpecifier.fromValid("google.com"));
   }
 
-  private void assertGood(String spec) throws ParseException {
-    HostSpecifier.fromValid(spec);  // Throws exception if not working correctly
-    HostSpecifier.from(spec);
+  private static void assertGood(String spec) throws ParseException {
+    // Throws exception if not working correctly
+    HostSpecifier unused = HostSpecifier.fromValid(spec);
+    unused = HostSpecifier.from(spec);
     assertTrue(HostSpecifier.isValid(spec));
   }
 
-  private void assertBad(String spec) {
-    try {
-      HostSpecifier.fromValid(spec);
-      fail("Should have thrown IllegalArgumentException: " + spec);
-    } catch (IllegalArgumentException expected) {
-      // Expected outcome
-    }
+  private static void assertBad(String spec) {
+    assertThrows(IllegalArgumentException.class, () -> HostSpecifier.fromValid(spec));
 
-    try {
-      HostSpecifier.from(spec);
-      fail("Should have thrown ParseException: " + spec);
-    } catch (ParseException expected) {
-      assertThat(expected.getCause()).isInstanceOf(IllegalArgumentException.class);
-    }
+    ParseException expected = assertThrows(ParseException.class, () -> HostSpecifier.from(spec));
+    assertThat(expected).hasCauseThat().isInstanceOf(IllegalArgumentException.class);
 
     assertFalse(HostSpecifier.isValid(spec));
   }
-
 }

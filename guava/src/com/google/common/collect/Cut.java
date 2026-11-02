@@ -17,25 +17,27 @@ package com.google.common.collect;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.annotations.GwtCompatible;
-import com.google.common.primitives.Booleans;
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import java.io.Serializable;
 import java.util.NoSuchElementException;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
- * Implementation detail for the internal structure of {@link Range} instances. Represents
- * a unique way of "cutting" a "number line" (actually of instances of type {@code C}, not
- * necessarily "numbers") into two sections; this can be done below a certain value, above
- * a certain value, below all values or above all values. With this object defined in this
- * way, an interval can always be represented by a pair of {@code Cut} instances.
+ * Implementation detail for the internal structure of {@link Range} instances. Represents a unique
+ * way of "cutting" a "number line" (actually of instances of type {@code C}, not necessarily
+ * "numbers") into two sections; this can be done below a certain value, above a certain value,
+ * below all values or above all values. With this object defined in this way, an interval can
+ * always be represented by a pair of {@code Cut} instances.
  *
  * @author Kevin Bourrillion
  */
+@SuppressWarnings("rawtypes") // https://github.com/google/guava/issues/989
 @GwtCompatible
 abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializable {
   final C endpoint;
 
-  Cut(@Nullable C endpoint) {
+  Cut(C endpoint) {
     this.endpoint = endpoint;
   }
 
@@ -53,9 +55,9 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
 
   abstract void describeAsUpperBound(StringBuilder sb);
 
-  abstract C leastValueAbove(DiscreteDomain<C> domain);
+  abstract @Nullable C leastValueAbove(DiscreteDomain<C> domain);
 
-  abstract C greatestValueBelow(DiscreteDomain<C> domain);
+  abstract @Nullable C greatestValueBelow(DiscreteDomain<C> domain);
 
   /*
    * The canonical form is a BelowValue cut whenever possible, otherwise ABOVE_ALL, or
@@ -65,7 +67,7 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
     return this;
   }
 
-  // note: overriden by {BELOW,ABOVE}_ALL
+  // note: overridden by {BELOW,ABOVE}_ALL
   @Override
   public int compareTo(Cut<C> that) {
     if (that == belowAll()) {
@@ -79,7 +81,7 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
       return result;
     }
     // same value. below comes before above
-    return Booleans.compare(this instanceof AboveValue, that instanceof AboveValue);
+    return Boolean.compare(this instanceof AboveValue, that instanceof AboveValue);
   }
 
   C endpoint() {
@@ -88,18 +90,23 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
 
   @SuppressWarnings("unchecked") // catching CCE
   @Override
-  public boolean equals(Object obj) {
+  public final boolean equals(@Nullable Object obj) {
     if (obj instanceof Cut) {
       // It might not really be a Cut<C>, but we'll catch a CCE if it's not
       Cut<C> that = (Cut<C>) obj;
       try {
         int compareResult = compareTo(that);
         return compareResult == 0;
-      } catch (ClassCastException ignored) {
+      } catch (ClassCastException wastNotComparableToOurType) {
+        return false;
       }
     }
     return false;
   }
+
+  // Prevent "missing hashCode" warning by explicitly forcing subclasses implement it
+  @Override
+  public abstract int hashCode();
 
   /*
    * The implementation neither produces nor consumes any non-null instance of type C, so
@@ -110,13 +117,19 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
     return (Cut<C>) BelowAll.INSTANCE;
   }
 
-  private static final long serialVersionUID = 0;
+  @GwtIncompatible @J2ktIncompatible private static final long serialVersionUID = 0;
 
   private static final class BelowAll extends Cut<Comparable<?>> {
     private static final BelowAll INSTANCE = new BelowAll();
 
     private BelowAll() {
-      super(null);
+      /*
+       * No code ever sees this bogus value for `endpoint`: This class overrides both methods that
+       * use the `endpoint` field, compareTo() and endpoint(). Additionally, the main implementation
+       * of Cut.compareTo checks for belowAll before reading accessing `endpoint` on another Cut
+       * instance.
+       */
+      super("");
     }
 
     @Override
@@ -174,7 +187,7 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
     @Override
     Cut<Comparable<?>> canonical(DiscreteDomain<Comparable<?>> domain) {
       try {
-        return Cut.<Comparable<?>>belowValue(domain.minValue());
+        return Cut.belowValue(domain.minValue());
       } catch (NoSuchElementException e) {
         return this;
       }
@@ -186,6 +199,11 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
     }
 
     @Override
+    public int hashCode() {
+      return System.identityHashCode(this);
+    }
+
+    @Override
     public String toString() {
       return "-\u221e";
     }
@@ -194,7 +212,7 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
       return INSTANCE;
     }
 
-    private static final long serialVersionUID = 0;
+    @GwtIncompatible @J2ktIncompatible private static final long serialVersionUID = 0;
   }
 
   /*
@@ -210,7 +228,8 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
     private static final AboveAll INSTANCE = new AboveAll();
 
     private AboveAll() {
-      super(null);
+      // For discussion of "", see BelowAll.
+      super("");
     }
 
     @Override
@@ -271,6 +290,11 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
     }
 
     @Override
+    public int hashCode() {
+      return System.identityHashCode(this);
+    }
+
+    @Override
     public String toString() {
       return "+\u221e";
     }
@@ -279,11 +303,11 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
       return INSTANCE;
     }
 
-    private static final long serialVersionUID = 0;
+    @GwtIncompatible @J2ktIncompatible private static final long serialVersionUID = 0;
   }
 
   static <C extends Comparable> Cut<C> belowValue(C endpoint) {
-    return new BelowValue<C>(endpoint);
+    return new BelowValue<>(endpoint);
   }
 
   private static final class BelowValue<C extends Comparable> extends Cut<C> {
@@ -312,24 +336,22 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
         case CLOSED:
           return this;
         case OPEN:
-          @Nullable C previous = domain.previous(endpoint);
-          return (previous == null) ? Cut.<C>belowAll() : new AboveValue<C>(previous);
-        default:
-          throw new AssertionError();
+          C previous = domain.previous(endpoint);
+          return (previous == null) ? Cut.belowAll() : new AboveValue<>(previous);
       }
+      throw new AssertionError();
     }
 
     @Override
     Cut<C> withUpperBoundType(BoundType boundType, DiscreteDomain<C> domain) {
       switch (boundType) {
         case CLOSED:
-          @Nullable C previous = domain.previous(endpoint);
-          return (previous == null) ? Cut.<C>aboveAll() : new AboveValue<C>(previous);
+          C previous = domain.previous(endpoint);
+          return (previous == null) ? Cut.aboveAll() : new AboveValue<>(previous);
         case OPEN:
           return this;
-        default:
-          throw new AssertionError();
       }
+      throw new AssertionError();
     }
 
     @Override
@@ -348,7 +370,7 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
     }
 
     @Override
-    C greatestValueBelow(DiscreteDomain<C> domain) {
+    @Nullable C greatestValueBelow(DiscreteDomain<C> domain) {
       return domain.previous(endpoint);
     }
 
@@ -362,11 +384,11 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
       return "\\" + endpoint + "/";
     }
 
-    private static final long serialVersionUID = 0;
+    @GwtIncompatible @J2ktIncompatible private static final long serialVersionUID = 0;
   }
 
   static <C extends Comparable> Cut<C> aboveValue(C endpoint) {
-    return new AboveValue<C>(endpoint);
+    return new AboveValue<>(endpoint);
   }
 
   private static final class AboveValue<C extends Comparable> extends Cut<C> {
@@ -395,24 +417,22 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
         case OPEN:
           return this;
         case CLOSED:
-          @Nullable C next = domain.next(endpoint);
-          return (next == null) ? Cut.<C>belowAll() : belowValue(next);
-        default:
-          throw new AssertionError();
+          C next = domain.next(endpoint);
+          return (next == null) ? Cut.belowAll() : belowValue(next);
       }
+      throw new AssertionError();
     }
 
     @Override
     Cut<C> withUpperBoundType(BoundType boundType, DiscreteDomain<C> domain) {
       switch (boundType) {
         case OPEN:
-          @Nullable C next = domain.next(endpoint);
-          return (next == null) ? Cut.<C>aboveAll() : belowValue(next);
+          C next = domain.next(endpoint);
+          return (next == null) ? Cut.aboveAll() : belowValue(next);
         case CLOSED:
           return this;
-        default:
-          throw new AssertionError();
       }
+      throw new AssertionError();
     }
 
     @Override
@@ -426,7 +446,7 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
     }
 
     @Override
-    C leastValueAbove(DiscreteDomain<C> domain) {
+    @Nullable C leastValueAbove(DiscreteDomain<C> domain) {
       return domain.next(endpoint);
     }
 
@@ -438,7 +458,7 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
     @Override
     Cut<C> canonical(DiscreteDomain<C> domain) {
       C next = leastValueAbove(domain);
-      return (next != null) ? belowValue(next) : Cut.<C>aboveAll();
+      return (next != null) ? belowValue(next) : Cut.aboveAll();
     }
 
     @Override
@@ -451,6 +471,6 @@ abstract class Cut<C extends Comparable> implements Comparable<Cut<C>>, Serializ
       return "/" + endpoint + "\\";
     }
 
-    private static final long serialVersionUID = 0;
+    @GwtIncompatible @J2ktIncompatible private static final long serialVersionUID = 0;
   }
 }

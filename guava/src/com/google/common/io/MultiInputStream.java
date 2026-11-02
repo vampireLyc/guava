@@ -17,10 +17,11 @@ package com.google.common.io;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * An {@link InputStream} that concatenates multiple substreams. At most one stream will be open at
@@ -29,11 +30,12 @@ import javax.annotation.Nullable;
  * @author Chris Nokleberg
  * @since 1.0
  */
+@J2ktIncompatible
 @GwtIncompatible
 final class MultiInputStream extends InputStream {
 
-  private Iterator<? extends ByteSource> it;
-  private InputStream in;
+  private final Iterator<? extends ByteSource> it;
+  private @Nullable InputStream in;
 
   /**
    * Creates a new instance.
@@ -56,9 +58,7 @@ final class MultiInputStream extends InputStream {
     }
   }
 
-  /**
-   * Closes the current input stream and opens the next one, if any.
-   */
+  /** Closes the current input stream and opens the next one, if any. */
   private void advance() throws IOException {
     close();
     if (it.hasNext()) {
@@ -81,28 +81,27 @@ final class MultiInputStream extends InputStream {
 
   @Override
   public int read() throws IOException {
-    if (in == null) {
-      return -1;
-    }
-    int result = in.read();
-    if (result == -1) {
+    while (in != null) {
+      int result = in.read();
+      if (result != -1) {
+        return result;
+      }
       advance();
-      return read();
     }
-    return result;
+    return -1;
   }
 
   @Override
-  public int read(@Nullable byte[] b, int off, int len) throws IOException {
-    if (in == null) {
-      return -1;
-    }
-    int result = in.read(b, off, len);
-    if (result == -1) {
+  public int read(byte[] b, int off, int len) throws IOException {
+    checkNotNull(b);
+    while (in != null) {
+      int result = in.read(b, off, len);
+      if (result != -1) {
+        return result;
+      }
       advance();
-      return read(b, off, len);
     }
-    return result;
+    return -1;
   }
 
   @Override

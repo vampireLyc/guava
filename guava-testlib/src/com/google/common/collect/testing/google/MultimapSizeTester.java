@@ -28,6 +28,8 @@ import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.collect.testing.features.MapFeature;
 import java.util.Collection;
 import java.util.Map.Entry;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Tester for the {@code size} methods of {@code Multimap} and its views.
@@ -35,7 +37,9 @@ import java.util.Map.Entry;
  * @author Louis Wasserman
  */
 @GwtCompatible
-public class MultimapSizeTester<K, V> extends AbstractMultimapTester<K, V, Multimap<K, V>> {
+@NullMarked
+public class MultimapSizeTester<K extends @Nullable Object, V extends @Nullable Object>
+    extends AbstractMultimapTester<K, V, Multimap<K, V>> {
 
   public void testSize() {
     int expectedSize = getNumElements();

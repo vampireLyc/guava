@@ -20,14 +20,15 @@ import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.testing.MapInterfaceTest;
 import java.util.Collection;
 import java.util.Map;
+import org.jspecify.annotations.NullMarked;
 
 /**
- * Test {@link Multimap#asMap()} for an {@link ImmutableMultimap} with
- * {@link MapInterfaceTest}.
+ * Test {@link Multimap#asMap()} for an {@link ImmutableMultimap} with {@link MapInterfaceTest}.
  *
  * @author Jared Levy
  */
 @GwtCompatible
+@NullMarked
 public class ImmutableMultimapAsMapImplementsMapTest
     extends AbstractMultimapAsMapImplementsMapTest {
 
@@ -35,11 +36,13 @@ public class ImmutableMultimapAsMapImplementsMapTest
     super(false, false, false);
   }
 
-  @Override protected Map<String, Collection<Integer>> makeEmptyMap() {
+  @Override
+  protected Map<String, Collection<Integer>> makeEmptyMap() {
     return ImmutableMultimap.<String, Integer>of().asMap();
   }
 
-  @Override protected Map<String, Collection<Integer>> makePopulatedMap() {
+  @Override
+  protected Map<String, Collection<Integer>> makePopulatedMap() {
     Multimap<String, Integer> delegate = HashMultimap.create();
     populate(delegate);
     return ImmutableMultimap.copyOf(delegate).asMap();

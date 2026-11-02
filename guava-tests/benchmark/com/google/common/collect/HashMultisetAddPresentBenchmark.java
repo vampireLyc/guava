@@ -19,16 +19,18 @@ import com.google.caliper.Benchmark;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Benchmark for HashMultiset.add for an already-present element.
  *
  * @author Louis Wasserman
  */
+@NullUnmarked
 public class HashMultisetAddPresentBenchmark {
   private static final int ARRAY_MASK = 0x0ffff;
   private static final int ARRAY_SIZE = 0x10000;
-  List<Multiset<Integer>> multisets = new ArrayList<Multiset<Integer>>(0x10000);
+  List<Multiset<Integer>> multisets = new ArrayList<>(0x10000);
   int[] queries = new int[ARRAY_SIZE];
 
   @BeforeExperiment
@@ -36,14 +38,15 @@ public class HashMultisetAddPresentBenchmark {
     Random random = new Random();
     multisets.clear();
     for (int i = 0; i < ARRAY_SIZE; i++) {
-      HashMultiset<Integer> multiset = HashMultiset.<Integer>create();
+      HashMultiset<Integer> multiset = HashMultiset.create();
       multisets.add(multiset);
       queries[i] = random.nextInt();
       multiset.add(queries[i]);
     }
   }
 
-  @Benchmark int add(int reps) {
+  @Benchmark
+  int add(int reps) {
     int tmp = 0;
     for (int i = 0; i < reps; i++) {
       int j = i & ARRAY_MASK;

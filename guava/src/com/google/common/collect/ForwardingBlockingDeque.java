@@ -17,9 +17,11 @@
 package com.google.common.collect;
 
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import java.util.Collection;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.TimeUnit;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A {@link BlockingDeque} which forwards all its method calls to another {@code BlockingDeque}.
@@ -42,10 +44,10 @@ import java.util.concurrent.TimeUnit;
  * @author Emily Soldal
  * @since 14.0
  * @deprecated This class has moved to {@code com.google.common.util.concurrent}. Please use {@link
- *     com.google.common.util.concurrent.ForwardingBlockingDeque} instead. This class is scheduled
- *     for deletion in January 2019.
+ *     com.google.common.util.concurrent.ForwardingBlockingDeque} instead.
  */
 @Deprecated
+@J2ktIncompatible
 @GwtIncompatible
 public abstract class ForwardingBlockingDeque<E> extends ForwardingDeque<E>
     implements BlockingDeque<E> {
@@ -92,12 +94,12 @@ public abstract class ForwardingBlockingDeque<E> extends ForwardingDeque<E>
   }
 
   @Override
-  public E pollFirst(long timeout, TimeUnit unit) throws InterruptedException {
+  public @Nullable E pollFirst(long timeout, TimeUnit unit) throws InterruptedException {
     return delegate().pollFirst(timeout, unit);
   }
 
   @Override
-  public E pollLast(long timeout, TimeUnit unit) throws InterruptedException {
+  public @Nullable E pollLast(long timeout, TimeUnit unit) throws InterruptedException {
     return delegate().pollLast(timeout, unit);
   }
 
@@ -117,7 +119,7 @@ public abstract class ForwardingBlockingDeque<E> extends ForwardingDeque<E>
   }
 
   @Override
-  public E poll(long timeout, TimeUnit unit) throws InterruptedException {
+  public @Nullable E poll(long timeout, TimeUnit unit) throws InterruptedException {
     return delegate().poll(timeout, unit);
   }
 

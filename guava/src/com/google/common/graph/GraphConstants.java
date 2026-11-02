@@ -33,8 +33,12 @@ final class GraphConstants {
   // Error messages
   static final String NODE_NOT_IN_GRAPH = "Node %s is not an element of this graph.";
   static final String EDGE_NOT_IN_GRAPH = "Edge %s is not an element of this graph.";
-  static final String EDGE_CONNECTING_NOT_IN_GRAPH =
-      "Edge connecting %s to %s is not present in this graph.";
+  static final String NODE_REMOVED_FROM_GRAPH =
+      "Node %s that was used to generate this set is no longer in the graph.";
+  static final String NODE_PAIR_REMOVED_FROM_GRAPH =
+      "Node %s or node %s that were used to generate this set are no longer in the graph.";
+  static final String EDGE_REMOVED_FROM_GRAPH =
+      "Edge %s that was used to generate this set is no longer in the graph.";
   static final String REUSING_EDGE =
       "Edge %s already exists between the following nodes: %s, "
           + "so it cannot be reused to connect the following nodes: %s.";
@@ -51,8 +55,8 @@ final class GraphConstants {
       "Cannot call source()/target() on a EndpointPair from an undirected graph. Consider calling "
           + "adjacentNode(node) if you already have a node, or nodeU()/nodeV() if you don't.";
   static final String EDGE_ALREADY_EXISTS = "Edge %s already exists in the graph.";
-
-  static final String GRAPH_STRING_FORMAT = "%s, nodes: %s, edges: %s";
+  static final String ENDPOINTS_MISMATCH =
+      "Mismatch: endpoints' ordering is not compatible with directionality of the graph";
 
   /** Singleton edge value for {@link Graph} implementations backed by {@link ValueGraph}s. */
   enum Presence {

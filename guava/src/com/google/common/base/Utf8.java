@@ -18,26 +18,24 @@ import static com.google.common.base.Preconditions.checkPositionIndexes;
 import static java.lang.Character.MAX_SURROGATE;
 import static java.lang.Character.MIN_SURROGATE;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtCompatible;
 
 /**
  * Low-level, high-performance utility methods related to the {@linkplain Charsets#UTF_8 UTF-8}
- * character encoding. UTF-8 is defined in section D92 of
- * <a href="http://www.unicode.org/versions/Unicode6.2.0/ch03.pdf">The Unicode Standard Core
+ * character encoding. UTF-8 is defined in section D92 of <a
+ * href="http://www.unicode.org/versions/Unicode6.2.0/ch03.pdf">The Unicode Standard Core
  * Specification, Chapter 3</a>.
  *
  * <p>The variant of UTF-8 implemented by this class is the restricted definition of UTF-8
- * introduced in Unicode 3.1. One implication of this is that it rejects
- * <a href="http://www.unicode.org/versions/corrigendum1.html">"non-shortest form"</a> byte
- * sequences, even though the JDK decoder may accept them.
+ * introduced in Unicode 3.1. One implication of this is that it rejects <a
+ * href="http://www.unicode.org/versions/corrigendum1.html">"non-shortest form"</a> byte sequences,
+ * even though the JDK decoder may accept them.
  *
  * @author Martin Buchholz
  * @author Clément Roux
  * @since 16.0
  */
-@Beta
-@GwtCompatible(emulated = true)
+@GwtCompatible
 public final class Utf8 {
   /**
    * Returns the number of bytes in the UTF-8-encoded form of {@code sequence}. For a string, this
@@ -62,7 +60,7 @@ public final class Utf8 {
     for (; i < utf16Length; i++) {
       char c = sequence.charAt(i);
       if (c < 0x800) {
-        utf8Length += ((0x7f - c) >>> 31); // branch free!
+        utf8Length += (0x7f - c) >>> 31; // branch free!
       } else {
         utf8Length += encodedLengthGeneral(sequence, i);
         break;
@@ -86,7 +84,7 @@ public final class Utf8 {
         utf8Length += (0x7f - c) >>> 31; // branch free!
       } else {
         utf8Length += 2;
-        // jdk7+: if (Character.isSurrogate(c)) {
+        // We can't use Character.isSurrogate(c) here and below because of GWT.
         if (MIN_SURROGATE <= c && c <= MAX_SURROGATE) {
           // Check that we have a well-formed surrogate pair.
           if (Character.codePointAt(sequence, i) == c) {
@@ -166,7 +164,7 @@ public final class Utf8 {
             // Overlong? 5 most significant bits must not all be zero.
             || (byte1 == (byte) 0xE0 && byte2 < (byte) 0xA0)
             // Check for illegal surrogate codepoints.
-            || (byte1 == (byte) 0xED && (byte) 0xA0 <= byte2)
+            || (byte1 == (byte) 0xED && byte2 >= (byte) 0xA0)
             // Third byte trailing-byte test.
             || bytes[index++] > (byte) 0xBF) {
           return false;

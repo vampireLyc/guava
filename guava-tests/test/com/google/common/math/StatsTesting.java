@@ -17,30 +17,38 @@
 package com.google.common.math;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Predicates.equalTo;
+import static com.google.common.collect.Iterables.any;
+import static com.google.common.collect.Lists.partition;
 import static com.google.common.truth.Truth.assertThat;
 import static java.lang.Double.NEGATIVE_INFINITY;
 import static java.lang.Double.NaN;
 import static java.lang.Double.POSITIVE_INFINITY;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.assertThrows;
 
-import com.google.common.base.Predicates;
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import com.google.common.primitives.Doubles;
 import com.google.common.primitives.Ints;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.stream.DoubleStream;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
- * Inputs, expected outputs, and helper methods for tests of {@link StatsAccumulator},
- * {@link Stats}, {@link PairedStatsAccumulator}, and {@link PairedStats}.
+ * Inputs, expected outputs, and helper methods for tests of {@link StatsAccumulator}, {@link
+ * Stats}, {@link PairedStatsAccumulator}, and {@link PairedStats}.
  *
  * @author Pete Gillin
  */
+@NullUnmarked
+@J2ktIncompatible
+@GwtIncompatible
 class StatsTesting {
-
-  static final double ALLOWED_ERROR = 1e-10;
+  // TODO(cpovirk): Convince myself that this larger error makes sense.
+  static final double ALLOWED_ERROR = isAndroid() ? .25 : 1e-10;
 
   // Inputs and their statistics:
 
@@ -63,13 +71,13 @@ class StatsTesting {
           + (-56.78 - TWO_VALUES_MEAN) * (-789.012 - OTHER_TWO_VALUES_MEAN);
 
   /**
-   * Helper class for testing with non-finite values. {@link #ALL_MANY_VALUES} gives a number
-   * instances with many combinations of finite and non-finite values. All have
-   * {@link #MANY_VALUES_COUNT} values. If all the values are finite then the mean is
-   * {@link #MANY_VALUES_MEAN} and the sum-of-squares-of-deltas is
-   * {@link #MANY_VALUES_SUM_OF_SQUARES_OF_DELTAS}. The smallest and largest finite values are
-   * always {@link #MANY_VALUES_MIN} and {@link #MANY_VALUES_MAX}, although setting non-finite
-   * values will change the true min and max.
+   * Helper class for testing with non-finite values. {@link #ALL_MANY_VALUES} gives a number of
+   * instances with many combinations of finite and non-finite values. All have {@link
+   * #MANY_VALUES_COUNT} values. If all the values are finite then the mean is {@link
+   * #MANY_VALUES_MEAN} and the sum-of-squares-of-deltas is {@link
+   * #MANY_VALUES_SUM_OF_SQUARES_OF_DELTAS}. The smallest and largest finite values are always
+   * {@link #MANY_VALUES_MIN} and {@link #MANY_VALUES_MAX}, although setting non-finite values will
+   * change the true min and max.
    */
   static class ManyValues {
 
@@ -88,15 +96,15 @@ class StatsTesting {
     }
 
     boolean hasAnyPositiveInfinity() {
-      return Iterables.any(values, Predicates.equalTo(POSITIVE_INFINITY));
+      return any(values, equalTo(POSITIVE_INFINITY));
     }
 
     boolean hasAnyNegativeInfinity() {
-      return Iterables.any(values, Predicates.equalTo(NEGATIVE_INFINITY));
+      return any(values, equalTo(NEGATIVE_INFINITY));
     }
 
     boolean hasAnyNaN() {
-      return Iterables.any(values, Predicates.equalTo(NaN));
+      return any(values, equalTo(NaN));
     }
 
     boolean hasAnyNonFinite() {
@@ -127,7 +135,7 @@ class StatsTesting {
     }
   }
 
-  static final Iterable<ManyValues> ALL_MANY_VALUES = ManyValues.createAll();
+  static final ImmutableList<ManyValues> ALL_MANY_VALUES = ManyValues.createAll();
 
   static final ImmutableList<Double> MANY_VALUES =
       ImmutableList.of(1.1, -44.44, 33.33, 555.555, -2.2);
@@ -211,6 +219,37 @@ class StatsTesting {
           .divide(BigInteger.valueOf(16L))
           .doubleValue();
 
+  /**
+   * Returns a stream of a million primitive doubles. The stream is parallel, which should cause
+   * {@code collect} calls to run in multithreaded mode, so testing the combiner as well as the
+   * supplier and accumulator.
+   */
+  static DoubleStream megaPrimitiveDoubleStream() {
+    return DoubleStream.iterate(0.0, x -> x + 1.0).limit(MEGA_STREAM_COUNT).parallel();
+  }
+
+  /** Returns a stream containing half the values from {@link #megaPrimitiveDoubleStream}. */
+  static DoubleStream megaPrimitiveDoubleStreamPart1() {
+    return DoubleStream.iterate(0.0, x -> x + 2.0).limit(MEGA_STREAM_COUNT / 2).parallel();
+  }
+
+  /**
+   * Returns a stream containing the values from {@link #megaPrimitiveDoubleStream} not in {@link
+   * #megaPrimitiveDoubleStreamPart1()}.
+   */
+  static DoubleStream megaPrimitiveDoubleStreamPart2() {
+    return DoubleStream.iterate(MEGA_STREAM_COUNT - 1.0, x -> x - 2.0)
+        .limit(MEGA_STREAM_COUNT / 2)
+        .parallel();
+  }
+
+  static final long MEGA_STREAM_COUNT = isAndroid() ? 100 : 1_000_000;
+  static final double MEGA_STREAM_MIN = 0.0;
+  static final double MEGA_STREAM_MAX = MEGA_STREAM_COUNT - 1;
+  static final double MEGA_STREAM_MEAN = MEGA_STREAM_MAX / 2;
+  static final double MEGA_STREAM_POPULATION_VARIANCE =
+      (MEGA_STREAM_COUNT - 1) * (MEGA_STREAM_COUNT + 1) / 12.0;
+
   // Stats instances:
 
   static final Stats EMPTY_STATS_VARARGS = Stats.of();
@@ -222,7 +261,7 @@ class StatsTesting {
   static final Stats MANY_VALUES_STATS_VARARGS = Stats.of(1.1, -44.44, 33.33, 555.555, -2.2);
   static final Stats MANY_VALUES_STATS_ITERABLE = Stats.of(MANY_VALUES);
   static final Stats MANY_VALUES_STATS_ITERATOR = Stats.of(MANY_VALUES.iterator());
-  static final Stats MANY_VALUES_STATS_SNAPSHOT;
+  static final Stats MANY_VALUES_STATS_SNAPSHOT = buildManyValuesStatsSnapshot();
   static final Stats LARGE_VALUES_STATS = Stats.of(LARGE_VALUES);
   static final Stats OTHER_MANY_VALUES_STATS = Stats.of(OTHER_MANY_VALUES);
   static final Stats INTEGER_MANY_VALUES_STATS_VARARGS =
@@ -230,20 +269,21 @@ class StatsTesting {
   static final Stats INTEGER_MANY_VALUES_STATS_ITERABLE = Stats.of(INTEGER_MANY_VALUES);
   static final Stats LARGE_INTEGER_VALUES_STATS = Stats.of(LARGE_INTEGER_VALUES);
   static final Stats LONG_MANY_VALUES_STATS_ITERATOR = Stats.of(LONG_MANY_VALUES.iterator());
-  static final Stats LONG_MANY_VALUES_STATS_SNAPSHOT;
+  static final Stats LONG_MANY_VALUES_STATS_SNAPSHOT = buildLongManyValuesStatsSnapshot();
   static final Stats LARGE_LONG_VALUES_STATS = Stats.of(LARGE_LONG_VALUES);
 
-  static {
+  private static Stats buildManyValuesStatsSnapshot() {
     StatsAccumulator accumulator = new StatsAccumulator();
     accumulator.addAll(MANY_VALUES);
-    MANY_VALUES_STATS_SNAPSHOT = accumulator.snapshot();
+    Stats stats = accumulator.snapshot();
     accumulator.add(999.999); // should do nothing to the snapshot
+    return stats;
   }
 
-  static {
+  private static Stats buildLongManyValuesStatsSnapshot() {
     StatsAccumulator accumulator = new StatsAccumulator();
     accumulator.addAll(LONG_MANY_VALUES);
-    LONG_MANY_VALUES_STATS_SNAPSHOT = accumulator.snapshot();
+    return accumulator.snapshot();
   }
 
   static final ImmutableList<Stats> ALL_STATS =
@@ -270,47 +310,48 @@ class StatsTesting {
   // PairedStats instances:
 
   static final PairedStats EMPTY_PAIRED_STATS =
-      createPairedStatsOf(ImmutableList.<Double>of(), ImmutableList.<Double>of());
+      createPairedStatsOf(ImmutableList.of(), ImmutableList.of());
   static final PairedStats ONE_VALUE_PAIRED_STATS =
       createPairedStatsOf(ImmutableList.of(ONE_VALUE), ImmutableList.of(OTHER_ONE_VALUE));
   static final PairedStats TWO_VALUES_PAIRED_STATS =
       createPairedStatsOf(TWO_VALUES, OTHER_TWO_VALUES);
-  static final PairedStats MANY_VALUES_PAIRED_STATS;
+  static final PairedStats MANY_VALUES_PAIRED_STATS = buildManyValuesPairedStats();
   static final PairedStats DUPLICATE_MANY_VALUES_PAIRED_STATS =
       createPairedStatsOf(MANY_VALUES, OTHER_MANY_VALUES);
-  static final PairedStats HORIZONTAL_VALUES_PAIRED_STATS;
-  static final PairedStats VERTICAL_VALUES_PAIRED_STATS;
-  static final PairedStats CONSTANT_VALUES_PAIRED_STATS;
+  static final PairedStats HORIZONTAL_VALUES_PAIRED_STATS = buildHorizontalValuesPairedStats();
+  static final PairedStats VERTICAL_VALUES_PAIRED_STATS = buildVerticalValuesPairedStats();
+  static final PairedStats CONSTANT_VALUES_PAIRED_STATS = buildConstantValuesPairedStats();
 
-  static {
+  private static PairedStats buildManyValuesPairedStats() {
     PairedStatsAccumulator accumulator =
         createFilledPairedStatsAccumulator(MANY_VALUES, OTHER_MANY_VALUES);
-    MANY_VALUES_PAIRED_STATS = accumulator.snapshot();
+    PairedStats stats = accumulator.snapshot();
     accumulator.add(99.99, 9999.9999); // should do nothing to the snapshot
+    return stats;
   }
 
-  static {
+  private static PairedStats buildHorizontalValuesPairedStats() {
     PairedStatsAccumulator accumulator = new PairedStatsAccumulator();
     for (double x : MANY_VALUES) {
       accumulator.add(x, OTHER_ONE_VALUE);
     }
-    HORIZONTAL_VALUES_PAIRED_STATS = accumulator.snapshot();
+    return accumulator.snapshot();
   }
 
-  static {
+  private static PairedStats buildVerticalValuesPairedStats() {
     PairedStatsAccumulator accumulator = new PairedStatsAccumulator();
     for (double y : OTHER_MANY_VALUES) {
       accumulator.add(ONE_VALUE, y);
     }
-    VERTICAL_VALUES_PAIRED_STATS = accumulator.snapshot();
+    return accumulator.snapshot();
   }
 
-  static {
+  private static PairedStats buildConstantValuesPairedStats() {
     PairedStatsAccumulator accumulator = new PairedStatsAccumulator();
     for (int i = 0; i < MANY_VALUES_COUNT; ++i) {
       accumulator.add(ONE_VALUE, OTHER_ONE_VALUE);
     }
-    CONSTANT_VALUES_PAIRED_STATS = accumulator.snapshot();
+    return accumulator.snapshot();
   }
 
   static final ImmutableList<PairedStats> ALL_PAIRED_STATS =
@@ -329,29 +370,13 @@ class StatsTesting {
   static void assertStatsApproxEqual(Stats expectedStats, Stats actualStats) {
     assertThat(actualStats.count()).isEqualTo(expectedStats.count());
     if (expectedStats.count() == 0) {
-      try {
-        actualStats.mean();
-        fail("Expected IllegalStateException");
-      } catch (IllegalStateException expected) {
-      }
-      try {
-        actualStats.populationVariance();
-        fail("Expected IllegalStateException");
-      } catch (IllegalStateException expected) {
-      }
-      try {
-        actualStats.min();
-        fail("Expected IllegalStateException");
-      } catch (IllegalStateException expected) {
-      }
-      try {
-        actualStats.max();
-        fail("Expected IllegalStateException");
-      } catch (IllegalStateException expected) {
-      }
+      assertThrows(IllegalStateException.class, () -> actualStats.mean());
+      assertThrows(IllegalStateException.class, () -> actualStats.populationVariance());
+      assertThrows(IllegalStateException.class, () -> actualStats.min());
+      assertThrows(IllegalStateException.class, () -> actualStats.max());
     } else if (expectedStats.count() == 1) {
       assertThat(actualStats.mean()).isWithin(ALLOWED_ERROR).of(expectedStats.mean());
-      assertThat(actualStats.populationVariance()).isWithin(0.0).of(0.0);
+      assertThat(actualStats.populationVariance()).isEqualTo(0.0);
       assertThat(actualStats.min()).isWithin(ALLOWED_ERROR).of(expectedStats.min());
       assertThat(actualStats.max()).isWithin(ALLOWED_ERROR).of(expectedStats.max());
     } else {
@@ -365,7 +390,7 @@ class StatsTesting {
   }
 
   /**
-   * Asserts that {@code transformation} is diagonal (i.e. neither horizontal or vertical) and
+   * Asserts that {@code transformation} is diagonal (i.e. neither horizontal nor vertical) and
    * passes through both {@code (x1, y1)} and {@code (x1 + xDelta, y1 + yDelta)}. Includes
    * assertions about all the public instance methods of {@link LinearTransformation} (on both
    * {@code transformation} and its inverse). Since the transformation is expected to be diagonal,
@@ -387,36 +412,29 @@ class StatsTesting {
         .of(x1 + xDelta);
     assertThat(transformation.slope()).isWithin(ALLOWED_ERROR).of(yDelta / xDelta);
     assertThat(transformation.inverse().slope()).isWithin(ALLOWED_ERROR).of(xDelta / yDelta);
-    assertThat(transformation.inverse()).isSameAs(transformation.inverse());
-    assertThat(transformation.inverse().inverse()).isSameAs(transformation);
+    assertThat(transformation.inverse()).isSameInstanceAs(transformation.inverse());
+    assertThat(transformation.inverse().inverse()).isSameInstanceAs(transformation);
   }
 
   /**
    * Asserts that {@code transformation} is horizontal with the given value of {@code y}. Includes
    * assertions about all the public instance methods of {@link LinearTransformation}, including an
-   * assertion that {@link LinearTransformation#transform} and {@link LinearTransformation#slope}
-   * on its inverse throws as expected.
+   * assertion that {@link LinearTransformation#transform} and {@link LinearTransformation#slope} on
+   * its inverse throws as expected.
    */
   static void assertHorizontalLinearTransformation(LinearTransformation transformation, double y) {
+    LinearTransformation inverse = transformation.inverse();
     assertThat(transformation.isHorizontal()).isTrue();
     assertThat(transformation.isVertical()).isFalse();
     assertThat(transformation.inverse().isHorizontal()).isFalse();
     assertThat(transformation.inverse().isVertical()).isTrue();
     assertThat(transformation.transform(-1.0)).isWithin(ALLOWED_ERROR).of(y);
     assertThat(transformation.transform(1.0)).isWithin(ALLOWED_ERROR).of(y);
-    try {
-      transformation.inverse().transform(0.0);
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
+    assertThrows(IllegalStateException.class, () -> inverse.transform(0.0));
     assertThat(transformation.slope()).isWithin(ALLOWED_ERROR).of(0.0);
-    try {
-      transformation.inverse().slope();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
-    assertThat(transformation.inverse()).isSameAs(transformation.inverse());
-    assertThat(transformation.inverse().inverse()).isSameAs(transformation);
+    assertThrows(IllegalStateException.class, () -> inverse.slope());
+    assertThat(transformation.inverse()).isSameInstanceAs(transformation.inverse());
+    assertThat(transformation.inverse().inverse()).isSameInstanceAs(transformation);
   }
 
   /**
@@ -430,33 +448,25 @@ class StatsTesting {
     assertThat(transformation.isVertical()).isTrue();
     assertThat(transformation.inverse().isHorizontal()).isTrue();
     assertThat(transformation.inverse().isVertical()).isFalse();
-    try {
-      transformation.transform(0.0);
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
+    assertThrows(IllegalStateException.class, () -> transformation.transform(0.0));
     assertThat(transformation.inverse().transform(-1.0)).isWithin(ALLOWED_ERROR).of(x);
     assertThat(transformation.inverse().transform(1.0)).isWithin(ALLOWED_ERROR).of(x);
-    try {
-      transformation.slope();
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException expected) {
-    }
+    assertThrows(IllegalStateException.class, () -> transformation.slope());
     assertThat(transformation.inverse().slope()).isWithin(ALLOWED_ERROR).of(0.0);
-    assertThat(transformation.inverse()).isSameAs(transformation.inverse());
-    assertThat(transformation.inverse().inverse()).isSameAs(transformation);
+    assertThat(transformation.inverse()).isSameInstanceAs(transformation.inverse());
+    assertThat(transformation.inverse().inverse()).isSameInstanceAs(transformation);
   }
 
   /**
-   * Asserts that {@code transformation} behaves as expected for
-   * {@link LinearTransformation#forNaN}.
+   * Asserts that {@code transformation} behaves as expected for {@link
+   * LinearTransformation#forNaN}.
    */
   static void assertLinearTransformationNaN(LinearTransformation transformation) {
     assertThat(transformation.isHorizontal()).isFalse();
     assertThat(transformation.isVertical()).isFalse();
     assertThat(transformation.slope()).isNaN();
     assertThat(transformation.transform(0.0)).isNaN();
-    assertThat(transformation.inverse()).isSameAs(transformation);
+    assertThat(transformation.inverse()).isSameInstanceAs(transformation);
   }
 
   /**
@@ -483,20 +493,24 @@ class StatsTesting {
 
   /**
    * Creates a {@link PairedStatsAccumulator} filled with the given lists of {@code x} and {@code y}
-   * values, which must be of the same size, added in groups of {@code partitionSize} using
-   * {@link PairedStatsAccumulator#addAll(PairedStats)}.
+   * values, which must be of the same size, added in groups of {@code partitionSize} using {@link
+   * PairedStatsAccumulator#addAll(PairedStats)}.
    */
   static PairedStatsAccumulator createPartitionedFilledPairedStatsAccumulator(
       List<Double> xValues, List<Double> yValues, int partitionSize) {
     checkArgument(xValues.size() == yValues.size());
     checkArgument(partitionSize > 0);
     PairedStatsAccumulator accumulator = new PairedStatsAccumulator();
-    List<List<Double>> xPartitions = Lists.partition(xValues, partitionSize);
-    List<List<Double>> yPartitions = Lists.partition(yValues, partitionSize);
+    List<List<Double>> xPartitions = partition(xValues, partitionSize);
+    List<List<Double>> yPartitions = partition(yValues, partitionSize);
     for (int index = 0; index < xPartitions.size(); index++) {
       accumulator.addAll(createPairedStatsOf(xPartitions.get(index), yPartitions.get(index)));
     }
     return accumulator;
+  }
+
+  private static boolean isAndroid() {
+    return checkNotNull(System.getProperty("java.runtime.name", "")).contains("Android");
   }
 
   private StatsTesting() {}

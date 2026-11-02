@@ -17,10 +17,12 @@
 package com.google.common.collect;
 
 import com.google.common.annotations.GwtCompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.testing.MapInterfaceTest;
 import com.google.common.collect.testing.SortedMapInterfaceTest;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import org.jspecify.annotations.NullMarked;
 
 /**
  * Tests for {@link ForwardingSortedMap} using {@link MapInterfaceTest}.
@@ -28,16 +30,18 @@ import java.util.TreeMap;
  * @author George van den Driessche
  */
 @GwtCompatible
-public class ForwardingSortedMapImplementsMapTest
-    extends SortedMapInterfaceTest<String, Integer> {
+@NullMarked
+public class ForwardingSortedMapImplementsMapTest extends SortedMapInterfaceTest<String, Integer> {
 
-  private static class SimpleForwardingSortedMap<K, V>
-      extends ForwardingSortedMap<K, V> {
+  private static class SimpleForwardingSortedMap<K, V> extends ForwardingSortedMap<K, V> {
     final SortedMap<K, V> delegate;
+
     SimpleForwardingSortedMap(SortedMap<K, V> delegate) {
       this.delegate = delegate;
     }
-    @Override protected SortedMap<K, V> delegate() {
+
+    @Override
+    protected SortedMap<K, V> delegate() {
       return delegate;
     }
   }
@@ -46,88 +50,100 @@ public class ForwardingSortedMapImplementsMapTest
     super(true, true, true, true, true);
   }
 
-  @Override protected SortedMap<String, Integer> makeEmptyMap() {
-    return new SimpleForwardingSortedMap<String, Integer>(
-        new TreeMap<String, Integer>(Ordering.natural().nullsFirst()));
+  @Override
+  protected SortedMap<String, Integer> makeEmptyMap() {
+    return new SimpleForwardingSortedMap<>(
+        new TreeMap<String, Integer>(Ordering.<String>natural().nullsFirst()));
   }
 
-  @Override protected SortedMap<String, Integer> makePopulatedMap() {
-    final SortedMap<String, Integer> sortedMap = makeEmptyMap();
+  @Override
+  protected SortedMap<String, Integer> makePopulatedMap() {
+    SortedMap<String, Integer> sortedMap = makeEmptyMap();
     sortedMap.put("one", 1);
     sortedMap.put("two", 2);
     sortedMap.put("three", 3);
     return sortedMap;
   }
 
-  @Override protected String getKeyNotInPopulatedMap()
-      throws UnsupportedOperationException {
+  @Override
+  protected String getKeyNotInPopulatedMap() {
     return "minus one";
   }
 
-  @Override protected Integer getValueNotInPopulatedMap()
-      throws UnsupportedOperationException {
+  @Override
+  protected Integer getValueNotInPopulatedMap() {
     return -1;
   }
 
-  @Override public void testContainsKey() {
+  @J2ktIncompatible // https://youtrack.jetbrains.com/issue/KT-58242/ undefined behavior (crash)
+  @Override
+  public void testContainsKey() {
     try {
       super.testContainsKey();
     } catch (ClassCastException tolerated) {
     }
   }
 
-  @Override public void testEntrySetContainsEntryIncompatibleKey() {
+  @J2ktIncompatible // https://youtrack.jetbrains.com/issue/KT-58242/ undefined behavior (crash)
+  @Override
+  public void testEntrySetContainsEntryIncompatibleKey() {
     try {
       super.testEntrySetContainsEntryIncompatibleKey();
     } catch (ClassCastException tolerated) {
     }
   }
 
-  @Override public void testEntrySetRemoveAllNullFromEmpty() {
+  @Override
+  public void testEntrySetRemoveAllNullFromEmpty() {
     try {
       super.testEntrySetRemoveAllNullFromEmpty();
     } catch (RuntimeException tolerated) {
-      // GWT's TreeMap.entrySet().removeAll(null) doesn't throws NPE.
+      // GWT's TreeMap.entrySet().removeAll(null) doesn't throw NPE.
     }
   }
 
-  @Override public void testEntrySetRetainAllNullFromEmpty() {
+  @Override
+  public void testEntrySetRetainAllNullFromEmpty() {
     try {
       super.testEntrySetRetainAllNullFromEmpty();
     } catch (RuntimeException tolerated) {
-      // GWT's TreeMap.entrySet().retainAll(null) doesn't throws NPE.
+      // GWT's TreeMap.entrySet().retainAll(null) doesn't throw NPE.
     }
   }
 
-  @Override public void testKeySetRemoveAllNullFromEmpty() {
+  @Override
+  public void testKeySetRemoveAllNullFromEmpty() {
     try {
       super.testKeySetRemoveAllNullFromEmpty();
     } catch (RuntimeException tolerated) {
-      // GWT's TreeMap.keySet().removeAll(null) doesn't throws NPE.
+      // GWT's TreeMap.keySet().removeAll(null) doesn't throw NPE.
     }
   }
 
-  @Override public void testKeySetRetainAllNullFromEmpty() {
+  @Override
+  public void testKeySetRetainAllNullFromEmpty() {
     try {
       super.testKeySetRetainAllNullFromEmpty();
     } catch (RuntimeException tolerated) {
-      // GWT's TreeMap.keySet().retainAll(null) doesn't throws NPE.
+      // GWT's TreeMap.keySet().retainAll(null) doesn't throw NPE.
     }
   }
 
-  @Override public void testValuesRemoveAllNullFromEmpty() {
+  @Override
+  public void testValuesRemoveAllNullFromEmpty() {
     try {
       super.testValuesRemoveAllNullFromEmpty();
     } catch (RuntimeException tolerated) {
-      // GWT's TreeMap.values().removeAll(null) doesn't throws NPE.
+      // GWT's TreeMap.values().removeAll(null) doesn't throw NPE.
     }
   }
 
-  @Override public void testValuesRetainAllNullFromEmpty() {
+  @Override
+  public void testValuesRetainAllNullFromEmpty() {
     try {
       super.testValuesRemoveAllNullFromEmpty();
     } catch (RuntimeException tolerated) {
-      // GWT's TreeMap.values().retainAll(null) doesn't throws NPE.
+      // GWT's TreeMap.values().retainAll(null) doesn't throw NPE.
     }
   }
 }

@@ -17,15 +17,14 @@
 package com.google.common.collect.testing.testers;
 
 import static com.google.common.collect.testing.features.CollectionSize.ZERO;
+import static java.util.Arrays.asList;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.testing.features.CollectionSize;
-import java.util.Arrays;
 
 /**
- * A generic JUnit test which tests {@code toArray()} operations on a list.
- * Can't be invoked directly; please see
- * {@link com.google.common.collect.testing.ListTestSuiteBuilder}.
+ * A generic JUnit test which tests {@code toArray()} operations on a list. Can't be invoked
+ * directly; please see {@link com.google.common.collect.testing.ListTestSuiteBuilder}.
  *
  * @author Chris Povirk
  */
@@ -50,6 +49,6 @@ public class ListToArrayTester<E> extends AbstractListTester<E> {
   }
 
   private static void assertArrayEquals(String message, Object[] expected, Object[] actual) {
-    assertEquals(message, Arrays.asList(expected), Arrays.asList(actual));
+    assertEquals(message, asList(expected), asList(actual));
   }
 }

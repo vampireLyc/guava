@@ -20,6 +20,7 @@ import static com.google.common.collect.testing.features.CollectionFeature.FAILS
 import static com.google.common.collect.testing.features.CollectionFeature.SUPPORTS_REMOVE;
 import static com.google.common.collect.testing.features.CollectionSize.SEVERAL;
 import static com.google.common.collect.testing.features.CollectionSize.ZERO;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.testing.AbstractCollectionTester;
@@ -29,9 +30,8 @@ import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 
 /**
- * A generic JUnit test which tests {@code clear()} operations on a collection.
- * Can't be invoked directly; please see
- * {@link com.google.common.collect.testing.CollectionTestSuiteBuilder}.
+ * A generic JUnit test which tests {@code clear()} operations on a collection. Can't be invoked
+ * directly; please see {@link com.google.common.collect.testing.CollectionTestSuiteBuilder}.
  *
  * @author George van den Driessche
  */
@@ -48,13 +48,7 @@ public class CollectionClearTester<E> extends AbstractCollectionTester<E> {
   @CollectionFeature.Require(absent = SUPPORTS_REMOVE)
   @CollectionSize.Require(absent = ZERO)
   public void testClear_unsupported() {
-    try {
-      collection.clear();
-      fail(
-          "clear() should throw UnsupportedOperation if a collection does "
-              + "not support it and is not empty.");
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> collection.clear());
     expectUnchanged();
   }
 
@@ -71,17 +65,8 @@ public class CollectionClearTester<E> extends AbstractCollectionTester<E> {
   @CollectionFeature.Require({SUPPORTS_REMOVE, FAILS_FAST_ON_CONCURRENT_MODIFICATION})
   @CollectionSize.Require(SEVERAL)
   public void testClearConcurrentWithIteration() {
-    try {
-      Iterator<E> iterator = collection.iterator();
-      collection.clear();
-      iterator.next();
-      /*
-       * We prefer for iterators to fail immediately on hasNext, but ArrayList
-       * and LinkedList will notably return true on hasNext here!
-       */
-      fail("Expected ConcurrentModificationException");
-    } catch (ConcurrentModificationException expected) {
-      // success
-    }
+    Iterator<E> iterator = collection.iterator();
+    collection.clear();
+    assertThrows(ConcurrentModificationException.class, iterator::next);
   }
 }

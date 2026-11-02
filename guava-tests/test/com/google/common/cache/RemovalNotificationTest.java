@@ -18,12 +18,14 @@ package com.google.common.cache;
 
 import com.google.common.testing.EqualsTester;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Unit tests of {@link RemovalNotification}.
  *
  * @author Ben Yu
  */
+@NullUnmarked
 public class RemovalNotificationTest extends TestCase {
 
   public void testEquals() {
@@ -31,10 +33,8 @@ public class RemovalNotificationTest extends TestCase {
         .addEqualityGroup(
             RemovalNotification.create("one", 1, RemovalCause.EXPLICIT),
             RemovalNotification.create("one", 1, RemovalCause.REPLACED))
-        .addEqualityGroup(
-            RemovalNotification.create("1", 1, RemovalCause.EXPLICIT))
-        .addEqualityGroup(
-            RemovalNotification.create("one", 2, RemovalCause.EXPLICIT))
+        .addEqualityGroup(RemovalNotification.create("1", 1, RemovalCause.EXPLICIT))
+        .addEqualityGroup(RemovalNotification.create("one", 2, RemovalCause.EXPLICIT))
         .testEquals();
   }
 }

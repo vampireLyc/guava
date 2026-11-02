@@ -16,18 +16,17 @@
 
 package com.google.common.collect.testing.testers;
 
+import static com.google.common.collect.testing.Helpers.assertEqualIgnoringOrder;
 import static com.google.common.collect.testing.features.CollectionFeature.KNOWN_ORDER;
+import static java.util.Arrays.asList;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.testing.AbstractCollectionTester;
-import com.google.common.collect.testing.Helpers;
 import com.google.common.collect.testing.features.CollectionFeature;
-import java.util.Arrays;
 
 /**
- * A generic JUnit test which tests {@code stream} operations on a collection.
- * Can't be invoked directly; please see
- * {@link com.google.common.collect.testing.CollectionTestSuiteBuilder}.
+ * A generic JUnit test which tests {@code stream} operations on a collection. Can't be invoked
+ * directly; please see {@link com.google.common.collect.testing.CollectionTestSuiteBuilder}.
  *
  * @author Louis Wasserman
  */
@@ -40,22 +39,15 @@ public class CollectionStreamTester<E> extends AbstractCollectionTester<E> {
 
   @CollectionFeature.Require(absent = KNOWN_ORDER)
   public void testStreamToArrayUnknownOrder() {
-    synchronized (collection) { // to allow Collections.synchronized* tests to pass
-      Helpers.assertEqualIgnoringOrder(
-          getSampleElements(), Arrays.asList(collection.stream().toArray()));
-    }
+    assertEqualIgnoringOrder(getSampleElements(), asList(collection.stream().toArray()));
   }
 
   @CollectionFeature.Require(KNOWN_ORDER)
   public void testStreamToArrayKnownOrder() {
-    synchronized (collection) { // to allow Collections.synchronized* tests to pass
-      assertEquals(getOrderedElements(), Arrays.asList(collection.stream().toArray()));
-    }
+    assertEquals(getOrderedElements(), asList(collection.stream().toArray()));
   }
 
   public void testStreamCount() {
-    synchronized (collection) { // to allow Collections.synchronized* tests to pass
-      assertEquals(getNumElements(), collection.stream().count());
-    }
+    assertEquals(getNumElements(), collection.stream().count());
   }
 }

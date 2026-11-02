@@ -16,7 +16,11 @@
 
 package com.google.common.io;
 
-import com.google.common.base.Strings;
+import static com.google.common.base.Strings.repeat;
+import static com.google.common.truth.Truth.assertThat;
+import static java.lang.Math.max;
+import static org.junit.Assert.assertThrows;
+
 import com.google.common.collect.ImmutableList;
 import java.io.EOFException;
 import java.io.FilterReader;
@@ -27,24 +31,24 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.nio.CharBuffer;
 import java.util.List;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Unit test for {@link CharStreams}.
  *
  * @author Chris Nokleberg
  */
+@NullUnmarked
 public class CharStreamsTest extends IoTestCase {
 
-  private static final String TEXT
-      = "The quick brown fox jumped over the lazy dog.";
+  private static final String TEXT = "The quick brown fox jumped over the lazy dog.";
 
   public void testToString() throws IOException {
-    assertEquals(TEXT, CharStreams.toString(new StringReader(TEXT)));
+    assertThat(CharStreams.toString(new StringReader(TEXT))).isEqualTo(TEXT);
   }
 
   public void testReadLines() throws IOException {
-    List<String> lines = CharStreams.readLines(
-        new StringReader("a\nb\nc"));
+    List<String> lines = CharStreams.readLines(new StringReader("a\nb\nc"));
     assertEquals(ImmutableList.of("a", "b", "c"), lines);
   }
 
@@ -53,66 +57,74 @@ public class CharStreamsTest extends IoTestCase {
 
     // Test a LineProcessor that always returns false.
     Reader r = new StringReader(text);
-    LineProcessor<Integer> alwaysFalse = new LineProcessor<Integer>() {
-      int seen;
-      @Override
-      public boolean processLine(String line) {
-        seen++;
-        return false;
-      }
-      @Override
-      public Integer getResult() {
-        return seen;
-      }
-    };
-    assertEquals("processLine was called more than once", 1,
+    LineProcessor<Integer> alwaysFalse =
+        new LineProcessor<Integer>() {
+          int seen;
+
+          @Override
+          public boolean processLine(String line) {
+            seen++;
+            return false;
+          }
+
+          @Override
+          public Integer getResult() {
+            return seen;
+          }
+        };
+    assertEquals(
+        "processLine was called more than once",
+        1,
         CharStreams.readLines(r, alwaysFalse).intValue());
 
     // Test a LineProcessor that always returns true.
     r = new StringReader(text);
-    LineProcessor<Integer> alwaysTrue = new LineProcessor<Integer>() {
-      int seen;
-      @Override
-      public boolean processLine(String line) {
-        seen++;
-        return true;
-      }
-      @Override
-      public Integer getResult() {
-        return seen;
-      }
-    };
-    assertEquals("processLine was not called for all the lines", 3,
+    LineProcessor<Integer> alwaysTrue =
+        new LineProcessor<Integer>() {
+          int seen;
+
+          @Override
+          public boolean processLine(String line) {
+            seen++;
+            return true;
+          }
+
+          @Override
+          public Integer getResult() {
+            return seen;
+          }
+        };
+    assertEquals(
+        "processLine was not called for all the lines",
+        3,
         CharStreams.readLines(r, alwaysTrue).intValue());
 
     // Test a LineProcessor that is conditional.
     r = new StringReader(text);
-    final StringBuilder sb = new StringBuilder();
-    LineProcessor<Integer> conditional = new LineProcessor<Integer>() {
-      int seen;
-      @Override
-      public boolean processLine(String line) {
-        seen++;
-        sb.append(line);
-        return seen < 2;
-      }
-      @Override
-      public Integer getResult() {
-        return seen;
-      }
-    };
+    StringBuilder sb = new StringBuilder();
+    LineProcessor<Integer> conditional =
+        new LineProcessor<Integer>() {
+          int seen;
+
+          @Override
+          public boolean processLine(String line) {
+            seen++;
+            sb.append(line);
+            return seen < 2;
+          }
+
+          @Override
+          public Integer getResult() {
+            return seen;
+          }
+        };
     assertEquals(2, CharStreams.readLines(r, conditional).intValue());
-    assertEquals("ab", sb.toString());
+    assertThat(sb.toString()).isEqualTo("ab");
   }
 
-  public void testSkipFully_EOF() throws IOException {
+  public void testSkipFully_eof() {
     Reader reader = new StringReader("abcde");
-    try {
-      CharStreams.skipFully(reader, 6);
-      fail("expected EOFException");
-    } catch (EOFException e) {
-      // expected
-    }
+    assertThrows(EOFException.class, () -> CharStreams.skipFully(reader, 6));
   }
 
   public void testSkipFully() throws IOException {
@@ -132,29 +144,83 @@ public class CharStreamsTest extends IoTestCase {
     // Should wrap Appendable in a new object
     Appendable plainAppendable = new StringBuilder();
     Writer result = CharStreams.asWriter(plainAppendable);
-    assertNotSame(plainAppendable, result);
-    assertNotNull(result);
+    assertThat(result).isNotSameInstanceAs(plainAppendable);
+    assertThat(result).isNotNull();
 
     // A Writer should not be wrapped
     Appendable secretlyAWriter = new StringWriter();
     result = CharStreams.asWriter(secretlyAWriter);
-    assertSame(secretlyAWriter, result);
+    assertThat(result).isSameInstanceAs(secretlyAWriter);
   }
+
+  // CharStreams.copy has type specific optimizations for Readers,StringBuilders and Writers
 
   public void testCopy() throws IOException {
     StringBuilder builder = new StringBuilder();
+    long copied =
+        CharStreams.copy(
+            wrapAsGenericReadable(new StringReader(ASCII)), wrapAsGenericAppendable(builder));
+    assertThat(builder.toString()).isEqualTo(ASCII);
+    assertEquals(ASCII.length(), copied);
+
+    StringBuilder builder2 = new StringBuilder();
+    copied =
+        CharStreams.copy(
+            wrapAsGenericReadable(new StringReader(I18N)), wrapAsGenericAppendable(builder2));
+    assertThat(builder2.toString()).isEqualTo(I18N);
+    assertEquals(I18N.length(), copied);
+  }
+
+  public void testCopy_toStringBuilder_fromReader() throws IOException {
+    StringBuilder builder = new StringBuilder();
     long copied = CharStreams.copy(new StringReader(ASCII), builder);
-    assertEquals(ASCII, builder.toString());
+    assertThat(builder.toString()).isEqualTo(ASCII);
     assertEquals(ASCII.length(), copied);
 
     StringBuilder builder2 = new StringBuilder();
     copied = CharStreams.copy(new StringReader(I18N), builder2);
-    assertEquals(I18N, builder2.toString());
+    assertThat(builder2.toString()).isEqualTo(I18N);
+    assertEquals(I18N.length(), copied);
+  }
+
+  public void testCopy_toStringBuilder_fromReadable() throws IOException {
+    StringBuilder builder = new StringBuilder();
+    long copied = CharStreams.copy(wrapAsGenericReadable(new StringReader(ASCII)), builder);
+    assertThat(builder.toString()).isEqualTo(ASCII);
+    assertEquals(ASCII.length(), copied);
+
+    StringBuilder builder2 = new StringBuilder();
+    copied = CharStreams.copy(wrapAsGenericReadable(new StringReader(I18N)), builder2);
+    assertThat(builder2.toString()).isEqualTo(I18N);
+    assertEquals(I18N.length(), copied);
+  }
+
+  public void testCopy_toWriter_fromReader() throws IOException {
+    StringWriter writer = new StringWriter();
+    long copied = CharStreams.copy(new StringReader(ASCII), writer);
+    assertThat(writer.toString()).isEqualTo(ASCII);
+    assertEquals(ASCII.length(), copied);
+
+    StringWriter writer2 = new StringWriter();
+    copied = CharStreams.copy(new StringReader(I18N), writer2);
+    assertThat(writer2.toString()).isEqualTo(I18N);
+    assertEquals(I18N.length(), copied);
+  }
+
+  public void testCopy_toWriter_fromReadable() throws IOException {
+    StringWriter writer = new StringWriter();
+    long copied = CharStreams.copy(wrapAsGenericReadable(new StringReader(ASCII)), writer);
+    assertThat(writer.toString()).isEqualTo(ASCII);
+    assertEquals(ASCII.length(), copied);
+
+    StringWriter writer2 = new StringWriter();
+    copied = CharStreams.copy(wrapAsGenericReadable(new StringReader(I18N)), writer2);
+    assertThat(writer2.toString()).isEqualTo(I18N);
     assertEquals(I18N.length(), copied);
   }
 
   /**
-   * Test for Guava issue 1061: http://code.google.com/p/guava-libraries/issues/detail?id=1061
+   * Test for Guava issue 1061: https://github.com/google/guava/issues/1061
    *
    * <p>CharStreams.copy was failing to clear its CharBuffer after each read call, which effectively
    * reduced the available size of the buffer each time a call to read didn't fill up the available
@@ -162,14 +228,15 @@ public class CharStreamsTest extends IoTestCase {
    * is permanently reduced, but with certain Reader implementations it could also cause the buffer
    * size to reach 0, causing an infinite loop.
    */
+  @SuppressWarnings("InlineMeInliner") // String.repeat unavailable under Java 8
   public void testCopyWithReaderThatDoesNotFillBuffer() throws IOException {
     // need a long enough string for the buffer to hit 0 remaining before the copy completes
-    String string = Strings.repeat("0123456789", 100);
+    String string = repeat("0123456789", 100);
     StringBuilder b = new StringBuilder();
     // the main assertion of this test is here... the copy will fail if the buffer size goes down
     // each time it is not filled completely
     long copied = CharStreams.copy(newNonBufferFillingReader(new StringReader(string)), b);
-    assertEquals(string, b.toString());
+    assertThat(b.toString()).isEqualTo(string);
     assertEquals(string.length(), copied);
   }
 
@@ -203,8 +270,15 @@ public class CharStreamsTest extends IoTestCase {
     String test = "Test string for NullWriter";
     nullWriter.write(test);
     nullWriter.write(test, 2, 10);
+    nullWriter.append(null);
+    nullWriter.append(null, 0, 4);
+
+    assertThrows(IndexOutOfBoundsException.class, () -> nullWriter.append(null, -1, 4));
+
+    assertThrows(IndexOutOfBoundsException.class, () -> nullWriter.append(null, 0, 5));
+
     // nothing really to assert?
-    assertSame(CharStreams.nullWriter(), CharStreams.nullWriter());
+    assertThat(CharStreams.nullWriter()).isSameInstanceAs(CharStreams.nullWriter());
   }
 
   /**
@@ -222,7 +296,41 @@ public class CharStreamsTest extends IoTestCase {
         }
         // read fewer than the max number of chars to read
         // shouldn't be a problem unless the buffer is shrinking each call
-        return in.read(cbuf, off, Math.max(len - 1024, 0));
+        return in.read(cbuf, off, max(len - 1024, 0));
+      }
+    };
+  }
+
+  /** Wrap an appendable in an appendable to defeat any type specific optimizations. */
+  private static Appendable wrapAsGenericAppendable(Appendable a) {
+    return new Appendable() {
+
+      @Override
+      public Appendable append(CharSequence csq) throws IOException {
+        a.append(csq);
+        return this;
+      }
+
+      @Override
+      public Appendable append(CharSequence csq, int start, int end) throws IOException {
+        a.append(csq, start, end);
+        return this;
+      }
+
+      @Override
+      public Appendable append(char c) throws IOException {
+        a.append(c);
+        return this;
+      }
+    };
+  }
+
+  /** Wrap a readable in a readable to defeat any type specific optimizations. */
+  private static Readable wrapAsGenericReadable(Readable a) {
+    return new Readable() {
+      @Override
+      public int read(CharBuffer cb) throws IOException {
+        return a.read(cb);
       }
     };
   }

@@ -17,16 +17,18 @@
 package com.google.common.collect.testing;
 
 import com.google.common.annotations.GwtCompatible;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 /**
- * To be implemented by test generators that can produce test subjects without
- * requiring any parameters.
+ * To be implemented by test generators that can produce test subjects without requiring any
+ * parameters.
  *
  * @param <T> the type created by this generator.
- *
  * @author George van den Driessche
  */
 @GwtCompatible
-public interface TestSubjectGenerator<T> {
+@NullMarked
+public interface TestSubjectGenerator<T extends @Nullable Object> {
   T createTestSubject();
 }

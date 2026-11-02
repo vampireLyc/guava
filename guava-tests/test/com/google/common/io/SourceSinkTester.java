@@ -20,14 +20,15 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.List;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * @param <S> the source or sink type
@@ -35,44 +36,46 @@ import junit.framework.TestCase;
  * @param <F> the factory type
  * @author Colin Decker
  */
-@AndroidIncompatible // Android doesn't understand tests that lack default constructors.
+@AndroidIncompatible // TODO(b/230620681): Make this available (even though we won't run it).
+@NullUnmarked
 public class SourceSinkTester<S, T, F extends SourceSinkFactory<S, T>> extends TestCase {
 
-  static final String LOREM_IPSUM = "Lorem ipsum dolor sit amet, consectetur adipiscing "
-      + "elit. Cras fringilla elit ac ipsum adipiscing vulputate. Maecenas in lorem nulla, ac "
-      + "sollicitudin quam. Praesent neque elit, sodales quis vestibulum vel, pellentesque nec "
-      + "erat. Proin cursus commodo lacus eget congue. Aliquam erat volutpat. Fusce ut leo sed "
-      + "risus tempor vehicula et a odio. Nam aliquet dolor viverra libero rutrum accumsan quis "
-      + "in augue. Suspendisse id dui in lorem tristique placerat eget vel risus. Sed metus neque, "
-      + "scelerisque in molestie ac, mattis quis lectus. Pellentesque viverra justo commodo quam "
-      + "bibendum ut gravida leo accumsan. Nullam malesuada sagittis diam, quis suscipit mauris "
-      + "euismod vulputate. Pellentesque ultrices tellus sed lorem aliquet pulvinar. Nam lorem "
-      + "nunc, ultrices at auctor non, scelerisque eget turpis. Nullam eget varius erat. Sed a "
-      + "lorem id arcu dictum euismod. Fusce lectus odio, elementum ullamcorper mattis viverra, "
-      + "dictum sit amet lacus.\n"
-      + "\n"
-      + "Nunc quis lacus est. Sed aliquam pretium cursus. Sed eu libero eros. In hac habitasse "
-      + "platea dictumst. Pellentesque molestie, nibh nec iaculis luctus, justo sem lobortis enim, "
-      + "at feugiat leo magna nec libero. Mauris quis odio eget nisl rutrum cursus nec eget augue. "
-      + "Sed nec arcu sem. In hac habitasse platea dictumst.";
+  static final String LOREM_IPSUM =
+      "Lorem ipsum dolor sit amet, consectetur adipiscing "
+          + "elit. Cras fringilla elit ac ipsum adipiscing vulputate. Maecenas in lorem nulla, ac "
+          + "sollicitudin quam. Praesent neque elit, sodales quis vestibulum vel, pellentesque nec "
+          + "erat. Proin cursus commodo lacus eget congue. Aliquam erat volutpat. Fusce ut leo sed "
+          + "risus tempor vehicula et a odio. Nam aliquet dolor viverra libero rutrum accumsan "
+          + "quis in augue. Suspendisse id dui in lorem tristique placerat eget vel risus. Sed "
+          + "metus neque, scelerisque in molestie ac, mattis quis lectus. Pellentesque viverra "
+          + "justo commodo quam bibendum ut gravida leo accumsan. Nullam malesuada sagittis diam, "
+          + "quis suscipit mauris euismod vulputate. Pellentesque ultrices tellus sed lorem "
+          + "aliquet pulvinar. Nam lorem nunc, ultrices at auctor non, scelerisque eget turpis. "
+          + "Nullam eget varius erat. Sed a lorem id arcu dictum euismod. Fusce lectus odio, "
+          + "elementum ullamcorper mattis viverra, dictum sit amet lacus.\n"
+          + "\n"
+          + "Nunc quis lacus est. Sed aliquam pretium cursus. Sed eu libero eros. In hac habitasse "
+          + "platea dictumst. Pellentesque molestie, nibh nec iaculis luctus, justo sem lobortis "
+          + "enim, at feugiat leo magna nec libero. Mauris quis odio eget nisl rutrum cursus nec "
+          + "eget augue. Sed nec arcu sem. In hac habitasse platea dictumst.";
 
-  static final ImmutableMap<String, String> TEST_STRINGS
-      = ImmutableMap.<String, String>builder()
-      .put("empty", "")
-      .put("1 char", "0")
-      .put("1 word", "hello")
-      .put("2 words", "hello world")
-      .put("\\n line break", "hello\nworld")
-      .put("\\r line break", "hello\rworld")
-      .put("\\r\\n line break", "hello\r\nworld")
-      .put("\\n at EOF", "hello\nworld\n")
-      .put("\\r at EOF", "hello\nworld\r")
-      .put("lorem ipsum", LOREM_IPSUM)
-      .build();
+  static final ImmutableMap<String, String> TEST_STRINGS =
+      ImmutableMap.<String, String>builder()
+          .put("empty", "")
+          .put("1 char", "0")
+          .put("1 word", "hello")
+          .put("2 words", "hello world")
+          .put("\\n line break", "hello\nworld")
+          .put("\\r line break", "hello\rworld")
+          .put("\\r\\n line break", "hello\r\nworld")
+          .put("\\n at EOF", "hello\nworld\n")
+          .put("\\r at EOF", "hello\nworld\r")
+          .put("lorem ipsum", LOREM_IPSUM)
+          .buildOrThrow();
 
-  protected final F factory;
-  protected final T data;
-  protected final T expected;
+  final F factory;
+  final T data;
+  final T expected;
 
   private final String suiteName;
   private final String caseDesc;
@@ -91,11 +94,11 @@ public class SourceSinkTester<S, T, F extends SourceSinkFactory<S, T>> extends T
     return super.getName() + " [" + suiteName + " [" + caseDesc + "]]";
   }
 
-  protected static ImmutableList<String> getLines(final String string) {
+  static ImmutableList<String> getLines(String string) {
     try {
       return new CharSource() {
         @Override
-        public Reader openStream() throws IOException {
+        public Reader openStream() {
           return new StringReader(string);
         }
       }.readLines();
@@ -105,12 +108,12 @@ public class SourceSinkTester<S, T, F extends SourceSinkFactory<S, T>> extends T
   }
 
   @Override
-  public void tearDown() throws IOException {
+  protected void tearDown() throws IOException {
     factory.tearDown();
   }
 
   static ImmutableList<Method> getTestMethods(Class<?> testClass) {
-    List<Method> result = Lists.newArrayList();
+    List<Method> result = new ArrayList<>();
     for (Method method : testClass.getDeclaredMethods()) {
       if (Modifier.isPublic(method.getModifiers())
           && method.getReturnType() == void.class

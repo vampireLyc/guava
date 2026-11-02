@@ -22,24 +22,27 @@ import com.google.caliper.Param;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Random;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Benchmarks for comparing the various {@link HashCode#equals} methods.
  *
  * <p>Parameters for the benchmark are:
+ *
  * <ul>
- * <li>size: the length of the byte array to hash
- * <li>whereToDiffer: where in the array the bytes should differ
- * <li>equalsImpl: which implementation of array equality to use
+ *   <li>size: the length of the byte array to hash
+ *   <li>whereToDiffer: where in the array the bytes should differ
+ *   <li>equalsImpl: which implementation of array equality to use
  * </ul>
  *
  * <p><b>Important note:</b> the primary goal of this benchmark is to ensure that varying {@code
- * whereToDiffer} produces no observable change in performance. We want to make sure that the
- * array equals implementation is *not* short-circuiting to prevent timing-based attacks. Being
- * fast is only a secondary goal.
+ * whereToDiffer} produces no observable change in performance. We want to make sure that the array
+ * equals implementation is *not* short-circuiting to prevent timing-based attacks. Being fast is
+ * only a secondary goal.
  *
  * @author Kurt Alfred Kluever
  */
+@NullUnmarked
 public class HashCodeBenchmark {
 
   // Use a statically configured random instance for all of the benchmarks
@@ -60,19 +63,21 @@ public class HashCodeBenchmark {
 
   private enum EqualsImplementation {
     ANDING_BOOLEANS {
-      @Override boolean doEquals(byte[] a, byte[] b) {
+      @Override
+      boolean doEquals(byte[] a, byte[] b) {
         if (a.length != b.length) {
           return false;
         }
         boolean areEqual = true;
         for (int i = 0; i < a.length; i++) {
-          areEqual &= (a[i] == b[i]);
+          areEqual &= a[i] == b[i];
         }
         return areEqual;
       }
     },
     XORING_TO_BYTE {
-      @Override boolean doEquals(byte[] a, byte[] b) {
+      @Override
+      boolean doEquals(byte[] a, byte[] b) {
         if (a.length != b.length) {
           return false;
         }
@@ -80,11 +85,12 @@ public class HashCodeBenchmark {
         for (int i = 0; i < a.length; i++) {
           result = (byte) (result | a[i] ^ b[i]);
         }
-        return (result == 0);
+        return result == 0;
       }
     },
     XORING_TO_INT {
-      @Override boolean doEquals(byte[] a, byte[] b) {
+      @Override
+      boolean doEquals(byte[] a, byte[] b) {
         if (a.length != b.length) {
           return false;
         }
@@ -92,16 +98,18 @@ public class HashCodeBenchmark {
         for (int i = 0; i < a.length; i++) {
           result |= a[i] ^ b[i];
         }
-        return (result == 0);
+        return result == 0;
       }
     },
     MESSAGE_DIGEST_IS_EQUAL {
-      @Override boolean doEquals(byte[] a, byte[] b) {
+      @Override
+      boolean doEquals(byte[] a, byte[] b) {
         return MessageDigest.isEqual(a, b);
       }
     },
     ARRAYS_EQUALS {
-      @Override boolean doEquals(byte[] a, byte[] b) {
+      @Override
+      boolean doEquals(byte[] a, byte[] b) {
         return Arrays.equals(a, b);
       }
     };
@@ -112,7 +120,8 @@ public class HashCodeBenchmark {
   private byte[] testBytesA;
   private byte[] testBytesB;
 
-  @BeforeExperiment void setUp() {
+  @BeforeExperiment
+  void setUp() {
     testBytesA = new byte[size];
     random.nextBytes(testBytesA);
     testBytesB = Arrays.copyOf(testBytesA, size);
@@ -131,7 +140,8 @@ public class HashCodeBenchmark {
     }
   }
 
-  @Benchmark boolean hashFunction(int reps) {
+  @Benchmark
+  boolean hashFunction(int reps) {
     boolean result = true;
     for (int i = 0; i < reps; i++) {
       result ^= equalsImpl.doEquals(testBytesA, testBytesB);

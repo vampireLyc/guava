@@ -16,12 +16,16 @@
 
 package com.google.common.collect;
 
+import static com.google.common.collect.Sets.newIdentityHashSet;
+import static com.google.common.collect.testing.Helpers.mapEntry;
 import static com.google.common.collect.testing.Helpers.orderEntriesByKey;
+import static com.google.common.testing.SerializableTester.reserializeAndAssert;
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
-import com.google.common.collect.testing.Helpers;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.testing.SampleElements;
 import com.google.common.collect.testing.features.CollectionFeature;
 import com.google.common.collect.testing.features.CollectionSize;
@@ -30,7 +34,6 @@ import com.google.common.collect.testing.google.BiMapTestSuiteBuilder;
 import com.google.common.collect.testing.google.TestBiMapGenerator;
 import com.google.common.testing.EqualsTester;
 import com.google.common.testing.NullPointerTester;
-import com.google.common.testing.SerializableTester;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -40,6 +43,7 @@ import java.util.Set;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.jspecify.annotations.NullMarked;
 
 /**
  * Tests for {@code EnumBiMap}.
@@ -47,11 +51,27 @@ import junit.framework.TestSuite;
  * @author Mike Bostock
  * @author Jared Levy
  */
-@GwtCompatible(emulated = true)
+@J2ktIncompatible // EnumBimap
+@GwtCompatible
+@NullMarked
 public class EnumBiMapTest extends TestCase {
-  private enum Currency { DOLLAR, FRANC, PESO, POUND, YEN }
-  private enum Country { CANADA, CHILE, JAPAN, SWITZERLAND, UK }
+  private enum Currency {
+    DOLLAR,
+    FRANC,
+    PESO,
+    POUND,
+    YEN
+  }
 
+  private enum Country {
+    CANADA,
+    CHILE,
+    JAPAN,
+    SWITZERLAND,
+    UK
+  }
+
+  @AndroidIncompatible // test-suite builders
   public static final class EnumBiMapGenerator implements TestBiMapGenerator<Country, Currency> {
     @SuppressWarnings("unchecked")
     @Override
@@ -66,18 +86,18 @@ public class EnumBiMapTest extends TestCase {
 
     @Override
     public SampleElements<Entry<Country, Currency>> samples() {
-      return new SampleElements<Entry<Country, Currency>>(
-          Helpers.mapEntry(Country.CANADA, Currency.DOLLAR),
-          Helpers.mapEntry(Country.CHILE, Currency.PESO),
-          Helpers.mapEntry(Country.UK, Currency.POUND),
-          Helpers.mapEntry(Country.JAPAN, Currency.YEN),
-          Helpers.mapEntry(Country.SWITZERLAND, Currency.FRANC));
+      return new SampleElements<>(
+          mapEntry(Country.CANADA, Currency.DOLLAR),
+          mapEntry(Country.CHILE, Currency.PESO),
+          mapEntry(Country.UK, Currency.POUND),
+          mapEntry(Country.JAPAN, Currency.YEN),
+          mapEntry(Country.SWITZERLAND, Currency.FRANC));
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public Entry<Country, Currency>[] createArray(int length) {
-      return new Entry[length];
+      return (Entry<Country, Currency>[]) new Entry<?, ?>[length];
     }
 
     @Override
@@ -97,187 +117,183 @@ public class EnumBiMapTest extends TestCase {
   }
 
   @GwtIncompatible // suite
+  @AndroidIncompatible // test-suite builders
   public static Test suite() {
     TestSuite suite = new TestSuite();
-    suite.addTest(BiMapTestSuiteBuilder.using(new EnumBiMapGenerator())
-        .named("EnumBiMap")
-        .withFeatures(CollectionSize.ANY,
-            CollectionFeature.SERIALIZABLE,
-            CollectionFeature.SUPPORTS_ITERATOR_REMOVE,
-            MapFeature.GENERAL_PURPOSE,
-            CollectionFeature.KNOWN_ORDER)
-        .createTestSuite());
+    suite.addTest(
+        BiMapTestSuiteBuilder.using(new EnumBiMapGenerator())
+            .named("EnumBiMap")
+            .withFeatures(
+                CollectionSize.ANY,
+                CollectionFeature.SERIALIZABLE,
+                CollectionFeature.SUPPORTS_ITERATOR_REMOVE,
+                MapFeature.GENERAL_PURPOSE,
+                CollectionFeature.KNOWN_ORDER)
+            .createTestSuite());
     suite.addTestSuite(EnumBiMapTest.class);
     return suite;
   }
 
   public void testCreate() {
-    EnumBiMap<Currency, Country> bimap =
-        EnumBiMap.create(Currency.class, Country.class);
+    EnumBiMap<Currency, Country> bimap = EnumBiMap.create(Currency.class, Country.class);
     assertTrue(bimap.isEmpty());
-    assertEquals("{}", bimap.toString());
+    assertThat(bimap.toString()).isEqualTo("{}");
     assertEquals(HashBiMap.create(), bimap);
     bimap.put(Currency.DOLLAR, Country.CANADA);
-    assertEquals(Country.CANADA, bimap.get(Currency.DOLLAR));
-    assertEquals(Currency.DOLLAR, bimap.inverse().get(Country.CANADA));
+    assertThat(bimap).containsEntry(Currency.DOLLAR, Country.CANADA);
+    assertThat(bimap.inverse()).containsEntry(Country.CANADA, Currency.DOLLAR);
   }
 
   public void testCreateFromMap() {
     /* Test with non-empty Map. */
-    Map<Currency, Country> map = ImmutableMap.of(
-        Currency.DOLLAR, Country.CANADA,
-        Currency.PESO, Country.CHILE,
-        Currency.FRANC, Country.SWITZERLAND);
+    Map<Currency, Country> map =
+        ImmutableMap.of(
+            Currency.DOLLAR, Country.CANADA,
+            Currency.PESO, Country.CHILE,
+            Currency.FRANC, Country.SWITZERLAND);
     EnumBiMap<Currency, Country> bimap = EnumBiMap.create(map);
-    assertEquals(Country.CANADA, bimap.get(Currency.DOLLAR));
-    assertEquals(Currency.DOLLAR, bimap.inverse().get(Country.CANADA));
+    assertThat(bimap).containsEntry(Currency.DOLLAR, Country.CANADA);
+    assertThat(bimap.inverse()).containsEntry(Country.CANADA, Currency.DOLLAR);
 
     /* Map must have at least one entry if not an EnumBiMap. */
-    try {
-      EnumBiMap.create(Collections.<Currency, Country>emptyMap());
-      fail("IllegalArgumentException expected");
-    } catch (IllegalArgumentException expected) {}
-    try {
-      EnumBiMap.create(
-          EnumHashBiMap.<Currency, Country>create(Currency.class));
-      fail("IllegalArgumentException expected");
-    } catch (IllegalArgumentException expected) {}
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> EnumBiMap.create(Collections.<Currency, Country>emptyMap()));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> EnumBiMap.create(EnumHashBiMap.<Currency, Country>create(Currency.class)));
 
     /* Map can be empty if it's an EnumBiMap. */
-    Map<Currency, Country> emptyBimap =
-        EnumBiMap.create(Currency.class, Country.class);
+    Map<Currency, Country> emptyBimap = EnumBiMap.create(Currency.class, Country.class);
     bimap = EnumBiMap.create(emptyBimap);
     assertTrue(bimap.isEmpty());
   }
 
   public void testEnumBiMapConstructor() {
     /* Test that it copies existing entries. */
-    EnumBiMap<Currency, Country> bimap1 =
-        EnumBiMap.create(Currency.class, Country.class);
+    EnumBiMap<Currency, Country> bimap1 = EnumBiMap.create(Currency.class, Country.class);
     bimap1.put(Currency.DOLLAR, Country.CANADA);
-    EnumBiMap<Currency, Country> bimap2 =
-        EnumBiMap.create(bimap1);
-    assertEquals(Country.CANADA, bimap2.get(Currency.DOLLAR));
+    EnumBiMap<Currency, Country> bimap2 = EnumBiMap.create(bimap1);
+    assertThat(bimap2).containsEntry(Currency.DOLLAR, Country.CANADA);
     assertEquals(bimap1, bimap2);
     bimap2.inverse().put(Country.SWITZERLAND, Currency.FRANC);
-    assertEquals(Country.SWITZERLAND, bimap2.get(Currency.FRANC));
-    assertNull(bimap1.get(Currency.FRANC));
+    assertThat(bimap2).containsEntry(Currency.FRANC, Country.SWITZERLAND);
+    assertThat(bimap1).doesNotContainKey(Currency.FRANC);
     assertFalse(bimap2.equals(bimap1));
 
     /* Test that it can be empty. */
-    EnumBiMap<Currency, Country> emptyBimap =
-        EnumBiMap.create(Currency.class, Country.class);
-    EnumBiMap<Currency, Country> bimap3 =
-        EnumBiMap.create(emptyBimap);
+    EnumBiMap<Currency, Country> emptyBimap = EnumBiMap.create(Currency.class, Country.class);
+    EnumBiMap<Currency, Country> bimap3 = EnumBiMap.create(emptyBimap);
     assertEquals(bimap3, emptyBimap);
   }
 
+  @GwtIncompatible // keyType
   public void testKeyType() {
-    EnumBiMap<Currency, Country> bimap =
-        EnumBiMap.create(Currency.class, Country.class);
-    assertEquals(Currency.class, bimap.keyType());
+    EnumBiMap<Currency, Country> bimap = EnumBiMap.create(Currency.class, Country.class);
+    assertThat(bimap.keyType()).isEqualTo(Currency.class);
   }
 
+  @GwtIncompatible // valueType
   public void testValueType() {
-    EnumBiMap<Currency, Country> bimap =
-        EnumBiMap.create(Currency.class, Country.class);
-    assertEquals(Country.class, bimap.valueType());
+    EnumBiMap<Currency, Country> bimap = EnumBiMap.create(Currency.class, Country.class);
+    assertThat(bimap.valueType()).isEqualTo(Country.class);
   }
 
   public void testIterationOrder() {
     // The enum orderings are alphabetical, leading to the bimap and its inverse
     // having inconsistent iteration orderings.
-    Map<Currency, Country> map = ImmutableMap.of(
-        Currency.DOLLAR, Country.CANADA,
-        Currency.PESO, Country.CHILE,
-        Currency.FRANC, Country.SWITZERLAND);
+    Map<Currency, Country> map =
+        ImmutableMap.of(
+            Currency.DOLLAR, Country.CANADA,
+            Currency.PESO, Country.CHILE,
+            Currency.FRANC, Country.SWITZERLAND);
     EnumBiMap<Currency, Country> bimap = EnumBiMap.create(map);
 
     // forward map ordered by currency
     assertThat(bimap.keySet())
-        .containsExactly(Currency.DOLLAR, Currency.FRANC, Currency.PESO).inOrder();
+        .containsExactly(Currency.DOLLAR, Currency.FRANC, Currency.PESO)
+        .inOrder();
     // forward map ordered by currency (even for country values)
     assertThat(bimap.values())
-        .containsExactly(Country.CANADA, Country.SWITZERLAND, Country.CHILE).inOrder();
+        .containsExactly(Country.CANADA, Country.SWITZERLAND, Country.CHILE)
+        .inOrder();
     // backward map ordered by country
     assertThat(bimap.inverse().keySet())
-        .containsExactly(Country.CANADA, Country.CHILE, Country.SWITZERLAND).inOrder();
+        .containsExactly(Country.CANADA, Country.CHILE, Country.SWITZERLAND)
+        .inOrder();
     // backward map ordered by country (even for currency values)
     assertThat(bimap.inverse().values())
-        .containsExactly(Currency.DOLLAR, Currency.PESO, Currency.FRANC).inOrder();
+        .containsExactly(Currency.DOLLAR, Currency.PESO, Currency.FRANC)
+        .inOrder();
   }
 
   public void testKeySetIteratorRemove() {
     // The enum orderings are alphabetical, leading to the bimap and its inverse
     // having inconsistent iteration orderings.
-    Map<Currency, Country> map = ImmutableMap.of(
-        Currency.DOLLAR, Country.CANADA,
-        Currency.PESO, Country.CHILE,
-        Currency.FRANC, Country.SWITZERLAND);
+    Map<Currency, Country> map =
+        ImmutableMap.of(
+            Currency.DOLLAR, Country.CANADA,
+            Currency.PESO, Country.CHILE,
+            Currency.FRANC, Country.SWITZERLAND);
     EnumBiMap<Currency, Country> bimap = EnumBiMap.create(map);
 
     Iterator<Currency> iter = bimap.keySet().iterator();
-    assertEquals(Currency.DOLLAR, iter.next());
+    assertThat(iter.next()).isEqualTo(Currency.DOLLAR);
     iter.remove();
 
     // forward map ordered by currency
-    assertThat(bimap.keySet())
-        .containsExactly(Currency.FRANC, Currency.PESO).inOrder();
+    assertThat(bimap.keySet()).containsExactly(Currency.FRANC, Currency.PESO).inOrder();
     // forward map ordered by currency (even for country values)
-    assertThat(bimap.values())
-        .containsExactly(Country.SWITZERLAND, Country.CHILE).inOrder();
+    assertThat(bimap.values()).containsExactly(Country.SWITZERLAND, Country.CHILE).inOrder();
     // backward map ordered by country
     assertThat(bimap.inverse().keySet())
-        .containsExactly(Country.CHILE, Country.SWITZERLAND).inOrder();
+        .containsExactly(Country.CHILE, Country.SWITZERLAND)
+        .inOrder();
     // backward map ordered by country (even for currency values)
-    assertThat(bimap.inverse().values())
-        .containsExactly(Currency.PESO, Currency.FRANC).inOrder();
+    assertThat(bimap.inverse().values()).containsExactly(Currency.PESO, Currency.FRANC).inOrder();
   }
 
   public void testValuesIteratorRemove() {
     // The enum orderings are alphabetical, leading to the bimap and its inverse
     // having inconsistent iteration orderings.
-    Map<Currency, Country> map = ImmutableMap.of(
-        Currency.DOLLAR, Country.CANADA,
-        Currency.PESO, Country.CHILE,
-        Currency.FRANC, Country.SWITZERLAND);
+    Map<Currency, Country> map =
+        ImmutableMap.of(
+            Currency.DOLLAR, Country.CANADA,
+            Currency.PESO, Country.CHILE,
+            Currency.FRANC, Country.SWITZERLAND);
     EnumBiMap<Currency, Country> bimap = EnumBiMap.create(map);
 
     Iterator<Currency> iter = bimap.keySet().iterator();
-    assertEquals(Currency.DOLLAR, iter.next());
-    assertEquals(Currency.FRANC, iter.next());
+    assertThat(iter.next()).isEqualTo(Currency.DOLLAR);
+    assertThat(iter.next()).isEqualTo(Currency.FRANC);
     iter.remove();
 
     // forward map ordered by currency
-    assertThat(bimap.keySet())
-        .containsExactly(Currency.DOLLAR, Currency.PESO).inOrder();
+    assertThat(bimap.keySet()).containsExactly(Currency.DOLLAR, Currency.PESO).inOrder();
     // forward map ordered by currency (even for country values)
-    assertThat(bimap.values())
-        .containsExactly(Country.CANADA, Country.CHILE).inOrder();
+    assertThat(bimap.values()).containsExactly(Country.CANADA, Country.CHILE).inOrder();
     // backward map ordered by country
-    assertThat(bimap.inverse().keySet())
-        .containsExactly(Country.CANADA, Country.CHILE).inOrder();
+    assertThat(bimap.inverse().keySet()).containsExactly(Country.CANADA, Country.CHILE).inOrder();
     // backward map ordered by country (even for currency values)
-    assertThat(bimap.inverse().values())
-        .containsExactly(Currency.DOLLAR, Currency.PESO).inOrder();
+    assertThat(bimap.inverse().values()).containsExactly(Currency.DOLLAR, Currency.PESO).inOrder();
   }
 
   public void testEntrySet() {
     // Bug 3168290
-    Map<Currency, Country> map = ImmutableMap.of(
-        Currency.DOLLAR, Country.CANADA,
-        Currency.PESO, Country.CHILE,
-        Currency.FRANC, Country.SWITZERLAND);
+    Map<Currency, Country> map =
+        ImmutableMap.of(
+            Currency.DOLLAR, Country.CANADA,
+            Currency.PESO, Country.CHILE,
+            Currency.FRANC, Country.SWITZERLAND);
     EnumBiMap<Currency, Country> bimap = EnumBiMap.create(map);
-    Set<Object> uniqueEntries = Sets.newIdentityHashSet();
+    Set<Object> uniqueEntries = newIdentityHashSet();
     uniqueEntries.addAll(bimap.entrySet());
     assertEquals(3, uniqueEntries.size());
   }
 
-  @GwtIncompatible // serialization
+  @GwtIncompatible
   public void testSerializable() {
-    SerializableTester.reserializeAndAssert(
-        EnumBiMap.create(ImmutableMap.of(Currency.DOLLAR, Country.CANADA)));
+    reserializeAndAssert(EnumBiMap.create(ImmutableMap.of(Currency.DOLLAR, Country.CANADA)));
   }
 
   @GwtIncompatible // reflection

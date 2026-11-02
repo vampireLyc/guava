@@ -18,6 +18,7 @@ package com.google.common.reflect;
 
 import static com.google.common.collect.Maps.immutableEntry;
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.testing.MapTestSuiteBuilder;
@@ -32,12 +33,14 @@ import java.util.Map.Entry;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Unit test for {@link ImmutableTypeToInstanceMap}.
  *
  * @author Ben Yu
  */
+@NullUnmarked
 public class ImmutableTypeToInstanceMapTest extends TestCase {
 
   @AndroidIncompatible // problem with suite builders on Android
@@ -45,30 +48,31 @@ public class ImmutableTypeToInstanceMapTest extends TestCase {
     TestSuite suite = new TestSuite();
     suite.addTestSuite(ImmutableTypeToInstanceMapTest.class);
 
-    suite.addTest(MapTestSuiteBuilder
-        .using(new TestTypeToInstanceMapGenerator() {
-          // Other tests will verify what real, warning-free usage looks like
-          // but here we have to do some serious fudging
-          @Override
-          @SuppressWarnings("unchecked")
-          public Map<TypeToken, Object> create(Object... elements) {
-            ImmutableTypeToInstanceMap.Builder<Object> builder
-                = ImmutableTypeToInstanceMap.builder();
-            for (Object object : elements) {
-              Entry<TypeToken, Object> entry = (Entry<TypeToken, Object>) object;
-              builder.put(entry.getKey(), entry.getValue());
-            }
-            return (Map) builder.build();
-          }
-        })
-        .named("ImmutableTypeToInstanceMap")
-        .withFeatures(
-            MapFeature.REJECTS_DUPLICATES_AT_CREATION,
-            MapFeature.RESTRICTS_KEYS,
-            CollectionFeature.KNOWN_ORDER,
-            CollectionSize.ANY,
-            MapFeature.ALLOWS_ANY_NULL_QUERIES)
-        .createTestSuite());
+    suite.addTest(
+        MapTestSuiteBuilder.using(
+                new TestTypeToInstanceMapGenerator() {
+                  // Other tests will verify what real, warning-free usage looks like
+                  // but here we have to do some serious fudging
+                  @Override
+                  @SuppressWarnings({"unchecked", "rawtypes"})
+                  public Map<TypeToken, Object> create(Object... elements) {
+                    ImmutableTypeToInstanceMap.Builder<Object> builder =
+                        ImmutableTypeToInstanceMap.builder();
+                    for (Object object : elements) {
+                      Entry<?, ?> entry = (Entry<?, ?>) object;
+                      builder.put((TypeToken) entry.getKey(), entry.getValue());
+                    }
+                    return (Map) builder.build();
+                  }
+                })
+            .named("ImmutableTypeToInstanceMap")
+            .withFeatures(
+                MapFeature.REJECTS_DUPLICATES_AT_CREATION,
+                MapFeature.RESTRICTS_KEYS,
+                CollectionFeature.KNOWN_ORDER,
+                CollectionSize.ANY,
+                MapFeature.ALLOWS_ANY_NULL_QUERIES)
+            .createTestSuite());
 
     return suite;
   }
@@ -78,10 +82,11 @@ public class ImmutableTypeToInstanceMapTest extends TestCase {
   }
 
   public void testPrimitiveAndWrapper() {
-    ImmutableTypeToInstanceMap<Number> map = ImmutableTypeToInstanceMap.<Number>builder()
-        .put(Integer.class, 0)
-        .put(int.class, 1)
-        .build();
+    ImmutableTypeToInstanceMap<Number> map =
+        ImmutableTypeToInstanceMap.<Number>builder()
+            .put(Integer.class, 0)
+            .put(int.class, 1)
+            .build();
     assertEquals(2, map.size());
 
     assertEquals(0, (int) map.getInstance(Integer.class));
@@ -92,21 +97,19 @@ public class ImmutableTypeToInstanceMapTest extends TestCase {
 
   public void testParameterizedType() {
     TypeToken<ImmutableList<Integer>> type = new TypeToken<ImmutableList<Integer>>() {};
-    ImmutableTypeToInstanceMap<Iterable<?>> map = ImmutableTypeToInstanceMap.<Iterable<?>>builder()
-        .put(type, ImmutableList.of(1))
-        .build();
+    ImmutableTypeToInstanceMap<Iterable<?>> map =
+        ImmutableTypeToInstanceMap.<Iterable<?>>builder().put(type, ImmutableList.of(1)).build();
     assertEquals(1, map.size());
     assertEquals(ImmutableList.of(1), map.getInstance(type));
   }
 
   public void testGenericArrayType() {
     @SuppressWarnings("unchecked") // Trying to test generic array
-    ImmutableList<Integer>[] array = new ImmutableList[] {ImmutableList.of(1)};
+    ImmutableList<Integer>[] array =
+        (ImmutableList<Integer>[]) new ImmutableList<?>[] {ImmutableList.of(1)};
     TypeToken<ImmutableList<Integer>[]> type = new TypeToken<ImmutableList<Integer>[]>() {};
     ImmutableTypeToInstanceMap<Iterable<?>[]> map =
-        ImmutableTypeToInstanceMap.<Iterable<?>[]>builder()
-            .put(type, array)
-            .build();
+        ImmutableTypeToInstanceMap.<Iterable<?>[]>builder().put(type, array).build();
     assertEquals(1, map.size());
     // Redundant cast works around a javac bug.
     assertThat((Iterable<?>[]) map.getInstance(type)).asList().containsExactly(array[0]);
@@ -114,48 +117,45 @@ public class ImmutableTypeToInstanceMapTest extends TestCase {
 
   public void testWildcardType() {
     TypeToken<ImmutableList<?>> type = new TypeToken<ImmutableList<?>>() {};
-    ImmutableTypeToInstanceMap<Iterable<?>> map = ImmutableTypeToInstanceMap.<Iterable<?>>builder()
-            .put(type, ImmutableList.of(1))
-            .build();
+    ImmutableTypeToInstanceMap<Iterable<?>> map =
+        ImmutableTypeToInstanceMap.<Iterable<?>>builder().put(type, ImmutableList.of(1)).build();
     assertEquals(1, map.size());
     assertEquals(ImmutableList.of(1), map.getInstance(type));
   }
 
   public void testGetInstance_containsTypeVariable() {
     ImmutableTypeToInstanceMap<Iterable<Number>> map = ImmutableTypeToInstanceMap.of();
-    try {
-      map.getInstance(this.<Number>anyIterableType());
-      fail();
-    } catch (IllegalArgumentException expected) {}
+    assertThrows(IllegalArgumentException.class, () -> map.getInstance(anyIterableType()));
   }
 
   public void testPut_containsTypeVariable() {
     ImmutableTypeToInstanceMap.Builder<Iterable<Integer>> builder =
         ImmutableTypeToInstanceMap.builder();
-    try {
-      builder.put(this.<Integer>anyIterableType(), ImmutableList.of(1));
-      fail();
-    } catch (IllegalArgumentException expected) {}
+    assertThrows(
+        IllegalArgumentException.class, () -> builder.put(anyIterableType(), ImmutableList.of(1)));
   }
 
-  private <T> TypeToken<Iterable<T>> anyIterableType() {
+  private static <T> TypeToken<Iterable<T>> anyIterableType() {
     return new TypeToken<Iterable<T>>() {};
   }
 
+  @SuppressWarnings("rawtypes") // TODO(cpovirk): Can we at least use Class<?> in some places?
   abstract static class TestTypeToInstanceMapGenerator
       implements TestMapGenerator<TypeToken, Object> {
 
-    @Override public TypeToken[] createKeyArray(int length) {
-      return new TypeToken[length];
+    @Override
+    public TypeToken<?>[] createKeyArray(int length) {
+      return new TypeToken<?>[length];
     }
 
-    @Override public Object[] createValueArray(int length) {
+    @Override
+    public Object[] createValueArray(int length) {
       return new Object[length];
     }
 
     @Override
     public SampleElements<Entry<TypeToken, Object>> samples() {
-      return new SampleElements<Entry<TypeToken, Object>>(
+      return new SampleElements<>(
           entry(TypeToken.of(Integer.class), 0),
           entry(TypeToken.of(Number.class), 1),
           entry(new TypeToken<ImmutableList<Integer>>() {}, ImmutableList.of(2)),
@@ -170,7 +170,7 @@ public class ImmutableTypeToInstanceMapTest extends TestCase {
     @Override
     @SuppressWarnings("unchecked")
     public Entry<TypeToken, Object>[] createArray(int length) {
-      return new Entry[length];
+      return (Entry<TypeToken, Object>[]) new Entry<?, ?>[length];
     }
 
     @Override

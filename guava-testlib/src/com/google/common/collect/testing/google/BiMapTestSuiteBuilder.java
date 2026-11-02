@@ -16,6 +16,8 @@
 
 package com.google.common.collect.testing.google;
 
+import static java.util.Collections.emptySet;
+
 import com.google.common.annotations.GwtIncompatible;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.testing.AbstractTester;
@@ -32,10 +34,8 @@ import com.google.common.collect.testing.google.DerivedGoogleCollectionGenerator
 import com.google.common.collect.testing.google.DerivedGoogleCollectionGenerators.MapGenerator;
 import com.google.common.collect.testing.testers.SetCreationTester;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import junit.framework.TestSuite;
@@ -49,15 +49,16 @@ import junit.framework.TestSuite;
 @GwtIncompatible
 public class BiMapTestSuiteBuilder<K, V>
     extends PerCollectionSizeTestSuiteBuilder<
-        BiMapTestSuiteBuilder<K, V>, TestBiMapGenerator<K, V>, BiMap<K, V>, Map.Entry<K, V>> {
+        BiMapTestSuiteBuilder<K, V>, TestBiMapGenerator<K, V>, BiMap<K, V>, Entry<K, V>> {
   public static <K, V> BiMapTestSuiteBuilder<K, V> using(TestBiMapGenerator<K, V> generator) {
     return new BiMapTestSuiteBuilder<K, V>().usingGenerator(generator);
   }
 
+  @SuppressWarnings("rawtypes") // class literals
   @Override
   protected List<Class<? extends AbstractTester>> getTesters() {
-    List<Class<? extends AbstractTester>> testers =
-        new ArrayList<Class<? extends AbstractTester>>();
+    List<Class<? extends AbstractTester>> testers = new ArrayList<>();
+    testers.add(BiMapEntrySetTester.class);
     testers.add(BiMapPutTester.class);
     testers.add(BiMapInverseTester.class);
     testers.add(BiMapRemoveTester.class);
@@ -70,7 +71,7 @@ public class BiMapTestSuiteBuilder<K, V>
 
     @Override
     public Set<Feature<? super Void>> getImpliedFeatures() {
-      return Collections.emptySet();
+      return emptySet();
     }
   }
 
@@ -89,6 +90,8 @@ public class BiMapTestSuiteBuilder<K, V>
             .suppressing(parentBuilder.getSuppressedTests())
             .suppressing(SetCreationTester.class.getMethods())
             // BiMap.entrySet() duplicate-handling behavior is too confusing for SetCreationTester
+            .withSetUp(parentBuilder.getSetUp())
+            .withTearDown(parentBuilder.getTearDown())
             .createTestSuite());
     /*
      * TODO(cpovirk): the Map tests duplicate most of this effort by using a
@@ -102,14 +105,17 @@ public class BiMapTestSuiteBuilder<K, V>
             .suppressing(parentBuilder.getSuppressedTests())
             .suppressing(SetCreationTester.class.getMethods())
             // BiMap.values() duplicate-handling behavior is too confusing for SetCreationTester
+            .withSetUp(parentBuilder.getSetUp())
+            .withTearDown(parentBuilder.getTearDown())
             .createTestSuite());
     if (!parentBuilder.getFeatures().contains(NoRecurse.INVERSE)) {
       derived.add(
-          BiMapTestSuiteBuilder.using(
-                  new InverseBiMapGenerator<K, V>(parentBuilder.getSubjectGenerator()))
+          using(new InverseBiMapGenerator<K, V>(parentBuilder.getSubjectGenerator()))
               .withFeatures(computeInverseFeatures(parentBuilder.getFeatures()))
               .named(parentBuilder.getName() + " inverse")
               .suppressing(parentBuilder.getSuppressedTests())
+              .withSetUp(parentBuilder.getSetUp())
+              .withTearDown(parentBuilder.getTearDown())
               .createTestSuite());
     }
 
@@ -117,7 +123,7 @@ public class BiMapTestSuiteBuilder<K, V>
   }
 
   private static Set<Feature<?>> computeInverseFeatures(Set<Feature<?>> mapFeatures) {
-    Set<Feature<?>> inverseFeatures = new HashSet<Feature<?>>(mapFeatures);
+    Set<Feature<?>> inverseFeatures = new HashSet<>(mapFeatures);
 
     boolean nullKeys = inverseFeatures.remove(MapFeature.ALLOWS_NULL_KEYS);
     boolean nullValues = inverseFeatures.remove(MapFeature.ALLOWS_NULL_VALUES);

@@ -15,27 +15,33 @@
 package com.google.common.cache;
 
 import com.google.common.annotations.GwtCompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ExecutionError;
 import com.google.common.util.concurrent.UncheckedExecutionException;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import com.google.errorprone.annotations.CompatibleWith;
+import com.google.errorprone.annotations.DoNotMock;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
- * A semi-persistent mapping from keys to values. Cache entries are manually added using
- * {@link #get(Object, Callable)} or {@link #put(Object, Object)}, and are stored in the cache until
- * either evicted or manually invalidated. The common way to build instances is using
- * {@link CacheBuilder}.
+ * A semi-persistent mapping from keys to values. Cache entries are manually added using {@link
+ * #get(Object, Callable)} or {@link #put(Object, Object)}, and are stored in the cache until either
+ * evicted or manually invalidated. The common way to build instances is using {@link CacheBuilder}.
  *
  * <p>Implementations of this interface are expected to be thread-safe, and can be safely accessed
  * by multiple concurrent threads.
  *
+ * @param <K> the type of the cache's keys, which are not permitted to be null
+ * @param <V> the type of the cache's values, which are not permitted to be null
  * @author Charles Fry
  * @since 10.0
  */
+@DoNotMock("Use CacheBuilder.newBuilder().build()")
 @GwtCompatible
 public interface Cache<K, V> {
 
@@ -45,8 +51,8 @@ public interface Cache<K, V> {
    *
    * @since 11.0
    */
-  @Nullable
-  V getIfPresent(Object key);
+  @CanIgnoreReturnValue // TODO(b/27479612): consider removing this?
+  @Nullable V getIfPresent(@CompatibleWith("K") Object key);
 
   /**
    * Returns the value associated with {@code key} in this cache, obtaining that value from {@code
@@ -57,21 +63,21 @@ public interface Cache<K, V> {
    * <p>Among the improvements that this method and {@code LoadingCache.get(K)} both provide are:
    *
    * <ul>
-   * <li>{@linkplain LoadingCache#get(Object) awaiting the result of a pending load} rather than
-   *     starting a redundant one
-   * <li>eliminating the error-prone caching boilerplate
-   * <li>tracking load {@linkplain #stats statistics}
+   *   <li>{@linkplain LoadingCache#get(Object) awaiting the result of a pending load} rather than
+   *       starting a redundant one
+   *   <li>eliminating the error-prone caching boilerplate
+   *   <li>tracking load {@linkplain #stats statistics}
    * </ul>
    *
    * <p>Among the further improvements that {@code LoadingCache} can provide but this method cannot:
    *
    * <ul>
-   * <li>consolidation of the loader logic to {@linkplain CacheBuilder#build(CacheLoader) a single
-   *     authoritative location}
-   * <li>{@linkplain LoadingCache#refresh refreshing of entries}, including {@linkplain
-   *     CacheBuilder#refreshAfterWrite automated refreshing}
-   * <li>{@linkplain LoadingCache#getAll bulk loading requests}, including {@linkplain
-   *     CacheLoader#loadAll bulk loading implementations}
+   *   <li>consolidation of the loader logic to {@linkplain CacheBuilder#build(CacheLoader) a single
+   *       authoritative location}
+   *   <li>{@linkplain LoadingCache#refresh refreshing of entries}, including {@linkplain
+   *       CacheBuilder#refreshAfterWrite automated refreshing}
+   *   <li>{@linkplain LoadingCache#getAll bulk loading requests}, including {@linkplain
+   *       CacheLoader#loadAll bulk loading implementations}
    * </ul>
    *
    * <p><b>Warning:</b> For any given key, every {@code loader} used with it should compute the same
@@ -92,9 +98,9 @@ public interface Cache<K, V> {
    * @throws UncheckedExecutionException if an unchecked exception was thrown while loading the
    *     value
    * @throws ExecutionError if an error was thrown while loading the value
-   *
    * @since 11.0
    */
+  @CanIgnoreReturnValue // TODO(b/27479612): consider removing this
   V get(K key, Callable<? extends V> loader) throws ExecutionException;
 
   /**
@@ -103,7 +109,11 @@ public interface Cache<K, V> {
    *
    * @since 11.0
    */
-  ImmutableMap<K, V> getAllPresent(Iterable<?> keys);
+  /*
+   * <? extends Object> is mostly the same as <?> to plain Java. But to nullness checkers, they
+   * differ: <? extends Object> means "non-null types," while <?> means "all types."
+   */
+  ImmutableMap<K, V> getAllPresent(Iterable<? extends Object> keys);
 
   /**
    * Associates {@code value} with {@code key} in this cache. If the cache previously contained a
@@ -117,7 +127,7 @@ public interface Cache<K, V> {
   void put(K key, V value);
 
   /**
-   * Copies all of the mappings from the specified map to the cache. The effect of this call is
+   * Copies all the mappings from the specified map to the cache. The effect of this call is
    * equivalent to that of calling {@code put(k, v)} on this map once for each mapping from key
    * {@code k} to value {@code v} in the specified map. The behavior of this operation is undefined
    * if the specified map is modified while the operation is in progress.
@@ -126,26 +136,21 @@ public interface Cache<K, V> {
    */
   void putAll(Map<? extends K, ? extends V> m);
 
-  /**
-   * Discards any cached value for key {@code key}.
-   */
-  void invalidate(Object key);
+  /** Discards any cached value for key {@code key}. */
+  void invalidate(@CompatibleWith("K") Object key);
 
   /**
    * Discards any cached values for keys {@code keys}.
    *
    * @since 11.0
    */
-  void invalidateAll(Iterable<?> keys);
+  // For discussion of <? extends Object>, see getAllPresent.
+  void invalidateAll(Iterable<? extends Object> keys);
 
-  /**
-   * Discards all entries in the cache.
-   */
+  /** Discards all entries in the cache. */
   void invalidateAll();
 
-  /**
-   * Returns the approximate number of entries in this cache.
-   */
+  /** Returns the approximate number of entries in this cache. */
   long size();
 
   /**
@@ -169,6 +174,7 @@ public interface Cache<K, V> {
    * concurrent use, but if the cache is modified (including by eviction) after the iterator is
    * created, it is undefined which of the changes (if any) will be reflected in that iterator.
    */
+  @J2ktIncompatible // Thread safety complexity
   ConcurrentMap<K, V> asMap();
 
   /**

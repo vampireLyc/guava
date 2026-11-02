@@ -17,6 +17,7 @@ package com.google.common.io;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -32,24 +33,24 @@ import java.nio.charset.Charset;
  * is an immutable <i>supplier</i> of {@code OutputStream} instances.
  *
  * <p>{@code ByteSink} provides two kinds of methods:
+ *
  * <ul>
- * <li><b>Methods that return a stream:</b> These methods should return a <i>new</i>, independent
- *     instance each time they are called. The caller is responsible for ensuring that the returned
- *     stream is closed.
- * <li><b>Convenience methods:</b> These are implementations of common operations that are typically
- *     implemented by opening a stream using one of the methods in the first category, doing
- *     something and finally closing the stream or channel that was opened.
+ *   <li><b>Methods that return a stream:</b> These methods should return a <i>new</i>, independent
+ *       instance each time they are called. The caller is responsible for ensuring that the
+ *       returned stream is closed.
+ *   <li><b>Convenience methods:</b> These are implementations of common operations that are
+ *       typically implemented by opening a stream using one of the methods in the first category,
+ *       doing something and finally closing the stream or channel that was opened.
  * </ul>
  *
  * @since 14.0
  * @author Colin Decker
  */
+@J2ktIncompatible
 @GwtIncompatible
 public abstract class ByteSink {
 
-  /**
-   * Constructor for use by subclasses.
-   */
+  /** Constructor for use by subclasses. */
   protected ByteSink() {}
 
   /**
@@ -97,21 +98,14 @@ public abstract class ByteSink {
   public void write(byte[] bytes) throws IOException {
     checkNotNull(bytes);
 
-    Closer closer = Closer.create();
-    try {
-      OutputStream out = closer.register(openStream());
+    try (OutputStream out = openStream()) {
       out.write(bytes);
-      out.flush(); // https://code.google.com/p/guava-libraries/issues/detail?id=1330
-    } catch (Throwable e) {
-      throw closer.rethrow(e);
-    } finally {
-      closer.close();
     }
   }
 
   /**
-   * Writes all the bytes from the given {@code InputStream} to this sink. Does not close
-   * {@code input}.
+   * Writes all the bytes from the given {@code InputStream} to this sink. Does not close {@code
+   * input}.
    *
    * @return the number of bytes written
    * @throws IOException if an I/O occurs while reading from {@code input} or writing to this sink
@@ -120,16 +114,8 @@ public abstract class ByteSink {
   public long writeFrom(InputStream input) throws IOException {
     checkNotNull(input);
 
-    Closer closer = Closer.create();
-    try {
-      OutputStream out = closer.register(openStream());
-      long written = ByteStreams.copy(input, out);
-      out.flush(); // https://code.google.com/p/guava-libraries/issues/detail?id=1330
-      return written;
-    } catch (Throwable e) {
-      throw closer.rethrow(e);
-    } finally {
-      closer.close();
+    try (OutputStream out = openStream()) {
+      return ByteStreams.copy(input, out);
     }
   }
 

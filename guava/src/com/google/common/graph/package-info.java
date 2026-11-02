@@ -22,8 +22,8 @@
  * library.
  */
 @CheckReturnValue
-@ParametersAreNonnullByDefault
+@NullMarked
 package com.google.common.graph;
 
-import javax.annotation.CheckReturnValue;
-import javax.annotation.ParametersAreNonnullByDefault;
+import com.google.errorprone.annotations.CheckReturnValue;
+import org.jspecify.annotations.NullMarked;

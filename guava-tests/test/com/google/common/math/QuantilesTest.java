@@ -20,13 +20,18 @@ import static com.google.common.math.Quantiles.median;
 import static com.google.common.math.Quantiles.percentiles;
 import static com.google.common.math.Quantiles.quartiles;
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 import static java.lang.Double.NEGATIVE_INFINITY;
 import static java.lang.Double.NaN;
 import static java.lang.Double.POSITIVE_INFINITY;
 import static java.math.RoundingMode.CEILING;
 import static java.math.RoundingMode.FLOOR;
 import static java.math.RoundingMode.UNNECESSARY;
+import static java.util.Collections.shuffle;
+import static org.junit.Assert.assertThrows;
 
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Ordering;
@@ -35,18 +40,22 @@ import com.google.common.primitives.Doubles;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.truth.Correspondence;
+import com.google.common.truth.Correspondence.BinaryPredicate;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
-import javax.annotation.Nullable;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Tests for {@link Quantiles}.
  *
  * @author Pete Gillin
  */
+@NullUnmarked
+@GwtIncompatible
+@J2ktIncompatible
 public class QuantilesTest extends TestCase {
 
   /*
@@ -87,32 +96,31 @@ public class QuantilesTest extends TestCase {
    * each other or identical non-finite values.
    */
   private static final Correspondence<Double, Double> QUANTILE_CORRESPONDENCE =
-      new Correspondence<Double, Double>() {
-
-        @Override
-        public boolean compare(@Nullable Double actual, @Nullable Double expected) {
-          // Test for equality to allow non-finite values to match; otherwise, use the finite test.
-          return actual.equals(expected)
-              || FINITE_QUANTILE_CORRESPONDENCE.compare(actual, expected);
-        }
-
-        @Override
-        public String toString() {
-          return "is identical to or " + FINITE_QUANTILE_CORRESPONDENCE;
-        }
-      };
+      Correspondence.from(
+          new BinaryPredicate<Double, Double>() {
+            @Override
+            public boolean apply(@Nullable Double actual, @Nullable Double expected) {
+              // Test for equality to allow non-finite values to match; otherwise, use the finite
+              // test.
+              return actual.equals(expected)
+                  || FINITE_QUANTILE_CORRESPONDENCE.compare(actual, expected);
+            }
+          },
+          "is identical to or " + FINITE_QUANTILE_CORRESPONDENCE);
 
   // 1. Tests on a hardcoded dataset for chains starting with median(), quartiles(), and scale(10):
 
-  /**
-   * The squares of the 16 integers from 0 to 15, in an arbitrary order.
-   */
-  private static final ImmutableList<Double> SIXTEEN_SQUARES_DOUBLES = ImmutableList.of(25.0, 100.0,
-      0.0, 144.0, 9.0, 121.0, 4.0, 225.0, 169.0, 64.0, 49.0, 16.0, 36.0, 1.0, 81.0, 196.0);
-  private static final ImmutableList<Long> SIXTEEN_SQUARES_LONGS = ImmutableList.of(25L, 100L,
-      0L, 144L, 9L, 121L, 4L, 225L, 169L, 64L, 49L, 16L, 36L, 1L, 81L, 196L);
-  private static final ImmutableList<Integer> SIXTEEN_SQUARES_INTEGERS = ImmutableList.of(25, 100,
-      0, 144, 9, 121, 4, 225, 169, 64, 49, 16, 36, 1, 81, 196);
+  /** The squares of the 16 integers from 0 to 15, in an arbitrary order. */
+  private static final ImmutableList<Double> SIXTEEN_SQUARES_DOUBLES =
+      ImmutableList.of(
+          25.0, 100.0, 0.0, 144.0, 9.0, 121.0, 4.0, 225.0, 169.0, 64.0, 49.0, 16.0, 36.0, 1.0, 81.0,
+          196.0);
+
+  private static final ImmutableList<Long> SIXTEEN_SQUARES_LONGS =
+      ImmutableList.of(
+          25L, 100L, 0L, 144L, 9L, 121L, 4L, 225L, 169L, 64L, 49L, 16L, 36L, 1L, 81L, 196L);
+  private static final ImmutableList<Integer> SIXTEEN_SQUARES_INTEGERS =
+      ImmutableList.of(25, 100, 0, 144, 9, 121, 4, 225, 169, 64, 49, 16, 36, 1, 81, 196);
   private static final double SIXTEEN_SQUARES_MIN = 0.0;
   private static final double SIXTEEN_SQUARES_DECILE_1 = 0.5 * (1.0 + 4.0);
   private static final double SIXTEEN_SQUARES_QUARTILE_1 = 0.25 * 9.0 + 0.75 * 16.0;
@@ -238,7 +246,7 @@ public class QuantilesTest extends TestCase {
     // This test is the same as testScale_indexes_varargs_compute_doubleCollection except that the
     // array of indexes to be calculated is modified between the calls to indexes and compute: since
     // the contract is that it is snapshotted, this shouldn't make any difference to the result.
-    int[] indexes = { 0, 10, 5, 1, 8, 10 };
+    int[] indexes = {0, 10, 5, 1, 8, 10};
     ScaleAndIndexes intermediate = Quantiles.scale(10).indexes(indexes);
     indexes[0] = 3;
     assertThat(intermediate.compute(SIXTEEN_SQUARES_DOUBLES))
@@ -253,7 +261,7 @@ public class QuantilesTest extends TestCase {
 
   public void testScale_indexes_largeVarargs_compute_doubleCollection() {
     int scale = Integer.MAX_VALUE;
-    int otherIndex = (Integer.MAX_VALUE - 1) / 3;  // this divides exactly
+    int otherIndex = (Integer.MAX_VALUE - 1) / 3; // this divides exactly
     // For the otherIndex calculation, we have q=Integer.MAX_VALUE, k=(Integer.MAX_VALUE-1)/3, and
     // N=16. Therefore k*(N-1)/q = 5-5/Integer.MAX_VALUE, which has floor 4 and fractional part
     // (1-5/Integer.MAX_VALUE).
@@ -287,6 +295,18 @@ public class QuantilesTest extends TestCase {
             5, SIXTEEN_SQUARES_MEDIAN,
             1, SIXTEEN_SQUARES_DECILE_1,
             8, SIXTEEN_SQUARES_DECILE_8);
+  }
+
+  public void testScale_indexes_varargs_compute_indexOrderIsMaintained() {
+    assertThat(Quantiles.scale(10).indexes(0, 10, 5, 1, 8, 1).compute(SIXTEEN_SQUARES_INTEGERS))
+        .comparingValuesUsing(QUANTILE_CORRESPONDENCE)
+        .containsExactly(
+            0, SIXTEEN_SQUARES_MIN,
+            10, SIXTEEN_SQUARES_MAX,
+            5, SIXTEEN_SQUARES_MEDIAN,
+            1, SIXTEEN_SQUARES_DECILE_1,
+            8, SIXTEEN_SQUARES_DECILE_8)
+        .inOrder();
   }
 
   public void testScale_indexes_varargs_compute_doubleVarargs() {
@@ -390,8 +410,13 @@ public class QuantilesTest extends TestCase {
   private static final ImmutableList<Double> ONE_TO_FIVE_AND_NEGATIVE_INFINITY =
       ImmutableList.of(3.0, 5.0, NEGATIVE_INFINITY, 1.0, 4.0, 2.0);
   private static final ImmutableList<Double> NEGATIVE_INFINITY_AND_FIVE_POSITIVE_INFINITIES =
-      ImmutableList.of(POSITIVE_INFINITY, POSITIVE_INFINITY, NEGATIVE_INFINITY, POSITIVE_INFINITY,
-          POSITIVE_INFINITY, POSITIVE_INFINITY);
+      ImmutableList.of(
+          POSITIVE_INFINITY,
+          POSITIVE_INFINITY,
+          NEGATIVE_INFINITY,
+          POSITIVE_INFINITY,
+          POSITIVE_INFINITY,
+          POSITIVE_INFINITY);
   private static final ImmutableList<Double> ONE_TO_FIVE_AND_NAN =
       ImmutableList.of(3.0, 5.0, NaN, 1.0, 4.0, 2.0);
 
@@ -406,12 +431,12 @@ public class QuantilesTest extends TestCase {
             1, 1.5,
             2, 2.0,
             8, 5.0,
-            9, POSITIVE_INFINITY, // interpolating between 5.0 and POSITIVE_INFNINITY
+            9, POSITIVE_INFINITY, // interpolating between 5.0 and POSITIVE_INFINITY
             10, POSITIVE_INFINITY);
   }
 
   public void testScale_index_compute_doubleCollection_positiveInfinity() {
-    // interpolating between 5.0 and POSITIVE_INFNINITY
+    // interpolating between 5.0 and POSITIVE_INFINITY
     assertThat(Quantiles.scale(10).index(9).compute(ONE_TO_FIVE_AND_POSITIVE_INFINITY))
         .isPositiveInfinity();
   }
@@ -424,7 +449,7 @@ public class QuantilesTest extends TestCase {
         .comparingValuesUsing(QUANTILE_CORRESPONDENCE)
         .containsExactly(
             0, NEGATIVE_INFINITY,
-            1, NEGATIVE_INFINITY, // interpolating between NEGATIVE_INFNINITY and 1.0
+            1, NEGATIVE_INFINITY, // interpolating between NEGATIVE_INFINITY and 1.0
             2, 1.0,
             8, 4.0,
             9, 4.5,
@@ -432,7 +457,7 @@ public class QuantilesTest extends TestCase {
   }
 
   public void testScale_index_compute_doubleCollection_negativeInfinity() {
-    // interpolating between NEGATIVE_INFNINITY and 1.0
+    // interpolating between NEGATIVE_INFINITY and 1.0
     assertThat(Quantiles.scale(10).index(1).compute(ONE_TO_FIVE_AND_NEGATIVE_INFINITY))
         .isNegativeInfinity();
   }
@@ -502,27 +527,26 @@ public class QuantilesTest extends TestCase {
 
   public void testPercentiles_index_compute_doubleCollection() {
     for (int index = 0; index <= 100; index++) {
-      assertThat(percentiles().index(index).compute(PSEUDORANDOM_DATASET))
-          .named("quantile at index " + index)
+      assertWithMessage("quantile at index %s", index)
+          .that(percentiles().index(index).compute(PSEUDORANDOM_DATASET))
           .isWithin(ALLOWED_ERROR)
           .of(expectedLargeDatasetPercentile(index));
     }
   }
 
-  @AndroidIncompatible // slow
   public void testPercentiles_index_computeInPlace() {
     // Assert that the computation gives the correct result for all possible percentiles.
     for (int index = 0; index <= 100; index++) {
       double[] dataset = Doubles.toArray(PSEUDORANDOM_DATASET);
-      assertThat(percentiles().index(index).computeInPlace(dataset))
-          .named("quantile at index " + index)
+      assertWithMessage("quantile at index %s", index)
+          .that(percentiles().index(index).computeInPlace(dataset))
           .isWithin(ALLOWED_ERROR)
           .of(expectedLargeDatasetPercentile(index));
     }
 
     // Assert that the dataset contains the same elements after the in-place computation (although
     // they may be reordered). We only do this for one index rather than for all indexes, as it is
-    // quite expensives (quadratic in the size of PSEUDORANDOM_DATASET).
+    // quite expensive (quadratic in the size of PSEUDORANDOM_DATASET).
     double[] dataset = Doubles.toArray(PSEUDORANDOM_DATASET);
     @SuppressWarnings("unused")
     double actual = percentiles().index(33).computeInPlace(dataset);
@@ -539,39 +563,38 @@ public class QuantilesTest extends TestCase {
         }
         assertThat(percentiles().indexes(index1, index2).compute(PSEUDORANDOM_DATASET))
             .comparingValuesUsing(QUANTILE_CORRESPONDENCE)
-            .containsExactlyEntriesIn(expectedBuilder.build());
+            .containsExactlyEntriesIn(expectedBuilder.buildOrThrow());
       }
     }
   }
 
   public void testPercentiles_indexes_varargsAll_compute_doubleCollection() {
-    ArrayList<Integer> indexes = new ArrayList<Integer>();
+    ArrayList<Integer> indexes = new ArrayList<>();
     ImmutableMap.Builder<Integer, Double> expectedBuilder = ImmutableMap.builder();
     for (int index = 0; index <= 100; index++) {
       indexes.add(index);
       expectedBuilder.put(index, expectedLargeDatasetPercentile(index));
     }
     Random random = new Random(770683168895677741L);
-    Collections.shuffle(indexes, random);
+    shuffle(indexes, random);
     assertThat(percentiles().indexes(Ints.toArray(indexes)).compute(PSEUDORANDOM_DATASET))
         .comparingValuesUsing(QUANTILE_CORRESPONDENCE)
-        .containsExactlyEntriesIn(expectedBuilder.build());
+        .containsExactlyEntriesIn(expectedBuilder.buildOrThrow());
   }
 
-  @AndroidIncompatible // slow
   public void testPercentiles_indexes_varargsAll_computeInPlace() {
     double[] dataset = Doubles.toArray(PSEUDORANDOM_DATASET);
-    List<Integer> indexes = new ArrayList<Integer>();
+    List<Integer> indexes = new ArrayList<>();
     ImmutableMap.Builder<Integer, Double> expectedBuilder = ImmutableMap.builder();
     for (int index = 0; index <= 100; index++) {
       indexes.add(index);
       expectedBuilder.put(index, expectedLargeDatasetPercentile(index));
     }
     Random random = new Random(770683168895677741L);
-    Collections.shuffle(indexes, random);
+    shuffle(indexes, random);
     assertThat(percentiles().indexes(Ints.toArray(indexes)).computeInPlace(dataset))
         .comparingValuesUsing(QUANTILE_CORRESPONDENCE)
-        .containsExactlyEntriesIn(expectedBuilder.build());
+        .containsExactlyEntriesIn(expectedBuilder.buildOrThrow());
     assertThat(dataset).usingExactEquality().containsExactlyElementsIn(PSEUDORANDOM_DATASET);
   }
 
@@ -580,162 +603,99 @@ public class QuantilesTest extends TestCase {
   private static final ImmutableList<Double> EMPTY_DATASET = ImmutableList.of();
 
   public void testScale_zero() {
-    try {
-      Quantiles.scale(0);
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> Quantiles.scale(0));
   }
 
   public void testScale_negative() {
-    try {
-      Quantiles.scale(-4);
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> Quantiles.scale(-4));
   }
 
   public void testScale_index_negative() {
     Quantiles.Scale intermediate = Quantiles.scale(10);
-    try {
-      intermediate.index(-1);
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> intermediate.index(-1));
   }
 
   public void testScale_index_tooHigh() {
     Quantiles.Scale intermediate = Quantiles.scale(10);
-    try {
-      intermediate.index(11);
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> intermediate.index(11));
   }
 
   public void testScale_indexes_varargs_negative() {
     Quantiles.Scale intermediate = Quantiles.scale(10);
-    try {
-      intermediate.indexes(1, -1, 3);
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> intermediate.indexes(1, -1, 3));
   }
 
   public void testScale_indexes_varargs_tooHigh() {
     Quantiles.Scale intermediate = Quantiles.scale(10);
-    try {
-      intermediate.indexes(1, 11, 3);
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> intermediate.indexes(1, 11, 3));
   }
 
   public void testScale_indexes_collection_negative() {
     Quantiles.Scale intermediate = Quantiles.scale(10);
-    try {
-      intermediate.indexes(ImmutableList.of(1, -1, 3));
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(
+        IllegalArgumentException.class, () -> intermediate.indexes(ImmutableList.of(1, -1, 3)));
   }
 
   public void testScale_indexes_collection_tooHigh() {
     Quantiles.Scale intermediate = Quantiles.scale(10);
-    try {
-      intermediate.indexes(ImmutableList.of(1, 11, 3));
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(
+        IllegalArgumentException.class, () -> intermediate.indexes(ImmutableList.of(1, 11, 3)));
   }
 
   public void testScale_index_compute_doubleCollection_empty() {
     Quantiles.ScaleAndIndex intermediate = Quantiles.scale(10).index(3);
-    try {
-      intermediate.compute(EMPTY_DATASET);
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> intermediate.compute(EMPTY_DATASET));
   }
 
   public void testScale_index_compute_doubleVarargs_empty() {
     Quantiles.ScaleAndIndex intermediate = Quantiles.scale(10).index(3);
-    try {
-      intermediate.compute(new double[] {});
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> intermediate.compute(new double[] {}));
   }
 
   public void testScale_index_compute_longVarargs_empty() {
     Quantiles.ScaleAndIndex intermediate = Quantiles.scale(10).index(3);
-    try {
-      intermediate.compute(new long[] {});
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> intermediate.compute(new long[] {}));
   }
 
   public void testScale_index_compute_intVarargs_empty() {
     Quantiles.ScaleAndIndex intermediate = Quantiles.scale(10).index(3);
-    try {
-      intermediate.compute(new int[] {});
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> intermediate.compute(new int[] {}));
   }
 
   public void testScale_index_computeInPlace_empty() {
     Quantiles.ScaleAndIndex intermediate = Quantiles.scale(10).index(3);
-    try {
-      intermediate.computeInPlace(new double[] {});
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(
+        IllegalArgumentException.class, () -> intermediate.computeInPlace(new double[] {}));
   }
 
   public void testScale_indexes_varargs_compute_doubleCollection_empty() {
     Quantiles.ScaleAndIndexes intermediate = Quantiles.scale(10).indexes(1, 3, 5);
-    try {
-      intermediate.compute(EMPTY_DATASET);
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> intermediate.compute(EMPTY_DATASET));
   }
 
   public void testScale_indexes_varargs_compute_doubleVarargs_empty() {
     Quantiles.ScaleAndIndexes intermediate = Quantiles.scale(10).indexes(1, 3, 5);
-    try {
-      intermediate.compute(new double[] {});
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> intermediate.compute(new double[] {}));
   }
 
   public void testScale_indexes_varargs_compute_longVarargs_empty() {
     Quantiles.ScaleAndIndexes intermediate = Quantiles.scale(10).indexes(1, 3, 5);
-    try {
-      intermediate.compute(new long[] {});
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> intermediate.compute(new long[] {}));
   }
 
   public void testScale_indexes_varargs_compute_intVarargs_empty() {
     Quantiles.ScaleAndIndexes intermediate = Quantiles.scale(10).indexes(1, 3, 5);
-    try {
-      intermediate.compute(new int[] {});
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(IllegalArgumentException.class, () -> intermediate.compute(new int[] {}));
   }
 
   public void testScale_indexes_varargs_computeInPlace_empty() {
     Quantiles.ScaleAndIndexes intermediate = Quantiles.scale(10).indexes(1, 3, 5);
-    try {
-      intermediate.computeInPlace(new double[] {});
-      fail("Expected IllegalArgumentException");
-    } catch (IllegalArgumentException expected) {
-    }
+    assertThrows(
+        IllegalArgumentException.class, () -> intermediate.computeInPlace(new double[] {}));
+  }
+
+  public void testScale_indexes_indexes_computeInPlace_empty() {
+    int[] emptyIndexes = {};
+    assertThrows(IllegalArgumentException.class, () -> Quantiles.scale(10).indexes(emptyIndexes));
   }
 }

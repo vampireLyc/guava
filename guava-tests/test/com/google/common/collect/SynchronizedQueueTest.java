@@ -16,29 +16,33 @@
 
 package com.google.common.collect;
 
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Queue;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Tests for {@link Synchronized#queue} and {@link Queues#synchronizedQueue}.
  *
  * @author Kurt Alfred Kluever
  */
+@NullUnmarked
 public class SynchronizedQueueTest extends TestCase {
 
-  protected Queue<String> create() {
-    TestQueue<String> inner = new TestQueue<String>();
-    Queue<String> outer = Synchronized.queue(inner, null);
-    inner.mutex = outer;
+  private Queue<String> create() {
+    TestQueue<String> inner = new TestQueue<>();
+    Queue<String> outer = Synchronized.queue(inner, inner.mutex);
     outer.add("foo"); // necessary because we try to remove elements later on
     return outer;
   }
 
   private static final class TestQueue<E> implements Queue<E> {
-    private final Queue<E> delegate = Lists.newLinkedList();
-    public Object mutex;
+    private final Queue<E> delegate = new LinkedList<>();
+    private final Object mutex = new Object[0]; // something Serializable
 
     @Override
     public boolean offer(E o) {
@@ -47,7 +51,7 @@ public class SynchronizedQueueTest extends TestCase {
     }
 
     @Override
-    public E poll() {
+    public @Nullable E poll() {
       assertTrue(Thread.holdsLock(mutex));
       return delegate.poll();
     }
@@ -59,7 +63,13 @@ public class SynchronizedQueueTest extends TestCase {
     }
 
     @Override
-    public E peek() {
+    public boolean remove(Object object) {
+      assertTrue(Thread.holdsLock(mutex));
+      return delegate.remove(object);
+    }
+
+    @Override
+    public @Nullable E peek() {
       assertTrue(Thread.holdsLock(mutex));
       return delegate.peek();
     }
@@ -108,12 +118,6 @@ public class SynchronizedQueueTest extends TestCase {
     }
 
     @Override
-    public boolean remove(Object object) {
-      assertTrue(Thread.holdsLock(mutex));
-      return delegate.remove(object);
-    }
-
-    @Override
     public boolean containsAll(Collection<?> collection) {
       assertTrue(Thread.holdsLock(mutex));
       return delegate.containsAll(collection);
@@ -152,6 +156,7 @@ public class SynchronizedQueueTest extends TestCase {
     private static final long serialVersionUID = 0;
   }
 
+  @SuppressWarnings("CheckReturnValue")
   public void testHoldsLockOnAllOperations() {
     create().element();
     create().offer("foo");
@@ -163,7 +168,7 @@ public class SynchronizedQueueTest extends TestCase {
     create().clear();
     create().contains("foo");
     create().containsAll(ImmutableList.of("foo"));
-    create().equals(ImmutableList.of("foo"));
+    create().equals(new ArrayDeque<>(ImmutableList.of("foo")));
     create().hashCode();
     create().isEmpty();
     create().iterator();
@@ -172,6 +177,6 @@ public class SynchronizedQueueTest extends TestCase {
     create().retainAll(ImmutableList.of("foo"));
     create().size();
     create().toArray();
-    create().toArray(new String[] { "foo" });
+    create().toArray(new String[] {"foo"});
   }
 }

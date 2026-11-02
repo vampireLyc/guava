@@ -15,14 +15,16 @@
 package com.google.common.cache;
 
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.concurrent.ExecutionException;
 
 /**
  * A cache which forwards all its method calls to another cache. Subclasses should override one or
- * more methods to modify the behavior of the backing cache as desired per the
- * <a href="http://en.wikipedia.org/wiki/Decorator_pattern">decorator pattern</a>.
+ * more methods to modify the behavior of the backing cache as desired per the <a
+ * href="http://en.wikipedia.org/wiki/Decorator_pattern">decorator pattern</a>.
  *
  * <p>Note that {@link #get}, {@link #getUnchecked}, and {@link #apply} all expose the same
  * underlying functionality, so should probably be overridden as a group.
@@ -31,6 +33,7 @@ import java.util.concurrent.ExecutionException;
  * @since 11.0
  */
 @GwtIncompatible
+@J2ktIncompatible // Compiles fine, but hidden for safety because the tests have not been ported
 public abstract class ForwardingLoadingCache<K, V> extends ForwardingCache<K, V>
     implements LoadingCache<K, V> {
 
@@ -40,16 +43,19 @@ public abstract class ForwardingLoadingCache<K, V> extends ForwardingCache<K, V>
   @Override
   protected abstract LoadingCache<K, V> delegate();
 
+  @CanIgnoreReturnValue // TODO(b/27479612): consider removing this
   @Override
   public V get(K key) throws ExecutionException {
     return delegate().get(key);
   }
 
+  @CanIgnoreReturnValue // TODO(b/27479612): consider removing this
   @Override
   public V getUnchecked(K key) {
     return delegate().getUnchecked(key);
   }
 
+  @CanIgnoreReturnValue // TODO(b/27479612): consider removing this
   @Override
   public ImmutableMap<K, V> getAll(Iterable<? extends K> keys) throws ExecutionException {
     return delegate().getAll(keys);
@@ -75,6 +81,7 @@ public abstract class ForwardingLoadingCache<K, V> extends ForwardingCache<K, V>
       extends ForwardingLoadingCache<K, V> {
     private final LoadingCache<K, V> delegate;
 
+    /** Constructor for use by subclasses. */
     protected SimpleForwardingLoadingCache(LoadingCache<K, V> delegate) {
       this.delegate = Preconditions.checkNotNull(delegate);
     }

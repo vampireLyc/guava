@@ -16,27 +16,31 @@
 
 package com.google.common.util.concurrent;
 
+import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.util.concurrent.Callables.returning;
 import static com.google.common.util.concurrent.Futures.getDone;
+import static com.google.common.util.concurrent.Futures.immediateFuture;
 import static com.google.common.util.concurrent.TestPlatform.verifyThreadWasNotInterrupted;
+import static java.util.concurrent.Executors.newFixedThreadPool;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
-import java.util.concurrent.Callable;
+import com.google.common.annotations.J2ktIncompatible;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
-/**
- * Test case for {@link TrustedListenableFutureTask}.
- */
-@GwtCompatible(emulated = true)
+/** Test case for {@link TrustedListenableFutureTask}. */
+@NullMarked
+@GwtCompatible
 public class TrustedListenableFutureTaskTest extends TestCase {
 
   public void testSuccessful() throws Exception {
@@ -48,70 +52,61 @@ public class TrustedListenableFutureTaskTest extends TestCase {
     assertEquals(2, getDone(task).intValue());
   }
 
-  public void testCancelled() throws Exception {
+  public void testCancelled() {
     TrustedListenableFutureTask<Integer> task = TrustedListenableFutureTask.create(returning(2));
     assertFalse(task.isDone());
     task.cancel(false);
     assertTrue(task.isDone());
     assertTrue(task.isCancelled());
-    assertFalse(task.wasInterrupted());
-    try {
-      getDone(task);
-      fail();
-    } catch (CancellationException expected) {
-    }
+    assertFalse(task.wasInterruptedInternal());
+    assertThrows(CancellationException.class, () -> getDone(task));
     verifyThreadWasNotInterrupted();
   }
 
-  public void testFailed() throws Exception {
-    final Exception e = new Exception();
-    TrustedListenableFutureTask<Integer> task = TrustedListenableFutureTask.create(
-        new Callable<Integer>() {
-          @Override public Integer call() throws Exception {
-            throw e;
-          }
-        });
+  public void testFailed() {
+    Exception e = new Exception();
+    TrustedListenableFutureTask<Integer> task =
+        TrustedListenableFutureTask.create(
+            () -> {
+              throw e;
+            });
     task.run();
     assertTrue(task.isDone());
     assertFalse(task.isCancelled());
-    try {
-      getDone(task);
-      fail();
-    } catch (ExecutionException executionException) {
-      assertEquals(e, executionException.getCause());
-    }
+    ExecutionException executionException =
+        assertThrows(ExecutionException.class, () -> getDone(task));
+    assertThat(executionException).hasCauseThat().isEqualTo(e);
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // blocking wait
-
   public void testCancel_interrupted() throws Exception {
-    final AtomicBoolean interruptedExceptionThrown = new AtomicBoolean();
-    final CountDownLatch enterLatch = new CountDownLatch(1);
-    final CountDownLatch exitLatch = new CountDownLatch(1);
-    final TrustedListenableFutureTask<Integer> task = TrustedListenableFutureTask.create(
-        new Callable<Integer>() {
-          @Override public Integer call() throws Exception {
-            enterLatch.countDown();
-            try {
-              new CountDownLatch(1).await();  // wait forever
-              throw new AssertionError();
-            } catch (InterruptedException e) {
-              interruptedExceptionThrown.set(true);
-              throw e;
-            } finally {
-            }
-          }
-        });
+    AtomicBoolean interruptedExceptionThrown = new AtomicBoolean();
+    CountDownLatch enterLatch = new CountDownLatch(1);
+    CountDownLatch exitLatch = new CountDownLatch(1);
+    TrustedListenableFutureTask<Integer> task =
+        TrustedListenableFutureTask.create(
+            () -> {
+              enterLatch.countDown();
+              try {
+                new CountDownLatch(1).await(); // wait forever
+                throw new AssertionError();
+              } catch (InterruptedException e) {
+                interruptedExceptionThrown.set(true);
+                throw e;
+              } finally {
+              }
+            });
     assertFalse(task.isDone());
-    Thread thread = new Thread(new Runnable() {
-      @Override public void run() {
-        try {
-          task.run();
-        } finally {
-          exitLatch.countDown();
-        }
-      }
-    });
+    Thread thread =
+        new Thread(
+            () -> {
+              try {
+                task.run();
+              } finally {
+                exitLatch.countDown();
+              }
+            });
     thread.start();
     enterLatch.await();
     assertFalse(task.isDone());
@@ -119,49 +114,73 @@ public class TrustedListenableFutureTaskTest extends TestCase {
     assertTrue(task.isDone());
     assertTrue(task.isCancelled());
     assertTrue(task.wasInterrupted());
-    try {
-      task.get();
-      fail();
-    } catch (CancellationException expected) {
-    }
+    assertThrows(CancellationException.class, () -> task.get());
     exitLatch.await();
     assertTrue(interruptedExceptionThrown.get());
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // blocking wait
-
   public void testRunIdempotency() throws Exception {
-    final int numThreads = 10;
-    final ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+    int numThreads = 10;
+    ExecutorService executor = newFixedThreadPool(numThreads);
     for (int i = 0; i < 1000; i++) {
-      final AtomicInteger counter = new AtomicInteger();
-      final TrustedListenableFutureTask<Integer> task = TrustedListenableFutureTask.create(
-          new Callable<Integer>() {
-            @Override public Integer call() {
-              return counter.incrementAndGet();
-            }
-          });
-      final CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
-      Runnable wrapper = new Runnable() {
-        @Override public void run() {
-          awaitUnchecked(barrier);
-          task.run();
-          awaitUnchecked(barrier);
-        }
-      };
+      AtomicInteger counter = new AtomicInteger();
+      TrustedListenableFutureTask<Integer> task =
+          TrustedListenableFutureTask.create(counter::incrementAndGet);
+      CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
+      Runnable wrapper =
+          () -> {
+            awaitUnchecked(barrier);
+            task.run();
+            awaitUnchecked(barrier);
+          };
       for (int j = 0; j < 10; j++) {
         executor.execute(wrapper);
       }
-      barrier.await();  // release the threads!
-      barrier.await();  // wait for them all to complete
+      barrier.await(); // release the threads!
+      barrier.await(); // wait for them all to complete
       assertEquals(1, task.get().intValue());
       assertEquals(1, counter.get());
     }
     executor.shutdown();
   }
 
-  @GwtIncompatible // used only in GwtIncomaptible tests
-  private void awaitUnchecked(CyclicBarrier barrier) {
+  @J2ktIncompatible
+  @GwtIncompatible // blocking wait
+  public void testToString() throws Exception {
+    CountDownLatch enterLatch = new CountDownLatch(1);
+    CountDownLatch exitLatch = new CountDownLatch(1);
+    TrustedListenableFutureTask<@Nullable Void> task =
+        TrustedListenableFutureTask.create(
+            () -> {
+              enterLatch.countDown();
+              new CountDownLatch(1).await(); // wait forever
+              return immediateFuture(null);
+            });
+    assertFalse(task.isDone());
+    Thread thread =
+        new Thread(
+            () -> {
+              try {
+                task.run();
+              } finally {
+                exitLatch.countDown();
+              }
+            },
+            "Custom thread name");
+    thread.start();
+    enterLatch.await();
+    assertFalse(task.isDone());
+    String result = task.toString();
+    assertThat(result).contains("Custom thread name");
+    task.cancel(true);
+    exitLatch.await();
+  }
+
+  @J2ktIncompatible
+  @GwtIncompatible // used only in GwtIncompatible tests
+  private static void awaitUnchecked(CyclicBarrier barrier) {
     try {
       barrier.await();
     } catch (Exception e) {

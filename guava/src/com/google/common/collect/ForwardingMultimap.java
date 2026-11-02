@@ -22,19 +22,23 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
- * A multimap which forwards all its method calls to another multimap.
- * Subclasses should override one or more methods to modify the behavior of
- * the backing multimap as desired per the <a
+ * A multimap which forwards all its method calls to another multimap. Subclasses should override
+ * one or more methods to modify the behavior of the backing multimap as desired per the <a
  * href="http://en.wikipedia.org/wiki/Decorator_pattern">decorator pattern</a>.
+ *
+ * <p><b>{@code default} method warning:</b> This class does <i>not</i> forward calls to {@code
+ * default} methods. Instead, it inherits their default implementations. When those implementations
+ * invoke methods, they invoke methods on the {@code ForwardingMultimap}.
  *
  * @author Robert Konigsberg
  * @since 2.0
  */
 @GwtCompatible
-public abstract class ForwardingMultimap<K, V> extends ForwardingObject implements Multimap<K, V> {
+public abstract class ForwardingMultimap<K extends @Nullable Object, V extends @Nullable Object>
+    extends ForwardingObject implements Multimap<K, V> {
 
   /** Constructor for use by subclasses. */
   protected ForwardingMultimap() {}
@@ -73,7 +77,7 @@ public abstract class ForwardingMultimap<K, V> extends ForwardingObject implemen
   }
 
   @Override
-  public Collection<V> get(@Nullable K key) {
+  public Collection<V> get(@ParametricNullness K key) {
     return delegate().get(key);
   }
 
@@ -94,13 +98,13 @@ public abstract class ForwardingMultimap<K, V> extends ForwardingObject implemen
 
   @CanIgnoreReturnValue
   @Override
-  public boolean put(K key, V value) {
+  public boolean put(@ParametricNullness K key, @ParametricNullness V value) {
     return delegate().put(key, value);
   }
 
   @CanIgnoreReturnValue
   @Override
-  public boolean putAll(K key, Iterable<? extends V> values) {
+  public boolean putAll(@ParametricNullness K key, Iterable<? extends V> values) {
     return delegate().putAll(key, values);
   }
 
@@ -124,7 +128,7 @@ public abstract class ForwardingMultimap<K, V> extends ForwardingObject implemen
 
   @CanIgnoreReturnValue
   @Override
-  public Collection<V> replaceValues(K key, Iterable<? extends V> values) {
+  public Collection<V> replaceValues(@ParametricNullness K key, Iterable<? extends V> values) {
     return delegate().replaceValues(key, values);
   }
 
@@ -139,6 +143,8 @@ public abstract class ForwardingMultimap<K, V> extends ForwardingObject implemen
   }
 
   @Override
+  // A forwarding implementation can't do any better than the underlying object.
+  @SuppressWarnings("UndefinedEquals")
   public boolean equals(@Nullable Object object) {
     return object == this || delegate().equals(object);
   }

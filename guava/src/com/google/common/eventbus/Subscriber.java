@@ -21,7 +21,7 @@ import com.google.j2objc.annotations.Weak;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.concurrent.Executor;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A subscriber method on a specific object, plus the executor that should be used for dispatching
@@ -34,9 +34,7 @@ import javax.annotation.Nullable;
  */
 class Subscriber {
 
-  /**
-   * Creates a {@code Subscriber} for {@code method} on {@code listener}.
-   */
+  /** Creates a {@code Subscriber} for {@code method} on {@code listener}. */
   static Subscriber create(EventBus bus, Object listener, Method method) {
     return isDeclaredThreadSafe(method)
         ? new Subscriber(bus, listener, method)
@@ -44,7 +42,7 @@ class Subscriber {
   }
 
   /** The event bus this subscriber belongs to. */
-  @Weak private EventBus bus;
+  @Weak private final EventBus bus;
 
   /** The object with the subscriber method. */
   @VisibleForTesting final Object target;
@@ -64,19 +62,14 @@ class Subscriber {
     this.executor = bus.executor();
   }
 
-  /**
-   * Dispatches {@code event} to this subscriber using the proper executor.
-   */
-  final void dispatchEvent(final Object event) {
+  /** Dispatches {@code event} to this subscriber using the proper executor. */
+  final void dispatchEvent(Object event) {
     executor.execute(
-        new Runnable() {
-          @Override
-          public void run() {
-            try {
-              invokeSubscriberMethod(event);
-            } catch (InvocationTargetException e) {
-              bus.handleSubscriberException(e.getCause(), context(event));
-            }
+        () -> {
+          try {
+            invokeSubscriberMethod(event);
+          } catch (InvocationTargetException e) {
+            bus.handleSubscriberException(e.getCause(), context(event));
           }
         });
   }
@@ -101,9 +94,7 @@ class Subscriber {
     }
   }
 
-  /**
-   * Gets the context for the given event.
-   */
+  /** Gets the context for the given event. */
   private SubscriberExceptionContext context(Object event) {
     return new SubscriberExceptionContext(bus, event, target, method);
   }
@@ -113,6 +104,7 @@ class Subscriber {
     return (31 + method.hashCode()) * 31 + System.identityHashCode(target);
   }
 
+  @SuppressWarnings("ReferenceEquality") // see comment below
   @Override
   public final boolean equals(@Nullable Object obj) {
     if (obj instanceof Subscriber) {
@@ -126,8 +118,8 @@ class Subscriber {
   }
 
   /**
-   * Checks whether {@code method} is thread-safe, as indicated by the presence of the
-   * {@link AllowConcurrentEvents} annotation.
+   * Checks whether {@code method} is thread-safe, as indicated by the presence of the {@link
+   * AllowConcurrentEvents} annotation.
    */
   private static boolean isDeclaredThreadSafe(Method method) {
     return method.getAnnotation(AllowConcurrentEvents.class) != null;

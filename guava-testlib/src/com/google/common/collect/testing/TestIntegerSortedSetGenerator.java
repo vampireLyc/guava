@@ -16,27 +16,35 @@
 
 package com.google.common.collect.testing;
 
+import static java.util.Collections.sort;
+
 import com.google.common.annotations.GwtCompatible;
-import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
+import org.jspecify.annotations.NullMarked;
 
 /**
- * Create integer sets for testing collections that are sorted by natural
- * ordering.
+ * Create integer sets for testing collections that are sorted by natural ordering.
  *
  * @author Chris Povirk
  * @author Jared Levy
  */
 @GwtCompatible
+@NullMarked
 public abstract class TestIntegerSortedSetGenerator extends TestIntegerSetGenerator {
   @Override
   protected abstract SortedSet<Integer> create(Integer[] elements);
 
   /** Sorts the elements by their natural ordering. */
+  /*
+   * While the current implementation returns `this`, that's not something we mean to guarantee.
+   * Callers of TestContainerGenerator.order need to be prepared for implementations to return a new
+   * collection.
+   */
+  @SuppressWarnings("CanIgnoreReturnValueSuggester")
   @Override
   public List<Integer> order(List<Integer> insertionOrder) {
-    Collections.sort(insertionOrder);
+    sort(insertionOrder);
     return insertionOrder;
   }
 }

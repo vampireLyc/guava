@@ -13,10 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.google.common.collect.testing;
 
 import com.google.common.annotations.GwtCompatible;
 import java.util.SortedSet;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Creates sorted sets, containing sample elements, to be tested.
@@ -24,31 +27,32 @@ import java.util.SortedSet;
  * @author Louis Wasserman
  */
 @GwtCompatible
-public interface TestSortedSetGenerator<E> extends TestSetGenerator<E> {
+@NullMarked
+public interface TestSortedSetGenerator<E extends @Nullable Object> extends TestSetGenerator<E> {
   @Override
   SortedSet<E> create(Object... elements);
 
   /**
-   * Returns an element less than the {@link #samples()} and less than
-   * {@link #belowSamplesGreater()}.
+   * Returns an element less than the {@link #samples()} and less than {@link
+   * #belowSamplesGreater()}.
    */
   E belowSamplesLesser();
 
   /**
-   * Returns an element less than the {@link #samples()} but greater than
-   * {@link #belowSamplesLesser()}.
+   * Returns an element less than the {@link #samples()} but greater than {@link
+   * #belowSamplesLesser()}.
    */
   E belowSamplesGreater();
 
   /**
-   * Returns an element greater than the {@link #samples()} but less than
-   * {@link #aboveSamplesGreater()}.
+   * Returns an element greater than the {@link #samples()} but less than {@link
+   * #aboveSamplesGreater()}.
    */
   E aboveSamplesLesser();
 
   /**
-   * Returns an element greater than the {@link #samples()} and greater than
-   * {@link #aboveSamplesLesser()}.
+   * Returns an element greater than the {@link #samples()} and greater than {@link
+   * #aboveSamplesLesser()}.
    */
   E aboveSamplesGreater();
 }

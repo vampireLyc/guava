@@ -17,22 +17,24 @@
 package com.google.common.graph;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.Iterators.transform;
+import static com.google.common.collect.Maps.newHashMapWithExpectedSize;
 import static com.google.common.graph.GraphConstants.NODE_NOT_IN_GRAPH;
+import static com.google.common.graph.Graphs.TransitiveClosureSelfLoopStrategy.ADD_SELF_LOOPS_ALWAYS;
+import static java.util.Objects.requireNonNull;
 
-import com.google.common.annotations.Beta;
-import com.google.common.base.Objects;
-import com.google.common.base.Optional;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
+import com.google.common.collect.ImmutableSet;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.ArrayDeque;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.Iterator;
 import java.util.Map;
-import java.util.Queue;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Static utility methods for {@link Graph}, {@link ValueGraph}, and {@link Network} instances.
@@ -41,8 +43,7 @@ import javax.annotation.Nullable;
  * @author Joshua O'Madadhain
  * @since 20.0
  */
-@Beta
-public final class Graphs {
+public final class Graphs extends GraphsBridgeMethods {
 
   private Graphs() {}
 
@@ -55,7 +56,7 @@ public final class Graphs {
    *
    * <p>This method will detect any non-empty cycle, including self-loops (a cycle of length 1).
    */
-  public static boolean hasCycle(Graph<?> graph) {
+  public static <N> boolean hasCycle(Graph<N> graph) {
     int numEdges = graph.edges().size();
     if (numEdges == 0) {
       return false; // An edge-free graph is acyclic by definition.
@@ -64,10 +65,9 @@ public final class Graphs {
       return true; // Optimization for the undirected case: at least one cycle must exist.
     }
 
-    Map<Object, NodeVisitState> visitedNodes =
-        Maps.newHashMapWithExpectedSize(graph.nodes().size());
-    for (Object node : graph.nodes()) {
-      if (subgraphHasCycle(graph, visitedNodes, node, null)) {
+    Map<Object, NodeVisitState> visitedNodes = newHashMapWithExpectedSize(graph.nodes().size());
+    for (N node : graph.nodes()) {
+      if (subgraphHasCycle(graph, visitedNodes, node)) {
         return true;
       }
     }
@@ -93,32 +93,65 @@ public final class Graphs {
   }
 
   /**
-   * Performs a traversal of the nodes reachable from {@code node}. If we ever reach a node we've
-   * already visited (following only outgoing edges and without reusing edges), we know there's a
-   * cycle in the graph.
+   * Performs a traversal of the nodes reachable from {@code startNode}. If we ever reach a node
+   * we've already visited (following only outgoing edges and without reusing edges), we know
+   * there's a cycle in the graph.
    */
-  private static boolean subgraphHasCycle(
-      Graph<?> graph,
-      Map<Object, NodeVisitState> visitedNodes,
-      Object node,
-      @Nullable Object previousNode) {
-    NodeVisitState state = visitedNodes.get(node);
-    if (state == NodeVisitState.COMPLETE) {
-      return false;
-    }
-    if (state == NodeVisitState.PENDING) {
-      return true;
-    }
+  private static <N> boolean subgraphHasCycle(
+      Graph<N> graph, Map<Object, NodeVisitState> visitedNodes, N startNode) {
+    Deque<NodeAndRemainingSuccessors<N>> stack = new ArrayDeque<>();
+    stack.addLast(new NodeAndRemainingSuccessors<>(startNode));
 
-    visitedNodes.put(node, NodeVisitState.PENDING);
-    for (Object nextNode : graph.successors(node)) {
-      if (canTraverseWithoutReusingEdge(graph, nextNode, previousNode)
-          && subgraphHasCycle(graph, visitedNodes, nextNode, node)) {
-        return true;
+    while (!stack.isEmpty()) {
+      // To peek at the top two items, we need to temporarily remove one.
+      NodeAndRemainingSuccessors<N> top = stack.removeLast();
+      NodeAndRemainingSuccessors<N> prev = stack.peekLast();
+      stack.addLast(top);
+
+      N node = top.node;
+      N previousNode = prev == null ? null : prev.node;
+      if (top.remainingSuccessors == null) {
+        NodeVisitState state = visitedNodes.get(node);
+        if (state == NodeVisitState.COMPLETE) {
+          stack.removeLast();
+          continue;
+        }
+        if (state == NodeVisitState.PENDING) {
+          return true;
+        }
+
+        visitedNodes.put(node, NodeVisitState.PENDING);
+        top.remainingSuccessors = graph.successors(node).iterator();
       }
+
+      if (top.remainingSuccessors.hasNext()) {
+        N nextNode = top.remainingSuccessors.next();
+        if (canTraverseWithoutReusingEdge(graph, nextNode, previousNode)) {
+          stack.addLast(new NodeAndRemainingSuccessors<>(nextNode));
+        }
+        continue;
+      }
+
+      stack.removeLast();
+      visitedNodes.put(node, NodeVisitState.COMPLETE);
     }
-    visitedNodes.put(node, NodeVisitState.COMPLETE);
     return false;
+  }
+
+  private static final class NodeAndRemainingSuccessors<N> {
+    final N node;
+
+    /**
+     * The successors left to be visited, or {@code null} if we just added this {@code
+     * NodeAndRemainingSuccessors} instance to the stack. In the latter case, we'll compute the
+     * successors if we determine that we need them after we've performed the initial processing of
+     * the node.
+     */
+    @Nullable Iterator<N> remainingSuccessors;
+
+    NodeAndRemainingSuccessors(N node) {
+      this.node = node;
+    }
   }
 
   /**
@@ -129,7 +162,7 @@ public final class Graphs {
    */
   private static boolean canTraverseWithoutReusingEdge(
       Graph<?> graph, Object nextNode, @Nullable Object previousNode) {
-    if (graph.isDirected() || !Objects.equal(previousNode, nextNode)) {
+    if (graph.isDirected() || !Objects.equals(previousNode, nextNode)) {
       return true;
     }
     // This falls into the undirected A->B->A case. The Graph interface does not support parallel
@@ -138,107 +171,113 @@ public final class Graphs {
   }
 
   /**
-   * Returns the transitive closure of {@code graph}. The transitive closure of a graph is another
-   * graph with an edge connecting node A to node B if node B is {@link #reachableNodes(Graph,
-   * Object) reachable} from node A.
+   * Returns the transitive closure of {@code graph}. The transitive closure of a graph {@code G} is
+   * a graph {@code T} that is a supergraph of {@code G}, augmented by, for each pair of nodes A and
+   * B, an edge connecting node A to node B if there is a sequence of edges in {@code G} starting at
+   * A and ending at B.
+   *
+   * <p>{@code strategy} defines the circumstances under which self-loops will be added to the
+   * transitive closure graph.
    *
    * <p>This is a "snapshot" based on the current topology of {@code graph}, rather than a live view
    * of the transitive closure of {@code graph}. In other words, the returned {@link Graph} will not
    * be updated after modifications to {@code graph}.
+   *
+   * @since 33.6.0
    */
-  // TODO(b/31438252): Consider potential optimizations for this algorithm.
-  public static <N> Graph<N> transitiveClosure(Graph<N> graph) {
-    MutableGraph<N> transitiveClosure = GraphBuilder.from(graph).allowsSelfLoops(true).build();
-    // Every node is, at a minimum, reachable from itself. Since the resulting transitive closure
-    // will have no isolated nodes, we can skip adding nodes explicitly and let putEdge() do it.
+  // TODO(b/31438252): Consider optimizing for undirected graphs.
+  public static <N> ImmutableGraph<N> transitiveClosure(
+      Graph<N> graph, TransitiveClosureSelfLoopStrategy strategy) {
+    ImmutableGraph.Builder<N> transitiveClosure =
+        GraphBuilder.from(graph).allowsSelfLoops(true).immutable();
 
-    if (graph.isDirected()) {
-      // Note: works for both directed and undirected graphs, but we only use in the directed case.
-      for (N node : graph.nodes()) {
-        for (N reachableNode : reachableNodes(graph, node)) {
-          transitiveClosure.putEdge(node, reachableNode);
-        }
-      }
-    } else {
-      // An optimization for the undirected case: for every node B reachable from node A,
-      // node A and node B have the same reachability set.
-      Set<N> visitedNodes = new HashSet<N>();
-      for (N node : graph.nodes()) {
-        if (!visitedNodes.contains(node)) {
-          Set<N> reachableNodes = reachableNodes(graph, node);
-          visitedNodes.addAll(reachableNodes);
-          int pairwiseMatch = 1; // start at 1 to include self-loops
-          for (N nodeU : reachableNodes) {
-            for (N nodeV : Iterables.limit(reachableNodes, pairwiseMatch++)) {
-              transitiveClosure.putEdge(nodeU, nodeV);
-            }
-          }
-        }
+    for (N node : graph.nodes()) {
+      // add each node explicitly to include isolated nodes
+      transitiveClosure.addNode(node);
+      for (N reachableNode : getReachableNodes(graph, node, strategy)) {
+        transitiveClosure.putEdge(node, reachableNode);
       }
     }
-
-    return transitiveClosure;
+    return transitiveClosure.build();
   }
 
   /**
-   * Returns the set of nodes that are reachable from {@code node}. Node B is defined as reachable
-   * from node A if there exists a path (a sequence of adjacent outgoing edges) starting at node A
-   * and ending at node B. Note that a node is always reachable from itself via a zero-length path.
+   * Equivalent to {@code transitiveClosure(graph, ADD_SELF_LOOPS_ALWAYS)}. Callers should look at
+   * the different strategy options that the new method supports rather than simply migrating to the
+   * new method with the existing behavior; we believe that most callers will want to use the {@code
+   * ADD_SELF_LOOPS_FOR_CYCLES} strategy.
    *
-   * <p>This is a "snapshot" based on the current topology of {@code graph}, rather than a live view
-   * of the set of nodes reachable from {@code node}. In other words, the returned {@link Set} will
-   * not be updated after modifications to {@code graph}.
+   * @since 33.1.0 (present with return type {@code Graph} since 20.0)
+   * @deprecated Use {@link #transitiveClosure(Graph, TransitiveClosureSelfLoopStrategy)} instead.
+   */
+  @SuppressWarnings("InlineMeSuggester") // We expect most users to want to change behavior.
+  @Deprecated
+  public static <N> ImmutableGraph<N> transitiveClosure(Graph<N> graph) {
+    return transitiveClosure(graph, ADD_SELF_LOOPS_ALWAYS);
+  }
+
+  /**
+   * Returns the nodes reachable from {@code node} in {@code graph}, according to the given {@code
+   * strategy}.
+   */
+  private static <N> Iterable<N> getReachableNodes(
+      Graph<N> graph, N node, TransitiveClosureSelfLoopStrategy strategy) {
+    Traverser<N> traverser = Traverser.forGraph(graph);
+    switch (strategy) {
+      case ADD_SELF_LOOPS_ALWAYS: // always include 'node'
+        return traverser.breadthFirst(node);
+      case ADD_SELF_LOOPS_FOR_CYCLES: // include 'node' if and only if there's an incident cycle
+        // note that if 'node' has a self-loop, it will appear in its successors
+        return traverser.breadthFirst(graph.successors(node));
+    }
+    throw new IllegalArgumentException("Unrecognized strategy: " + strategy);
+  }
+
+  /**
+   * A strategy for adding self-loops to {@linkplain #transitiveClosure(Graph,
+   * TransitiveClosureSelfLoopStrategy) the transitive closure graph}. All strategies preserve
+   * self-loops that are present in the original graph.
+   *
+   * <p>The strategies differ based on how they define "cycle incident to a node".
+   *
+   * @since 33.6.0
+   */
+  public enum TransitiveClosureSelfLoopStrategy {
+    /**
+     * Add a self-loop to each node in the original graph; this is based on a definition of "cycle
+     * incident to a node" that includes zero-length cycles. This matches the behavior of the
+     * now-deprecated {@link #transitiveClosure(Graph)} method.
+     */
+    ADD_SELF_LOOPS_ALWAYS,
+    /**
+     * Add a self-loop to each node that is incident to a cycle of length one or greater in the
+     * original graph.
+     */
+    ADD_SELF_LOOPS_FOR_CYCLES
+  }
+
+  /**
+   * Returns the set of nodes that are reachable from {@code node}. Specifically, it returns all
+   * nodes {@code v} such that there exists a path (a sequence of adjacent outgoing edges) starting
+   * at {@code node} and ending at {@code v}. This implementation includes {@code node} as the first
+   * element in the result.
+   *
+   * <p>If needed, the {@link Traverser} class provides more flexible and lighter-weight ways to
+   * list the nodes reachable from a given node or nodes. See the <a
+   * href="https://github.com/google/guava/wiki/GraphsExplained#Graph-traversal">"Graph traversal"
+   * section of the Guava User's Guide</a> for more information.
+   *
+   * <p>The {@link Set} returned is a "snapshot" based on the current topology of {@code graph},
+   * rather than a live view. In other words, modifications to {@code graph} made after this method
+   * returns will not be reflected in the set.
    *
    * @throws IllegalArgumentException if {@code node} is not present in {@code graph}
+   * @since 33.1.0 (present with return type {@code Set} since 20.0)
    */
-  @SuppressWarnings("unchecked") // Safe because we only cast if node is an element of the graph.
-  public static <N> Set<N> reachableNodes(Graph<N> graph, Object node) {
+  public static <N> ImmutableSet<N> reachableNodes(Graph<N> graph, N node) {
+    checkNotNull(node);
     checkArgument(graph.nodes().contains(node), NODE_NOT_IN_GRAPH, node);
-    Set<N> visitedNodes = new LinkedHashSet<N>();
-    Queue<N> queuedNodes = new ArrayDeque<N>();
-    visitedNodes.add((N) node);
-    queuedNodes.add((N) node);
-    // Perform a breadth-first traversal rooted at the input node.
-    while (!queuedNodes.isEmpty()) {
-      N currentNode = queuedNodes.remove();
-      for (N successor : graph.successors(currentNode)) {
-        if (visitedNodes.add(successor)) {
-          queuedNodes.add(successor);
-        }
-      }
-    }
-    return Collections.unmodifiableSet(visitedNodes);
-  }
-
-  /**
-   * @deprecated Use {@link Graph#equals(Object)} instead. This method will be removed in late 2017.
-   */
-  // TODO(user): Delete this method.
-  @Deprecated
-  public static boolean equivalent(@Nullable Graph<?> graphA, @Nullable Graph<?> graphB) {
-    return Objects.equal(graphA, graphB);
-  }
-
-  /**
-   * @deprecated Use {@link ValueGraph#equals(Object)} instead. This method will be removed in late
-   * 2017.
-   */
-  // TODO(user): Delete this method.
-  @Deprecated
-  public static boolean equivalent(
-      @Nullable ValueGraph<?, ?> graphA, @Nullable ValueGraph<?, ?> graphB) {
-    return Objects.equal(graphA, graphB);
-  }
-
-  /**
-   * @deprecated Use {@link Network#equals(Object)} instead. This method will be removed in late
-   * 2017.
-   */
-  // TODO(user): Delete this method.
-  @Deprecated
-  public static boolean equivalent(
-      @Nullable Network<?, ?> networkA, @Nullable Network<?, ?> networkB) {
-    return Objects.equal(networkA, networkB);
+    return ImmutableSet.copyOf(Traverser.forGraph(graph).breadthFirst(node));
   }
 
   // Graph mutation methods
@@ -258,59 +297,7 @@ public final class Graphs {
       return ((TransposedGraph<N>) graph).graph;
     }
 
-    return new TransposedGraph<N>(graph);
-  }
-
-  private static class TransposedGraph<N> extends AbstractGraph<N> {
-    private final Graph<N> graph;
-
-    TransposedGraph(Graph<N> graph) {
-      this.graph = graph;
-    }
-
-    @Override
-    public Set<N> nodes() {
-      return graph.nodes();
-    }
-
-    /**
-     * Defer to {@link AbstractGraph#edges()} (based on {@link #successors(Object)}) for full
-     * edges() implementation.
-     */
-    @Override
-    protected long edgeCount() {
-      return graph.edges().size();
-    }
-
-    @Override
-    public boolean isDirected() {
-      return graph.isDirected();
-    }
-
-    @Override
-    public boolean allowsSelfLoops() {
-      return graph.allowsSelfLoops();
-    }
-
-    @Override
-    public ElementOrder<N> nodeOrder() {
-      return graph.nodeOrder();
-    }
-
-    @Override
-    public Set<N> adjacentNodes(Object node) {
-      return graph.adjacentNodes(node);
-    }
-
-    @Override
-    public Set<N> predecessors(Object node) {
-      return graph.successors(node); // transpose
-    }
-
-    @Override
-    public Set<N> successors(Object node) {
-      return graph.predecessors(node); // transpose
-    }
+    return new TransposedGraph<>(graph);
   }
 
   /**
@@ -326,69 +313,7 @@ public final class Graphs {
       return ((TransposedValueGraph<N, V>) graph).graph;
     }
 
-    return new TransposedValueGraph<N, V>(graph);
-  }
-
-  private static class TransposedValueGraph<N, V> extends AbstractValueGraph<N, V> {
-    private final ValueGraph<N, V> graph;
-
-    TransposedValueGraph(ValueGraph<N, V> graph) {
-      this.graph = graph;
-    }
-
-    @Override
-    public Set<N> nodes() {
-      return graph.nodes();
-    }
-
-    /**
-     * Defer to {@link AbstractGraph#edges()} (based on {@link #successors(Object)}) for full
-     * edges() implementation.
-     */
-    @Override
-    protected long edgeCount() {
-      return graph.edges().size();
-    }
-
-    @Override
-    public boolean isDirected() {
-      return graph.isDirected();
-    }
-
-    @Override
-    public boolean allowsSelfLoops() {
-      return graph.allowsSelfLoops();
-    }
-
-    @Override
-    public ElementOrder<N> nodeOrder() {
-      return graph.nodeOrder();
-    }
-
-    @Override
-    public Set<N> adjacentNodes(Object node) {
-      return graph.adjacentNodes(node);
-    }
-
-    @Override
-    public Set<N> predecessors(Object node) {
-      return graph.successors(node); // transpose
-    }
-
-    @Override
-    public Set<N> successors(Object node) {
-      return graph.predecessors(node); // transpose
-    }
-
-    @Override
-    public V edgeValue(Object nodeU, Object nodeV) {
-      return graph.edgeValue(nodeV, nodeU); // transpose
-    }
-
-    @Override
-    public V edgeValueOrDefault(Object nodeU, Object nodeV, @Nullable V defaultValue) {
-      return graph.edgeValueOrDefault(nodeV, nodeU, defaultValue); // transpose
-    }
+    return new TransposedValueGraph<>(graph);
   }
 
   /**
@@ -404,10 +329,139 @@ public final class Graphs {
       return ((TransposedNetwork<N, E>) network).network;
     }
 
-    return new TransposedNetwork<N, E>(network);
+    return new TransposedNetwork<>(network);
   }
 
-  private static class TransposedNetwork<N, E> extends AbstractNetwork<N, E> {
+  static <N> EndpointPair<N> transpose(EndpointPair<N> endpoints) {
+    if (endpoints.isOrdered()) {
+      return EndpointPair.ordered(endpoints.target(), endpoints.source());
+    }
+    return endpoints;
+  }
+
+  // NOTE: this should work as long as the delegate graph's implementation of edges() (like that of
+  // AbstractGraph) derives its behavior from calling successors().
+  private static final class TransposedGraph<N> extends ForwardingGraph<N> {
+    private final Graph<N> graph;
+
+    TransposedGraph(Graph<N> graph) {
+      this.graph = graph;
+    }
+
+    @Override
+    Graph<N> delegate() {
+      return graph;
+    }
+
+    @Override
+    public Set<N> predecessors(N node) {
+      return delegate().successors(node); // transpose
+    }
+
+    @Override
+    public Set<N> successors(N node) {
+      return delegate().predecessors(node); // transpose
+    }
+
+    @Override
+    public Set<EndpointPair<N>> incidentEdges(N node) {
+      return new IncidentEdgeSet<N>(this, node, IncidentEdgeSet.EdgeType.BOTH) {
+        @Override
+        public Iterator<EndpointPair<N>> iterator() {
+          return transform(
+              delegate().incidentEdges(node).iterator(),
+              edge -> EndpointPair.of(delegate(), edge.nodeV(), edge.nodeU()));
+        }
+      };
+    }
+
+    @Override
+    public int inDegree(N node) {
+      return delegate().outDegree(node); // transpose
+    }
+
+    @Override
+    public int outDegree(N node) {
+      return delegate().inDegree(node); // transpose
+    }
+
+    @Override
+    public boolean hasEdgeConnecting(N nodeU, N nodeV) {
+      return delegate().hasEdgeConnecting(nodeV, nodeU); // transpose
+    }
+
+    @Override
+    public boolean hasEdgeConnecting(EndpointPair<N> endpoints) {
+      return delegate().hasEdgeConnecting(transpose(endpoints));
+    }
+  }
+
+  // NOTE: this should work as long as the delegate graph's implementation of edges() (like that of
+  // AbstractValueGraph) derives its behavior from calling successors().
+  private static final class TransposedValueGraph<N, V> extends ForwardingValueGraph<N, V> {
+    private final ValueGraph<N, V> graph;
+
+    TransposedValueGraph(ValueGraph<N, V> graph) {
+      this.graph = graph;
+    }
+
+    @Override
+    ValueGraph<N, V> delegate() {
+      return graph;
+    }
+
+    @Override
+    public Set<N> predecessors(N node) {
+      return delegate().successors(node); // transpose
+    }
+
+    @Override
+    public Set<N> successors(N node) {
+      return delegate().predecessors(node); // transpose
+    }
+
+    @Override
+    public int inDegree(N node) {
+      return delegate().outDegree(node); // transpose
+    }
+
+    @Override
+    public int outDegree(N node) {
+      return delegate().inDegree(node); // transpose
+    }
+
+    @Override
+    public boolean hasEdgeConnecting(N nodeU, N nodeV) {
+      return delegate().hasEdgeConnecting(nodeV, nodeU); // transpose
+    }
+
+    @Override
+    public boolean hasEdgeConnecting(EndpointPair<N> endpoints) {
+      return delegate().hasEdgeConnecting(transpose(endpoints));
+    }
+
+    @Override
+    public Optional<V> edgeValue(N nodeU, N nodeV) {
+      return delegate().edgeValue(nodeV, nodeU); // transpose
+    }
+
+    @Override
+    public Optional<V> edgeValue(EndpointPair<N> endpoints) {
+      return delegate().edgeValue(transpose(endpoints));
+    }
+
+    @Override
+    public @Nullable V edgeValueOrDefault(N nodeU, N nodeV, @Nullable V defaultValue) {
+      return delegate().edgeValueOrDefault(nodeV, nodeU, defaultValue); // transpose
+    }
+
+    @Override
+    public @Nullable V edgeValueOrDefault(EndpointPair<N> endpoints, @Nullable V defaultValue) {
+      return delegate().edgeValueOrDefault(transpose(endpoints), defaultValue);
+    }
+  }
+
+  private static final class TransposedNetwork<N, E> extends ForwardingNetwork<N, E> {
     private final Network<N, E> network;
 
     TransposedNetwork(Network<N, E> network) {
@@ -415,89 +469,84 @@ public final class Graphs {
     }
 
     @Override
-    public Set<N> nodes() {
-      return network.nodes();
+    Network<N, E> delegate() {
+      return network;
     }
 
     @Override
-    public Set<E> edges() {
-      return network.edges();
+    public Set<N> predecessors(N node) {
+      return delegate().successors(node); // transpose
     }
 
     @Override
-    public boolean isDirected() {
-      return network.isDirected();
+    public Set<N> successors(N node) {
+      return delegate().predecessors(node); // transpose
     }
 
     @Override
-    public boolean allowsParallelEdges() {
-      return network.allowsParallelEdges();
+    public int inDegree(N node) {
+      return delegate().outDegree(node); // transpose
     }
 
     @Override
-    public boolean allowsSelfLoops() {
-      return network.allowsSelfLoops();
+    public int outDegree(N node) {
+      return delegate().inDegree(node); // transpose
     }
 
     @Override
-    public ElementOrder<N> nodeOrder() {
-      return network.nodeOrder();
+    public Set<E> inEdges(N node) {
+      return delegate().outEdges(node); // transpose
     }
 
     @Override
-    public ElementOrder<E> edgeOrder() {
-      return network.edgeOrder();
+    public Set<E> outEdges(N node) {
+      return delegate().inEdges(node); // transpose
     }
 
     @Override
-    public Set<N> adjacentNodes(Object node) {
-      return network.adjacentNodes(node);
-    }
-
-    @Override
-    public Set<N> predecessors(Object node) {
-      return network.successors(node); // transpose
-    }
-
-    @Override
-    public Set<N> successors(Object node) {
-      return network.predecessors(node); // transpose
-    }
-
-    @Override
-    public Set<E> incidentEdges(Object node) {
-      return network.incidentEdges(node);
-    }
-
-    @Override
-    public Set<E> inEdges(Object node) {
-      return network.outEdges(node); // transpose
-    }
-
-    @Override
-    public Set<E> outEdges(Object node) {
-      return network.inEdges(node); // transpose
-    }
-
-    @Override
-    public EndpointPair<N> incidentNodes(Object edge) {
-      EndpointPair<N> endpointPair = network.incidentNodes(edge);
+    public EndpointPair<N> incidentNodes(E edge) {
+      EndpointPair<N> endpointPair = delegate().incidentNodes(edge);
       return EndpointPair.of(network, endpointPair.nodeV(), endpointPair.nodeU()); // transpose
     }
 
     @Override
-    public Set<E> adjacentEdges(Object edge) {
-      return network.adjacentEdges(edge);
+    public Set<E> edgesConnecting(N nodeU, N nodeV) {
+      return delegate().edgesConnecting(nodeV, nodeU); // transpose
     }
 
     @Override
-    public Set<E> edgesConnecting(Object nodeU, Object nodeV) {
-      return network.edgesConnecting(nodeV, nodeU); // transpose
+    public Set<E> edgesConnecting(EndpointPair<N> endpoints) {
+      return delegate().edgesConnecting(transpose(endpoints));
     }
 
     @Override
-    public Optional<E> edgeConnecting(Object nodeU, Object nodeV) {
-      return network.edgeConnecting(nodeV, nodeU); // transpose
+    public Optional<E> edgeConnecting(N nodeU, N nodeV) {
+      return delegate().edgeConnecting(nodeV, nodeU); // transpose
+    }
+
+    @Override
+    public Optional<E> edgeConnecting(EndpointPair<N> endpoints) {
+      return delegate().edgeConnecting(transpose(endpoints));
+    }
+
+    @Override
+    public @Nullable E edgeConnectingOrNull(N nodeU, N nodeV) {
+      return delegate().edgeConnectingOrNull(nodeV, nodeU); // transpose
+    }
+
+    @Override
+    public @Nullable E edgeConnectingOrNull(EndpointPair<N> endpoints) {
+      return delegate().edgeConnectingOrNull(transpose(endpoints));
+    }
+
+    @Override
+    public boolean hasEdgeConnecting(N nodeU, N nodeV) {
+      return delegate().hasEdgeConnecting(nodeV, nodeU); // transpose
+    }
+
+    @Override
+    public boolean hasEdgeConnecting(EndpointPair<N> endpoints) {
+      return delegate().hasEdgeConnecting(transpose(endpoints));
     }
   }
 
@@ -511,7 +560,10 @@ public final class Graphs {
    * @throws IllegalArgumentException if any element in {@code nodes} is not a node in the graph
    */
   public static <N> MutableGraph<N> inducedSubgraph(Graph<N> graph, Iterable<? extends N> nodes) {
-    MutableGraph<N> subgraph = GraphBuilder.from(graph).build();
+    MutableGraph<N> subgraph =
+        (nodes instanceof Collection)
+            ? GraphBuilder.from(graph).expectedNodeCount(((Collection) nodes).size()).build()
+            : GraphBuilder.from(graph).build();
     for (N node : nodes) {
       subgraph.addNode(node);
     }
@@ -535,14 +587,21 @@ public final class Graphs {
    */
   public static <N, V> MutableValueGraph<N, V> inducedSubgraph(
       ValueGraph<N, V> graph, Iterable<? extends N> nodes) {
-    MutableValueGraph<N, V> subgraph = ValueGraphBuilder.from(graph).build();
+    MutableValueGraph<N, V> subgraph =
+        (nodes instanceof Collection)
+            ? ValueGraphBuilder.from(graph).expectedNodeCount(((Collection) nodes).size()).build()
+            : ValueGraphBuilder.from(graph).build();
     for (N node : nodes) {
       subgraph.addNode(node);
     }
     for (N node : subgraph.nodes()) {
       for (N successorNode : graph.successors(node)) {
         if (subgraph.nodes().contains(successorNode)) {
-          subgraph.putEdgeValue(node, successorNode, graph.edgeValue(node, successorNode));
+          // requireNonNull is safe because the endpoint pair comes from the graph.
+          subgraph.putEdgeValue(
+              node,
+              successorNode,
+              requireNonNull(graph.edgeValueOrDefault(node, successorNode, null)));
         }
       }
     }
@@ -559,7 +618,10 @@ public final class Graphs {
    */
   public static <N, E> MutableNetwork<N, E> inducedSubgraph(
       Network<N, E> network, Iterable<? extends N> nodes) {
-    MutableNetwork<N, E> subgraph = NetworkBuilder.from(network).build();
+    MutableNetwork<N, E> subgraph =
+        (nodes instanceof Collection)
+            ? NetworkBuilder.from(network).expectedNodeCount(((Collection) nodes).size()).build()
+            : NetworkBuilder.from(network).build();
     for (N node : nodes) {
       subgraph.addNode(node);
     }
@@ -594,7 +656,11 @@ public final class Graphs {
       copy.addNode(node);
     }
     for (EndpointPair<N> edge : graph.edges()) {
-      copy.putEdgeValue(edge.nodeU(), edge.nodeV(), graph.edgeValue(edge.nodeU(), edge.nodeV()));
+      // requireNonNull is safe because the endpoint pair comes from the graph.
+      copy.putEdgeValue(
+          edge.nodeU(),
+          edge.nodeV(),
+          requireNonNull(graph.edgeValueOrDefault(edge.nodeU(), edge.nodeV(), null)));
     }
     return copy;
   }
@@ -623,14 +689,14 @@ public final class Graphs {
   }
 
   @CanIgnoreReturnValue
-  static int checkPositive(int value) {
-    checkArgument(value > 0, "Not true that %s is positive.", value);
+  static long checkNonNegative(long value) {
+    checkArgument(value >= 0, "Not true that %s is non-negative.", value);
     return value;
   }
 
   @CanIgnoreReturnValue
-  static long checkNonNegative(long value) {
-    checkArgument(value >= 0, "Not true that %s is non-negative.", value);
+  static int checkPositive(int value) {
+    checkArgument(value > 0, "Not true that %s is positive.", value);
     return value;
   }
 

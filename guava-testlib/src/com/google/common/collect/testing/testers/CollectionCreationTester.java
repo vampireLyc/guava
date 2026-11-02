@@ -16,25 +16,27 @@
 
 package com.google.common.collect.testing.testers;
 
+import static com.google.common.collect.testing.Helpers.getMethod;
 import static com.google.common.collect.testing.features.CollectionFeature.ALLOWS_NULL_VALUES;
 import static com.google.common.collect.testing.features.CollectionSize.ZERO;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.testing.AbstractCollectionTester;
-import com.google.common.collect.testing.Helpers;
 import com.google.common.collect.testing.features.CollectionFeature;
 import com.google.common.collect.testing.features.CollectionSize;
 import java.lang.reflect.Method;
 
 /**
- * A generic JUnit test which tests creation (typically through a constructor or
- * static factory method) of a collection. Can't be invoked directly; please see
- * {@link com.google.common.collect.testing.CollectionTestSuiteBuilder}.
+ * A generic JUnit test which tests creation (typically through a constructor or static factory
+ * method) of a collection. Can't be invoked directly; please see {@link
+ * com.google.common.collect.testing.CollectionTestSuiteBuilder}.
  *
  * @author Chris Povirk
  */
-@GwtCompatible(emulated = true)
+@GwtCompatible
 public class CollectionCreationTester<E> extends AbstractCollectionTester<E> {
   @CollectionFeature.Require(ALLOWS_NULL_VALUES)
   @CollectionSize.Require(absent = ZERO)
@@ -49,22 +51,17 @@ public class CollectionCreationTester<E> extends AbstractCollectionTester<E> {
   public void testCreateWithNull_unsupported() {
     E[] array = createArrayWithNullElement();
 
-    try {
-      getSubjectGenerator().create(array);
-      fail("Creating a collection containing null should fail");
-    } catch (NullPointerException expected) {
-    }
+    assertThrows(NullPointerException.class, () -> getSubjectGenerator().create(array));
   }
 
   /**
-   * Returns the {@link Method} instance for {@link
-   * #testCreateWithNull_unsupported()} so that tests can suppress it
-   * with {@code FeatureSpecificTestSuiteBuilder.suppressing()} until <a
-   * href="http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=5045147">Sun
-   * bug 5045147</a> is fixed.
+   * Returns the {@link Method} instance for {@link #testCreateWithNull_unsupported()} so that tests
+   * can suppress it with {@code FeatureSpecificTestSuiteBuilder.suppressing()} until <a
+   * href="https://bugs.openjdk.org/browse/JDK-5045147">JDK-5045147</a> is fixed.
    */
+  @J2ktIncompatible
   @GwtIncompatible // reflection
   public static Method getCreateWithNullUnsupportedMethod() {
-    return Helpers.getMethod(CollectionCreationTester.class, "testCreateWithNull_unsupported");
+    return getMethod(CollectionCreationTester.class, "testCreateWithNull_unsupported");
   }
 }

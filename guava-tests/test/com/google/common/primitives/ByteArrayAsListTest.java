@@ -17,9 +17,11 @@
 package com.google.common.primitives;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.lang.System.arraycopy;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.testing.ListTestSuiteBuilder;
 import com.google.common.collect.testing.SampleElements;
@@ -31,49 +33,49 @@ import java.util.List;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Test suite covering {@link Bytes#asList(byte[])}.
  *
  * @author Kevin Bourrillion
  */
-@GwtCompatible(emulated = true)
+@GwtCompatible
+@NullUnmarked
+@AndroidIncompatible // test-suite builders
 public class ByteArrayAsListTest extends TestCase {
 
   private static List<Byte> asList(Byte[] values) {
     byte[] temp = new byte[values.length];
     for (int i = 0; i < values.length; i++) {
-      temp[i] = checkNotNull(values[i]);  // checkNotNull for GWT (do not optimize).
+      temp[i] = checkNotNull(values[i]); // checkNotNull for GWT (do not optimize).
     }
     return Bytes.asList(temp);
   }
 
+  @J2ktIncompatible
   @GwtIncompatible // suite
   public static Test suite() {
     List<ListTestSuiteBuilder<Byte>> builders =
         ImmutableList.of(
-            ListTestSuiteBuilder.using(new BytesAsListGenerator())
-                .named("Bytes.asList"),
-
+            ListTestSuiteBuilder.using(new BytesAsListGenerator()).named("Bytes.asList"),
             ListTestSuiteBuilder.using(new BytesAsListHeadSubListGenerator())
                 .named("Bytes.asList, head subList"),
-
             ListTestSuiteBuilder.using(new BytesAsListTailSubListGenerator())
                 .named("Bytes.asList, tail subList"),
-
             ListTestSuiteBuilder.using(new BytesAsListMiddleSubListGenerator())
-                .named("Bytes.asList, middle subList")
-        );
+                .named("Bytes.asList, middle subList"));
 
     TestSuite suite = new TestSuite();
     for (ListTestSuiteBuilder<Byte> builder : builders) {
       suite.addTest(
           builder
-          .withFeatures(CollectionSize.ONE,
-                        CollectionSize.SEVERAL,
-                        CollectionFeature.RESTRICTS_ELEMENTS,
-                        ListFeature.SUPPORTS_SET)
-          .createTestSuite());
+              .withFeatures(
+                  CollectionSize.ONE,
+                  CollectionSize.SEVERAL,
+                  CollectionFeature.RESTRICTS_ELEMENTS,
+                  ListFeature.SUPPORTS_SET)
+              .createTestSuite());
     }
     return suite;
   }
@@ -82,13 +84,15 @@ public class ByteArrayAsListTest extends TestCase {
   // public named classes with a public default constructor.
 
   public static final class BytesAsListGenerator extends TestByteListGenerator {
-    @Override protected List<Byte> create(Byte[] elements) {
+    @Override
+    List<Byte> create(Byte[] elements) {
       return asList(elements);
     }
   }
 
   public static final class BytesAsListHeadSubListGenerator extends TestByteListGenerator {
-    @Override protected List<Byte> create(Byte[] elements) {
+    @Override
+    List<Byte> create(Byte[] elements) {
       Byte[] suffix = {Byte.MIN_VALUE, Byte.MAX_VALUE};
       Byte[] all = concat(elements, suffix);
       return asList(all).subList(0, elements.length);
@@ -96,7 +100,8 @@ public class ByteArrayAsListTest extends TestCase {
   }
 
   public static final class BytesAsListTailSubListGenerator extends TestByteListGenerator {
-    @Override protected List<Byte> create(Byte[] elements) {
+    @Override
+    List<Byte> create(Byte[] elements) {
       Byte[] prefix = {(byte) 86, (byte) 99};
       Byte[] all = concat(prefix, elements);
       return asList(all).subList(2, elements.length + 2);
@@ -104,7 +109,8 @@ public class ByteArrayAsListTest extends TestCase {
   }
 
   public static final class BytesAsListMiddleSubListGenerator extends TestByteListGenerator {
-    @Override protected List<Byte> create(Byte[] elements) {
+    @Override
+    List<Byte> create(Byte[] elements) {
       Byte[] prefix = {Byte.MIN_VALUE, Byte.MAX_VALUE};
       Byte[] suffix = {(byte) 86, (byte) 99};
       Byte[] all = concat(concat(prefix, elements), suffix);
@@ -114,13 +120,12 @@ public class ByteArrayAsListTest extends TestCase {
 
   private static Byte[] concat(Byte[] left, Byte[] right) {
     Byte[] result = new Byte[left.length + right.length];
-    System.arraycopy(left, 0, result, 0, left.length);
-    System.arraycopy(right, 0, result, left.length, right.length);
+    arraycopy(left, 0, result, 0, left.length);
+    arraycopy(right, 0, result, left.length, right.length);
     return result;
   }
 
-  public static abstract class TestByteListGenerator
-      implements TestListGenerator<Byte> {
+  public abstract static class TestByteListGenerator implements TestListGenerator<Byte> {
     @Override
     public SampleElements<Byte> samples() {
       return new SampleBytes();
@@ -137,10 +142,10 @@ public class ByteArrayAsListTest extends TestCase {
     }
 
     /**
-     * Creates a new collection containing the given elements; implement this
-     * method instead of {@link #create(Object...)}.
+     * Creates a new collection containing the given elements; implement this method instead of
+     * {@link #create(Object...)}.
      */
-    protected abstract List<Byte> create(Byte[] elements);
+    abstract List<Byte> create(Byte[] elements);
 
     @Override
     public Byte[] createArray(int length) {

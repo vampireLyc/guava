@@ -16,7 +16,9 @@ package com.google.common.hash;
 
 import com.google.common.annotations.Beta;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A {@link PrimitiveSink} that can compute a hash code after reading the input. Each hasher should
@@ -34,60 +36,69 @@ import java.nio.charset.Charset;
  * <p><b>Warning:</b> Chunks of data that are put into the {@link Hasher} are not delimited. The
  * resulting {@link HashCode} is dependent only on the bytes inserted, and the order in which they
  * were inserted, not how those bytes were chunked into discrete put() operations. For example, the
- * following three expressions all generate colliding hash codes: <pre>   {@code
+ * following three expressions all generate colliding hash codes:
  *
- *   newHasher().putByte(b1).putByte(b2).putByte(b3).hash()
- *   newHasher().putByte(b1).putBytes(new byte[] { b2, b3 }).hash()
- *   newHasher().putBytes(new byte[] { b1, b2, b3 }).hash()}</pre>
+ * {@snippet :
+ * newHasher().putByte(b1).putByte(b2).putByte(b3).hash()
+ * newHasher().putByte(b1).putBytes(new byte[] { b2, b3 }).hash()
+ * newHasher().putBytes(new byte[] { b1, b2, b3 }).hash()
+ * }
  *
  * <p>If you wish to avoid this, you should either prepend or append the size of each chunk. Keep in
  * mind that when dealing with char sequences, the encoded form of two concatenated char sequences
- * is not equivalent to the concatenation of their encoded form. Therefore,
- * {@link #putString(CharSequence, Charset)} should only be used consistently with <i>complete</i>
+ * is not equivalent to the concatenation of their encoded form. Therefore, {@link
+ * #putString(CharSequence, Charset)} should only be used consistently with <i>complete</i>
  * sequences and not broken into chunks.
  *
  * @author Kevin Bourrillion
  * @since 11.0
  */
 @Beta
-@CanIgnoreReturnValue
 public interface Hasher extends PrimitiveSink {
+  @CanIgnoreReturnValue
   @Override
   Hasher putByte(byte b);
 
+  @CanIgnoreReturnValue
   @Override
   Hasher putBytes(byte[] bytes);
 
+  @CanIgnoreReturnValue
   @Override
   Hasher putBytes(byte[] bytes, int off, int len);
 
+  @CanIgnoreReturnValue
+  @Override
+  Hasher putBytes(ByteBuffer bytes);
+
+  @CanIgnoreReturnValue
   @Override
   Hasher putShort(short s);
 
+  @CanIgnoreReturnValue
   @Override
   Hasher putInt(int i);
 
+  @CanIgnoreReturnValue
   @Override
   Hasher putLong(long l);
 
-  /**
-   * Equivalent to {@code putInt(Float.floatToRawIntBits(f))}.
-   */
+  /** Equivalent to {@code putInt(Float.floatToRawIntBits(f))}. */
+  @CanIgnoreReturnValue
   @Override
   Hasher putFloat(float f);
 
-  /**
-   * Equivalent to {@code putLong(Double.doubleToRawLongBits(d))}.
-   */
+  /** Equivalent to {@code putLong(Double.doubleToRawLongBits(d))}. */
+  @CanIgnoreReturnValue
   @Override
   Hasher putDouble(double d);
 
-  /**
-   * Equivalent to {@code putByte(b ? (byte) 1 : (byte) 0)}.
-   */
+  /** Equivalent to {@code putByte(b ? (byte) 1 : (byte) 0)}. */
+  @CanIgnoreReturnValue
   @Override
   Hasher putBoolean(boolean b);
 
+  @CanIgnoreReturnValue
   @Override
   Hasher putChar(char c);
 
@@ -104,6 +115,7 @@ public interface Hasher extends PrimitiveSink {
    *
    * @since 15.0 (since 11.0 as putString(CharSequence)).
    */
+  @CanIgnoreReturnValue
   @Override
   Hasher putUnencodedChars(CharSequence charSequence);
 
@@ -115,13 +127,14 @@ public interface Hasher extends PrimitiveSink {
    * faster, produces the same output across Java releases, and hashes every {@code char} in the
    * input, even if some are invalid.
    */
+  @CanIgnoreReturnValue
   @Override
   Hasher putString(CharSequence charSequence, Charset charset);
 
-  /**
-   * A simple convenience for {@code funnel.funnel(object, this)}.
-   */
-  <T> Hasher putObject(T instance, Funnel<? super T> funnel);
+  /** A simple convenience for {@code funnel.funnel(object, this)}. */
+  @CanIgnoreReturnValue
+  <T extends @Nullable Object> Hasher putObject(
+      @ParametricNullness T instance, Funnel<? super T> funnel);
 
   /**
    * Computes a hash code based on the data that have been provided to this hasher. The result is
@@ -132,8 +145,8 @@ public interface Hasher extends PrimitiveSink {
   /**
    * {@inheritDoc}
    *
-   * @deprecated This returns {@link Object#hashCode()}; you almost certainly mean to call
-   *     {@code hash().asInt()}.
+   * @deprecated This returns {@link Object#hashCode()}; you almost certainly mean to call {@code
+   *     hash().asInt()}.
    */
   @Override
   @Deprecated

@@ -16,17 +16,18 @@
 
 package com.google.common.collect.testing;
 
+import static com.google.common.testing.SerializableTester.reserialize;
+import static com.google.common.testing.SerializableTester.reserializeAndAssert;
 import static java.util.Collections.sort;
 
 import com.google.common.annotations.GwtIncompatible;
 import com.google.common.collect.ImmutableSortedMap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.testing.Helpers.NullsBeforeTwo;
 import com.google.common.collect.testing.features.CollectionFeature;
 import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.collect.testing.features.MapFeature;
-import com.google.common.testing.SerializableTester;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -42,84 +43,69 @@ import junit.framework.TestSuite;
  * @author Louis Wasserman
  */
 public class SafeTreeMapTest extends TestCase {
+  @AndroidIncompatible // test-suite builders
   public static Test suite() {
     TestSuite suite = new TestSuite();
     suite.addTestSuite(SafeTreeMapTest.class);
     suite.addTest(
-        NavigableMapTestSuiteBuilder.using(new TestStringSortedMapGenerator() {
-          @Override protected SortedMap<String, String> create(
-              Entry<String, String>[] entries) {
-            NavigableMap<String, String> map =
-                new SafeTreeMap<String, String>(Ordering.natural());
-            for (Entry<String, String> entry : entries) {
-              map.put(entry.getKey(), entry.getValue());
-            }
-            return map;
-          }
-        }).withFeatures(CollectionSize.ANY, CollectionFeature.KNOWN_ORDER,
-            CollectionFeature.SERIALIZABLE, MapFeature.ALLOWS_NULL_VALUES,
-            CollectionFeature.SUPPORTS_ITERATOR_REMOVE, MapFeature.GENERAL_PURPOSE).named(
-            "SafeTreeMap with natural comparator").createTestSuite());
-    suite.addTest(NavigableMapTestSuiteBuilder.using(new TestStringSortedMapGenerator() {
-      @Override protected SortedMap<String, String> create(
-          Entry<String, String>[] entries) {
-        NavigableMap<String, String> map =
-            new SafeTreeMap<String, String>(NullsBeforeTwo.INSTANCE);
-        for (Entry<String, String> entry : entries) {
-          map.put(entry.getKey(), entry.getValue());
-        }
-        return map;
-      }
+        NavigableMapTestSuiteBuilder.using(
+                new TestStringSortedMapGenerator() {
+                  @Override
+                  protected SortedMap<String, String> create(Entry<String, String>[] entries) {
+                    NavigableMap<String, String> map = new SafeTreeMap<>(Ordering.natural());
+                    for (Entry<String, String> entry : entries) {
+                      map.put(entry.getKey(), entry.getValue());
+                    }
+                    return map;
+                  }
+                })
+            .withFeatures(
+                CollectionSize.ANY,
+                CollectionFeature.KNOWN_ORDER,
+                CollectionFeature.SERIALIZABLE,
+                MapFeature.ALLOWS_NULL_VALUES,
+                CollectionFeature.SUPPORTS_ITERATOR_REMOVE,
+                MapFeature.GENERAL_PURPOSE)
+            .named("SafeTreeMap with natural comparator")
+            .createTestSuite());
+    suite.addTest(
+        NavigableMapTestSuiteBuilder.using(
+                new TestStringSortedMapGenerator() {
+                  @Override
+                  protected SortedMap<String, String> create(Entry<String, String>[] entries) {
+                    NavigableMap<String, String> map = new SafeTreeMap<>(NullsBeforeTwo.INSTANCE);
+                    for (Entry<String, String> entry : entries) {
+                      map.put(entry.getKey(), entry.getValue());
+                    }
+                    return map;
+                  }
 
-      @Override
-      public Iterable<Entry<String, String>> order(List<Entry<String, String>> insertionOrder) {
-        sort(insertionOrder, Helpers.<String, String>entryComparator(NullsBeforeTwo.INSTANCE));
-        return insertionOrder;
-      }
-    }).withFeatures(CollectionSize.ANY, CollectionFeature.KNOWN_ORDER,
-        MapFeature.ALLOWS_NULL_KEYS, MapFeature.ALLOWS_NULL_VALUES,
-        MapFeature.ALLOWS_ANY_NULL_QUERIES, MapFeature.GENERAL_PURPOSE,
-        CollectionFeature.SUPPORTS_ITERATOR_REMOVE, CollectionFeature.SERIALIZABLE).named(
-        "SafeTreeMap with null-friendly comparator").createTestSuite());
+                  @Override
+                  public Iterable<Entry<String, String>> order(
+                      List<Entry<String, String>> insertionOrder) {
+                    sort(insertionOrder, Helpers.entryComparator(NullsBeforeTwo.INSTANCE));
+                    return insertionOrder;
+                  }
+                })
+            .withFeatures(
+                CollectionSize.ANY,
+                CollectionFeature.KNOWN_ORDER,
+                MapFeature.ALLOWS_NULL_KEYS,
+                MapFeature.ALLOWS_NULL_VALUES,
+                MapFeature.ALLOWS_ANY_NULL_QUERIES,
+                MapFeature.GENERAL_PURPOSE,
+                CollectionFeature.SUPPORTS_ITERATOR_REMOVE,
+                CollectionFeature.SERIALIZABLE)
+            .named("SafeTreeMap with null-friendly comparator")
+            .createTestSuite());
     return suite;
   }
 
   @GwtIncompatible // SerializableTester
   public void testViewSerialization() {
-    Map<String, Integer> map =
-        ImmutableSortedMap.of("one", 1, "two", 2, "three", 3);
-    SerializableTester.reserializeAndAssert(map.entrySet());
-    SerializableTester.reserializeAndAssert(map.keySet());
-    assertEquals(Lists.newArrayList(map.values()),
-        Lists.newArrayList(SerializableTester.reserialize(map.values())));
-  }
-
-  @GwtIncompatible // SerializableTester
-  public static class ReserializedMapTests extends SortedMapInterfaceTest<String, Integer> {
-    public ReserializedMapTests() {
-      super(false, true, true, true, true);
-    }
-
-    @Override protected SortedMap<String, Integer> makePopulatedMap() {
-      NavigableMap<String, Integer> map = new SafeTreeMap<String, Integer>();
-      map.put("one", 1);
-      map.put("two", 2);
-      map.put("three", 3);
-      return SerializableTester.reserialize(map);
-    }
-
-    @Override protected SortedMap<String, Integer> makeEmptyMap()
-        throws UnsupportedOperationException {
-      NavigableMap<String, Integer> map = new SafeTreeMap<String, Integer>();
-      return SerializableTester.reserialize(map);
-    }
-
-    @Override protected String getKeyNotInPopulatedMap() {
-      return "minus one";
-    }
-
-    @Override protected Integer getValueNotInPopulatedMap() {
-      return -1;
-    }
+    Map<String, Integer> map = ImmutableSortedMap.of("one", 1, "two", 2, "three", 3);
+    reserializeAndAssert(map.entrySet());
+    reserializeAndAssert(map.keySet());
+    assertEquals(new ArrayList<>(map.values()), new ArrayList<>(reserialize(map.values())));
   }
 }

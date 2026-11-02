@@ -15,42 +15,49 @@
 package com.google.common.hash;
 
 import com.google.common.base.Preconditions;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import com.google.errorprone.annotations.Immutable;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 
 /**
  * Skeleton implementation of {@link HashFunction}, appropriate for non-streaming algorithms. All
- * the hash computation done using {@linkplain #newHasher()} are delegated to the
- * {@linkplain #hashBytes(byte[], int, int)} method.
+ * the hash computation done using {@link #newHasher()} are delegated to the {@link
+ * #hashBytes(byte[], int, int)} method.
  *
  * @author Dimitris Andreou
  */
-abstract class AbstractNonStreamingHashFunction implements HashFunction {
+@Immutable
+abstract class AbstractNonStreamingHashFunction extends AbstractHashFunction {
   @Override
   public Hasher newHasher() {
-    return new BufferingHasher(32);
+    return newHasher(32);
   }
 
   @Override
-  public Hasher newHasher(int expectedInputSize) {
+  public final Hasher newHasher(int expectedInputSize) {
     Preconditions.checkArgument(expectedInputSize >= 0);
-    return new BufferingHasher(expectedInputSize);
+    return new ByteBufferHasher(expectedInputSize);
   }
 
   @Override
-  public <T> HashCode hashObject(T instance, Funnel<? super T> funnel) {
-    return newHasher().putObject(instance, funnel).hash();
+  public HashCode hashInt(int input) {
+    return hashBytes(ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(input).array());
+  }
+
+  @Override
+  public HashCode hashLong(long input) {
+    return hashBytes(ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(input).array());
   }
 
   @Override
   public HashCode hashUnencodedChars(CharSequence input) {
     int len = input.length();
-    Hasher hasher = newHasher(len * 2);
+    ByteBuffer buffer = ByteBuffer.allocate(len * 2).order(ByteOrder.LITTLE_ENDIAN);
     for (int i = 0; i < len; i++) {
-      hasher.putChar(input.charAt(i));
+      buffer.putChar(input.charAt(i));
     }
-    return hasher.hash();
+    return hashBytes(buffer.array());
   }
 
   @Override
@@ -59,108 +66,106 @@ abstract class AbstractNonStreamingHashFunction implements HashFunction {
   }
 
   @Override
-  public HashCode hashInt(int input) {
-    return newHasher(4).putInt(input).hash();
-  }
+  public abstract HashCode hashBytes(byte[] input, int off, int len);
 
   @Override
-  public HashCode hashLong(long input) {
-    return newHasher(8).putLong(input).hash();
+  public HashCode hashBytes(ByteBuffer input) {
+    return newHasher(input.remaining()).putBytes(input).hash();
   }
 
-  @Override
-  public HashCode hashBytes(byte[] input) {
-    return hashBytes(input, 0, input.length);
-  }
+  /** In-memory ByteBuffer-based implementation of {@link Hasher}. */
+  private final class ByteBufferHasher extends AbstractHasher {
+    ByteBuffer buffer;
 
-  /**
-   * In-memory stream-based implementation of Hasher.
-   */
-  private final class BufferingHasher extends AbstractHasher {
-    final ExposedByteArrayOutputStream stream;
-    static final int BOTTOM_BYTE = 0xFF;
+    ByteBufferHasher(int expectedInputSize) {
+      this.buffer = ByteBuffer.allocate(expectedInputSize).order(ByteOrder.LITTLE_ENDIAN);
+    }
 
-    BufferingHasher(int expectedInputSize) {
-      this.stream = new ExposedByteArrayOutputStream(expectedInputSize);
+    /**
+     * Resizes the buffer if necessary. Guaranteed to leave `buffer` in Write Mode ready for new
+     * data.
+     */
+    private void ensureCapacity(int needed) {
+      if (buffer.remaining() >= needed) {
+        return;
+      }
+
+      int currentCapacity = buffer.capacity();
+      int requiredCapacity = buffer.position() + needed;
+      int newCapacity = Math.max(currentCapacity * 2, requiredCapacity);
+
+      ByteBuffer newBuffer = ByteBuffer.allocate(newCapacity).order(ByteOrder.LITTLE_ENDIAN);
+
+      // We must switch the old buffer to read mode to extract data
+      Java8Compatibility.flip(buffer);
+
+      newBuffer.put(buffer);
+
+      // Swap references, newBuffer is already in write mode at the correct position
+      this.buffer = newBuffer;
     }
 
     @Override
     public Hasher putByte(byte b) {
-      stream.write(b);
-      return this;
-    }
-
-    @Override
-    public Hasher putBytes(byte[] bytes) {
-      try {
-        stream.write(bytes);
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
+      ensureCapacity(Byte.BYTES);
+      buffer.put(b);
       return this;
     }
 
     @Override
     public Hasher putBytes(byte[] bytes, int off, int len) {
-      stream.write(bytes, off, len);
+      ensureCapacity(len);
+      buffer.put(bytes, off, len);
       return this;
     }
 
     @Override
-    public Hasher putShort(short s) {
-      stream.write(s & BOTTOM_BYTE);
-      stream.write((s >>> 8) & BOTTOM_BYTE);
+    public Hasher putBytes(ByteBuffer bytes) {
+      ensureCapacity(bytes.remaining());
+      buffer.put(bytes);
       return this;
     }
 
     @Override
-    public Hasher putInt(int i) {
-      stream.write(i & BOTTOM_BYTE);
-      stream.write((i >>> 8) & BOTTOM_BYTE);
-      stream.write((i >>> 16) & BOTTOM_BYTE);
-      stream.write((i >>> 24) & BOTTOM_BYTE);
-      return this;
-    }
-
-    @Override
-    public Hasher putLong(long l) {
-      for (int i = 0; i < 64; i += 8) {
-        stream.write((byte) ((l >>> i) & BOTTOM_BYTE));
+    public Hasher putUnencodedChars(CharSequence charSequence) {
+      ensureCapacity(charSequence.length() * Character.BYTES);
+      for (int i = 0, len = charSequence.length(); i < len; i++) {
+        buffer.putChar(charSequence.charAt(i));
       }
       return this;
     }
 
     @Override
-    public Hasher putChar(char c) {
-      stream.write(c & BOTTOM_BYTE);
-      stream.write((c >>> 8) & BOTTOM_BYTE);
+    public Hasher putShort(short s) {
+      ensureCapacity(Short.BYTES);
+      buffer.putShort(s);
       return this;
     }
 
     @Override
-    public <T> Hasher putObject(T instance, Funnel<? super T> funnel) {
-      funnel.funnel(instance, this);
+    public Hasher putInt(int i) {
+      ensureCapacity(Integer.BYTES);
+      buffer.putInt(i);
+      return this;
+    }
+
+    @Override
+    public Hasher putLong(long l) {
+      ensureCapacity(Long.BYTES);
+      buffer.putLong(l);
+      return this;
+    }
+
+    @Override
+    public Hasher putChar(char c) {
+      ensureCapacity(Character.BYTES);
+      buffer.putChar(c);
       return this;
     }
 
     @Override
     public HashCode hash() {
-      return hashBytes(stream.byteArray(), 0, stream.length());
-    }
-  }
-
-  // Just to access the byte[] without introducing an unnecessary copy
-  private static final class ExposedByteArrayOutputStream extends ByteArrayOutputStream {
-    ExposedByteArrayOutputStream(int expectedInputSize) {
-      super(expectedInputSize);
-    }
-
-    byte[] byteArray() {
-      return buf;
-    }
-
-    int length() {
-      return count;
+      return hashBytes(buffer.array(), 0, buffer.position());
     }
   }
 }

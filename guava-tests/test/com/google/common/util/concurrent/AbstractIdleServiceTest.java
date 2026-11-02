@@ -18,13 +18,17 @@ package com.google.common.util.concurrent;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.junit.Assert.assertThrows;
 
-import com.google.common.collect.Lists;
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Tests for {@link AbstractIdleService}.
@@ -32,86 +36,35 @@ import junit.framework.TestCase;
  * @author Chris Nokleberg
  * @author Ben Yu
  */
+@NullUnmarked
+@GwtIncompatible
+@J2ktIncompatible
 public class AbstractIdleServiceTest extends TestCase {
-
-  // Functional tests using real thread. We only verify publicly visible state.
-  // Interaction assertions are done by the single-threaded unit tests.
-
-  public static class FunctionalTest extends TestCase {
-
-    private static class DefaultService extends AbstractIdleService {
-      @Override protected void startUp() throws Exception {}
-      @Override protected void shutDown() throws Exception {}
-    }
-
-    public void testServiceStartStop() throws Exception {
-      AbstractIdleService service = new DefaultService();
-      service.startAsync().awaitRunning();
-      assertEquals(Service.State.RUNNING, service.state());
-      service.stopAsync().awaitTerminated();
-      assertEquals(Service.State.TERMINATED, service.state());
-    }
-
-    public void testStart_failed() throws Exception {
-      final Exception exception = new Exception("deliberate");
-      AbstractIdleService service = new DefaultService() {
-        @Override protected void startUp() throws Exception {
-          throw exception;
-        }
-      };
-      try {
-        service.startAsync().awaitRunning();
-        fail();
-      } catch (RuntimeException e) {
-        assertSame(exception, e.getCause());
-      }
-      assertEquals(Service.State.FAILED, service.state());
-    }
-
-    public void testStop_failed() throws Exception {
-      final Exception exception = new Exception("deliberate");
-      AbstractIdleService service = new DefaultService() {
-        @Override protected void shutDown() throws Exception {
-          throw exception;
-        }
-      };
-      service.startAsync().awaitRunning();
-      try {
-        service.stopAsync().awaitTerminated();
-        fail();
-      } catch (RuntimeException e) {
-        assertSame(exception, e.getCause());
-      }
-      assertEquals(Service.State.FAILED, service.state());
-    }
-  }
-
   public void testStart() {
     TestService service = new TestService();
     assertEquals(0, service.startUpCalled);
     service.startAsync().awaitRunning();
     assertEquals(1, service.startUpCalled);
-    assertEquals(Service.State.RUNNING, service.state());
+    assertThat(service.state()).isEqualTo(Service.State.RUNNING);
     assertThat(service.transitionStates).containsExactly(Service.State.STARTING);
   }
 
   public void testStart_failed() {
-    final Exception exception = new Exception("deliberate");
-    TestService service = new TestService() {
-      @Override protected void startUp() throws Exception {
-        super.startUp();
-        throw exception;
-      }
-    };
+    Exception exception = new Exception("deliberate");
+    TestService service =
+        new TestService() {
+          @Override
+          protected void startUp() throws Exception {
+            super.startUp();
+            throw exception;
+          }
+        };
     assertEquals(0, service.startUpCalled);
-    try {
-      service.startAsync().awaitRunning();
-      fail();
-    } catch (RuntimeException e) {
-      assertSame(exception, e.getCause());
-    }
+    RuntimeException e =
+        assertThrows(RuntimeException.class, () -> service.startAsync().awaitRunning());
+    assertThat(e).hasCauseThat().isEqualTo(exception);
     assertEquals(1, service.startUpCalled);
-    assertEquals(Service.State.FAILED, service.state());
+    assertThat(service.state()).isEqualTo(Service.State.FAILED);
     assertThat(service.transitionStates).containsExactly(Service.State.STARTING);
   }
 
@@ -120,7 +73,7 @@ public class AbstractIdleServiceTest extends TestCase {
     service.stopAsync().awaitTerminated();
     assertEquals(0, service.startUpCalled);
     assertEquals(0, service.shutDownCalled);
-    assertEquals(Service.State.TERMINATED, service.state());
+    assertThat(service.state()).isEqualTo(Service.State.TERMINATED);
     assertThat(service.transitionStates).isEmpty();
   }
 
@@ -132,87 +85,145 @@ public class AbstractIdleServiceTest extends TestCase {
     service.stopAsync().awaitTerminated();
     assertEquals(1, service.startUpCalled);
     assertEquals(1, service.shutDownCalled);
-    assertEquals(Service.State.TERMINATED, service.state());
+    assertThat(service.state()).isEqualTo(Service.State.TERMINATED);
     assertThat(service.transitionStates)
-        .containsExactly(Service.State.STARTING, Service.State.STOPPING).inOrder();
+        .containsExactly(Service.State.STARTING, Service.State.STOPPING)
+        .inOrder();
   }
 
   public void testStop_failed() {
-    final Exception exception = new Exception("deliberate");
-    TestService service = new TestService() {
-      @Override protected void shutDown() throws Exception {
-        super.shutDown();
-        throw exception;
-      }
-    };
+    Exception exception = new Exception("deliberate");
+    TestService service =
+        new TestService() {
+          @Override
+          protected void shutDown() throws Exception {
+            super.shutDown();
+            throw exception;
+          }
+        };
     service.startAsync().awaitRunning();
     assertEquals(1, service.startUpCalled);
     assertEquals(0, service.shutDownCalled);
-    try {
-      service.stopAsync().awaitTerminated();
-      fail();
-    } catch (RuntimeException e) {
-      assertSame(exception, e.getCause());
-    }
+    RuntimeException e =
+        assertThrows(RuntimeException.class, () -> service.stopAsync().awaitTerminated());
+    assertThat(e).hasCauseThat().isEqualTo(exception);
     assertEquals(1, service.startUpCalled);
     assertEquals(1, service.shutDownCalled);
-    assertEquals(Service.State.FAILED, service.state());
+    assertThat(service.state()).isEqualTo(Service.State.FAILED);
     assertThat(service.transitionStates)
-        .containsExactly(Service.State.STARTING, Service.State.STOPPING).inOrder();
+        .containsExactly(Service.State.STARTING, Service.State.STOPPING)
+        .inOrder();
   }
 
   public void testServiceToString() {
     AbstractIdleService service = new TestService();
-    assertEquals("TestService [NEW]", service.toString());
+    assertThat(service.toString()).isEqualTo("TestService [NEW]");
     service.startAsync().awaitRunning();
-    assertEquals("TestService [RUNNING]", service.toString());
+    assertThat(service.toString()).isEqualTo("TestService [RUNNING]");
     service.stopAsync().awaitTerminated();
-    assertEquals("TestService [TERMINATED]", service.toString());
+    assertThat(service.toString()).isEqualTo("TestService [TERMINATED]");
   }
 
-  public void testTimeout() throws Exception {
+  public void testTimeout() {
     // Create a service whose executor will never run its commands
-    Service service = new TestService() {
-      @Override protected Executor executor() {
-        return new Executor() {
-          @Override public void execute(Runnable command) {}
-        };
-      }
+    Service service =
+        new TestService() {
+          @Override
+          protected Executor executor() {
+            return new Executor() {
+              @Override
+              public void execute(Runnable command) {}
+            };
+          }
 
-      @Override protected String serviceName() {
-        return "Foo";
-      }
-    };
-    try {
-      service.startAsync().awaitRunning(1, TimeUnit.MILLISECONDS);
-      fail("Expected timeout");
-    } catch (TimeoutException e) {
-      assertThat(e).hasMessage("Timed out waiting for Foo [STARTING] to reach the RUNNING state.");
-    }
+          @Override
+          protected String serviceName() {
+            return "Foo";
+          }
+        };
+    TimeoutException e =
+        assertThrows(
+            TimeoutException.class, () -> service.startAsync().awaitRunning(1, MILLISECONDS));
+    assertThat(e)
+        .hasMessageThat()
+        .isEqualTo("Timed out waiting for Foo [STARTING] to reach the RUNNING state.");
   }
 
   private static class TestService extends AbstractIdleService {
     int startUpCalled = 0;
     int shutDownCalled = 0;
-    final List<State> transitionStates = Lists.newArrayList();
+    final List<State> transitionStates = new ArrayList<>();
 
-    @Override protected void startUp() throws Exception {
+    @Override
+    protected void startUp() throws Exception {
       assertEquals(0, startUpCalled);
       assertEquals(0, shutDownCalled);
       startUpCalled++;
-      assertEquals(State.STARTING, state());
+      assertThat(state()).isEqualTo(State.STARTING);
     }
 
-    @Override protected void shutDown() throws Exception {
+    @Override
+    protected void shutDown() throws Exception {
       assertEquals(1, startUpCalled);
       assertEquals(0, shutDownCalled);
       shutDownCalled++;
-      assertEquals(State.STOPPING, state());
+      assertThat(state()).isEqualTo(State.STOPPING);
     }
 
-    @Override protected Executor executor() {
+    @Override
+    protected Executor executor() {
       transitionStates.add(state());
       return directExecutor();
     }
+  }
+
+  // Functional tests using real thread. We only verify publicly visible state.
+  // Interaction assertions are done by the single-threaded unit tests.
+
+  private static class DefaultService extends AbstractIdleService {
+    @Override
+    protected void startUp() throws Exception {}
+
+    @Override
+    protected void shutDown() throws Exception {}
+  }
+
+  public void testFunctionalServiceStartStop() {
+    AbstractIdleService service = new DefaultService();
+    service.startAsync().awaitRunning();
+    assertThat(service.state()).isEqualTo(Service.State.RUNNING);
+    service.stopAsync().awaitTerminated();
+    assertThat(service.state()).isEqualTo(Service.State.TERMINATED);
+  }
+
+  public void testFunctionalStart_failed() {
+    Exception exception = new Exception("deliberate");
+    AbstractIdleService service =
+        new DefaultService() {
+          @Override
+          protected void startUp() throws Exception {
+            throw exception;
+          }
+        };
+    RuntimeException e =
+        assertThrows(RuntimeException.class, () -> service.startAsync().awaitRunning());
+    assertThat(e).hasCauseThat().isEqualTo(exception);
+    assertThat(service.state()).isEqualTo(Service.State.FAILED);
+  }
+
+  public void testFunctionalStop_failed() {
+    Exception exception = new Exception("deliberate");
+    AbstractIdleService service =
+        new DefaultService() {
+          @Override
+          protected void shutDown() throws Exception {
+            throw exception;
+          }
+        };
+    service.startAsync().awaitRunning();
+    RuntimeException e =
+        assertThrows(RuntimeException.class, () -> service.stopAsync().awaitTerminated());
+    assertThat(e).hasCauseThat().isEqualTo(exception);
+    assertThat(service.state()).isEqualTo(Service.State.FAILED);
   }
 }

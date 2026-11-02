@@ -27,22 +27,32 @@ import com.google.common.util.concurrent.AbstractFutureBenchmarks.Impl;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import org.jspecify.annotations.NullUnmarked;
 
-/**
- * Measures the size of AbstractFuture implementations.
- */
+/** Measures the size of AbstractFuture implementations. */
+@NullUnmarked
 public class AbstractFutureFootprintBenchmark {
 
-  enum State { NOT_DONE, FINISHED, CANCELLED, FAILED}
+  enum State {
+    NOT_DONE,
+    FINISHED,
+    CANCELLED,
+    FAILED
+  }
 
   @Param State state;
   @Param Impl impl;
-  @Param({"0", "1", "5", "10"}) int numListeners;
-  @Param({"0", "1", "5", "10"}) int numThreads;
 
-  private final Set<Thread> blockedThreads = new HashSet<Thread>();
+  @Param({"0", "1", "5", "10"})
+  int numListeners;
 
-  @BeforeExperiment void setUp() throws Exception {
+  @Param({"0", "1", "5", "10"})
+  int numThreads;
+
+  private final Set<Thread> blockedThreads = new HashSet<>();
+
+  @BeforeExperiment
+  void setUp() {
     if (state != State.NOT_DONE && (numListeners != 0 || numThreads != 0)) {
       throw new SkipThisScenarioException();
     }
@@ -50,26 +60,30 @@ public class AbstractFutureFootprintBenchmark {
 
   // This exclusion doesn't exclude the TOMBSTONE objects we set. So 'done' NEW futures will look
   // larger than they are.
+  @SuppressWarnings("FutureReturnValueIgnored")
   @Footprint(exclude = {Runnable.class, Executor.class, Thread.class, Exception.class})
   public Object measureSize() {
     for (Thread thread : blockedThreads) {
       thread.interrupt();
     }
     blockedThreads.clear();
-    final Facade<Object> f = impl.newFacade();
+    Facade<Object> f = impl.newFacade();
     for (int i = 0; i < numThreads; i++) {
-      Thread thread = new Thread() {
-        @Override public void run() {
-          try {
-            f.get();
-          } catch (Throwable expected) {}
-        }
-      };
+      Thread thread =
+          new Thread() {
+            @Override
+            public void run() {
+              try {
+                f.get();
+              } catch (Throwable expected) {
+              }
+            }
+          };
       thread.start();
       blockedThreads.add(thread);
     }
     for (int i = 0; i < numListeners; i++) {
-      f.addListener(Runnables.doNothing(), directExecutor());
+      f.addListener(() -> {}, directExecutor());
     }
     for (Thread thread : blockedThreads) {
       AbstractFutureBenchmarks.awaitWaiting(thread);
@@ -86,8 +100,6 @@ public class AbstractFutureFootprintBenchmark {
       case FAILED:
         f.setException(new Exception());
         break;
-      default:
-        throw new AssertionError();
     }
     return f;
   }

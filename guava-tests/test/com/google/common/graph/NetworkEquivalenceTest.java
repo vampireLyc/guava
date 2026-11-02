@@ -18,16 +18,15 @@ package com.google.common.graph;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import java.util.Arrays;
-import java.util.Collection;
+import com.google.common.graph.TestUtil.EdgeType;
+import com.google.testing.junit.testparameterinjector.TestParameter;
+import com.google.testing.junit.testparameterinjector.TestParameterInjector;
+import org.jspecify.annotations.NullUnmarked;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
 
-@AndroidIncompatible
-// TODO(cpovirk): Figure out Android JUnit 4 support. Does it work with Gingerbread? @RunWith?
-@RunWith(Parameterized.class)
+@RunWith(TestParameterInjector.class)
+@NullUnmarked
 public final class NetworkEquivalenceTest {
   private static final Integer N1 = 1;
   private static final Integer N2 = 2;
@@ -38,21 +37,10 @@ public final class NetworkEquivalenceTest {
   private static final String E12_A = "1-2a";
   private static final String E13 = "1-3";
 
-  enum EdgeType {
-    UNDIRECTED,
-    DIRECTED
-  }
-
   private final EdgeType edgeType;
   private final MutableNetwork<Integer, String> network;
 
-  // add parameters: directed/undirected
-  @Parameters
-  public static Collection<Object[]> parameters() {
-    return Arrays.asList(new Object[][] {{EdgeType.UNDIRECTED}, {EdgeType.DIRECTED}});
-  }
-
-  public NetworkEquivalenceTest(EdgeType edgeType) {
+  public NetworkEquivalenceTest(@TestParameter EdgeType edgeType) {
     this.edgeType = edgeType;
     this.network = createNetwork(edgeType);
   }
@@ -63,9 +51,8 @@ public final class NetworkEquivalenceTest {
         return NetworkBuilder.undirected().allowsSelfLoops(true).build();
       case DIRECTED:
         return NetworkBuilder.directed().allowsSelfLoops(true).build();
-      default:
-        throw new IllegalStateException("Unexpected edge type: " + edgeType);
     }
+    throw new IllegalStateException("Unexpected edge type: " + edgeType);
   }
 
   private static EdgeType oppositeType(EdgeType edgeType) {
@@ -74,9 +61,8 @@ public final class NetworkEquivalenceTest {
         return EdgeType.DIRECTED;
       case DIRECTED:
         return EdgeType.UNDIRECTED;
-      default:
-        throw new IllegalStateException("Unexpected edge type: " + edgeType);
     }
+    throw new IllegalStateException("Unexpected edge type: " + edgeType);
   }
 
   @Test
@@ -186,8 +172,6 @@ public final class NetworkEquivalenceTest {
       case DIRECTED:
         assertThat(network).isNotEqualTo(g2);
         break;
-      default:
-        throw new IllegalStateException("Unexpected edge type: " + edgeType);
     }
   }
 }

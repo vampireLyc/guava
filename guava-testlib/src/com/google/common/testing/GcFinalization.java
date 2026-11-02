@@ -16,36 +16,49 @@
 
 package com.google.common.testing;
 
+import static com.google.common.base.Throwables.throwIfUnchecked;
+import static com.google.common.collect.Sets.newConcurrentHashSet;
+import static java.lang.Math.max;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
+import com.google.common.base.FinalizablePhantomReference;
+import com.google.common.base.FinalizableReferenceQueue;
+import com.google.errorprone.annotations.DoNotMock;
+import com.google.errorprone.annotations.FormatMethod;
 import com.google.j2objc.annotations.J2ObjCIncompatible;
+import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Testing utilities relating to garbage collection finalization.
  *
- * <p>Use this class to test code triggered by <em>finalization</em>, that is, one of the
- * following actions taken by the java garbage collection system:
+ * <p>Use this class to test code triggered by <em>finalization</em>, that is, one of the following
+ * actions taken by the java garbage collection system:
  *
  * <ul>
- * <li>invoking the {@code finalize} methods of unreachable objects
- * <li>clearing weak references to unreachable referents
- * <li>enqueuing weak references to unreachable referents in their reference queue
+ *   <li>invoking the {@code finalize} methods of unreachable objects
+ *   <li>clearing weak references to unreachable referents
+ *   <li>enqueuing weak references to unreachable referents in their reference queue
  * </ul>
  *
  * <p>This class uses (possibly repeated) invocations of {@link java.lang.System#gc()} to cause
- * finalization to happen.  However, a call to {@code System.gc()} is specified to be no more
- * than a hint, so this technique may fail at the whim of the JDK implementation, for example if
- * a user specified the JVM flag {@code -XX:+DisableExplicitGC}.  But in practice, it works very
- * well for ordinary tests.
+ * finalization to happen. However, a call to {@code System.gc()} is specified to be no more than a
+ * hint, so this technique may fail at the whim of the JDK implementation, for example if a user
+ * specified the JVM flag {@code -XX:+DisableExplicitGC}. But in practice, it works very well for
+ * ordinary tests.
  *
  * <p>Failure of the expected event to occur within an implementation-defined "reasonable" time
  * period or an interrupt while waiting for the expected event will result in a {@link
@@ -53,61 +66,64 @@ import java.util.concurrent.TimeoutException;
  *
  * <p>Here's an example that tests a {@code finalize} method:
  *
- * <pre>   {@code
- *   final CountDownLatch latch = new CountDownLatch(1);
- *   Object x = new MyClass() {
- *     ...
- *     protected void finalize() { latch.countDown(); ... }
- *   };
- *   x = null;  // Hint to the JIT that x is stack-unreachable
- *   GcFinalization.await(latch);}</pre>
+ * {@snippet :
+ * final CountDownLatch latch = new CountDownLatch(1);
+ * Object x = new MyClass() {
+ *   ...
+ *   protected void finalize() { latch.countDown(); ... }
+ * };
+ * x = null; // Hint to the JIT that x is stack-unreachable
+ * GcFinalization.await(latch);
+ * }
  *
  * <p>Here's an example that uses a user-defined finalization predicate:
  *
- * <pre>   {@code
- *   final WeakHashMap<Object, Object> map = new WeakHashMap<Object, Object>();
- *   map.put(new Object(), Boolean.TRUE);
- *   GcFinalization.awaitDone(new FinalizationPredicate() {
- *     public boolean isDone() {
- *       return map.isEmpty();
- *     }
- *   });}</pre>
+ * {@snippet :
+ * final WeakHashMap<Object, Object> map = new WeakHashMap<>();
+ * map.put(new Object(), Boolean.TRUE);
+ * GcFinalization.awaitDone(new FinalizationPredicate() {
+ *   public boolean isDone() {
+ *     return map.isEmpty();
+ *   }
+ * });
+ * }
  *
- * <p>Even if your non-test code does not use finalization, you can
- * use this class to test for leaks, by ensuring that objects are no
- * longer strongly referenced:
+ * <p>Even if your non-test code does not use finalization, you can use this class to test for
+ * leaks, by ensuring that objects are no longer strongly referenced:
  *
- * <pre> {@code
+ * {@snippet :
  * // Helper function keeps victim stack-unreachable.
  * private WeakReference<Foo> fooWeakRef() {
  *   Foo x = ....;
- *   WeakReference<Foo> weakRef = new WeakReference<Foo>(x);
+ *   WeakReference<Foo> weakRef = new WeakReference<>(x);
  *   // ... use x ...
- *   x = null;  // Hint to the JIT that x is stack-unreachable
+ *   x = null; // Hint to the JIT that x is stack-unreachable
  *   return weakRef;
  * }
  * public void testFooLeak() {
  *   GcFinalization.awaitClear(fooWeakRef());
- * }}</pre>
+ * }
+ * }
  *
  * <p>This class cannot currently be used to test soft references, since this class does not try to
  * create the memory pressure required to cause soft references to be cleared.
  *
- * <p>This class only provides testing utilities.  It is not designed for direct use in production
- * or for benchmarking.
+ * <p>This class only provides testing utilities. It is not designed for direct use in production or
+ * for benchmarking.
  *
  * @author mike nonemacher
  * @author Martin Buchholz
  * @since 11.0
  */
-@Beta
 @GwtIncompatible
+@J2ktIncompatible
 @J2ObjCIncompatible // gc
+@NullMarked
 public final class GcFinalization {
   private GcFinalization() {}
 
   /**
-   * 10 seconds ought to be long enough for any object to be GC'ed and finalized.  Unless we have a
+   * 10 seconds ought to be long enough for any object to be GC'ed and finalized. Unless we have a
    * gigantic heap, in which case we scale by heap size.
    */
   private static long timeoutSeconds() {
@@ -122,12 +138,12 @@ public final class GcFinalization {
     //
     // TODO(user): Consider scaling by number of mutator threads,
     // e.g. using Thread#activeCount()
-    return Math.max(10L, Runtime.getRuntime().totalMemory() / (32L * 1024L * 1024L));
+    return max(10L, Runtime.getRuntime().totalMemory() / (32L * 1024L * 1024L));
   }
 
   /**
-   * Waits until the given future {@linkplain Future#isDone is done}, invoking the garbage
-   * collector as necessary to try to ensure that this will happen.
+   * Waits until the given future {@linkplain Future#isDone is done}, invoking the garbage collector
+   * as necessary to try to ensure that this will happen.
    *
    * @throws RuntimeException if timed out or interrupted while waiting
    */
@@ -135,10 +151,10 @@ public final class GcFinalization {
     if (future.isDone()) {
       return;
     }
-    final long timeoutSeconds = timeoutSeconds();
-    final long deadline = System.nanoTime() + SECONDS.toNanos(timeoutSeconds);
+    long timeoutSeconds = timeoutSeconds();
+    long deadline = System.nanoTime() + SECONDS.toNanos(timeoutSeconds);
     do {
-      System.runFinalization();
+      runFinalization();
       if (future.isDone()) {
         return;
       }
@@ -146,9 +162,7 @@ public final class GcFinalization {
       try {
         future.get(1L, SECONDS);
         return;
-      } catch (CancellationException ok) {
-        return;
-      } catch (ExecutionException ok) {
+      } catch (CancellationException | ExecutionException ok) {
         return;
       } catch (InterruptedException ie) {
         throw new RuntimeException("Unexpected interrupt while waiting for future", ie);
@@ -157,6 +171,34 @@ public final class GcFinalization {
       }
     } while (System.nanoTime() - deadline < 0);
     throw formatRuntimeException("Future not done within %d second timeout", timeoutSeconds);
+  }
+
+  /**
+   * Waits until the given predicate returns true, invoking the garbage collector as necessary to
+   * try to ensure that this will happen.
+   *
+   * @throws RuntimeException if timed out or interrupted while waiting
+   */
+  public static void awaitDone(FinalizationPredicate predicate) {
+    if (predicate.isDone()) {
+      return;
+    }
+    long timeoutSeconds = timeoutSeconds();
+    long deadline = System.nanoTime() + SECONDS.toNanos(timeoutSeconds);
+    do {
+      runFinalization();
+      if (predicate.isDone()) {
+        return;
+      }
+      CountDownLatch done = new CountDownLatch(1);
+      createUnreachableLatchFinalizer(done);
+      await(done);
+      if (predicate.isDone()) {
+        return;
+      }
+    } while (System.nanoTime() - deadline < 0);
+    throw formatRuntimeException(
+        "Predicate did not become true within %d second timeout", timeoutSeconds);
   }
 
   /**
@@ -169,10 +211,10 @@ public final class GcFinalization {
     if (latch.getCount() == 0) {
       return;
     }
-    final long timeoutSeconds = timeoutSeconds();
-    final long deadline = System.nanoTime() + SECONDS.toNanos(timeoutSeconds);
+    long timeoutSeconds = timeoutSeconds();
+    long deadline = System.nanoTime() + SECONDS.toNanos(timeoutSeconds);
     do {
-      System.runFinalization();
+      runFinalization();
       if (latch.getCount() == 0) {
         return;
       }
@@ -190,11 +232,11 @@ public final class GcFinalization {
   }
 
   /**
-   * Creates a garbage object that counts down the latch in its finalizer.  Sequestered into a
+   * Creates a garbage object that counts down the latch in its finalizer. Sequestered into a
    * separate method to make it somewhat more likely to be unreachable.
    */
-  private static void createUnreachableLatchFinalizer(final CountDownLatch latch) {
-    new Object() { @Override protected void finalize() { latch.countDown(); }};
+  private static void createUnreachableLatchFinalizer(CountDownLatch latch) {
+    FinalizableReference.register(new Object(), latch);
   }
 
   /**
@@ -203,78 +245,50 @@ public final class GcFinalization {
    * response to {@link System#gc()}:
    *
    * <ul>
-   * <li>invoking the {@code finalize} methods of unreachable objects
-   * <li>clearing weak references to unreachable referents
-   * <li>enqueuing weak references to unreachable referents in their reference queue
+   *   <li>invoking the {@code finalize} methods of unreachable objects
+   *   <li>clearing weak references to unreachable referents
+   *   <li>enqueuing weak references to unreachable referents in their reference queue
    * </ul>
    */
+  @DoNotMock("Implement with a lambda")
   public interface FinalizationPredicate {
+    /** Returns {@code true} if the finalization condition is met. */
     boolean isDone();
   }
 
   /**
-   * Waits until the given predicate returns true, invoking the garbage collector as necessary to
+   * Waits until the given weak reference is cleared, invoking the garbage collector as necessary to
    * try to ensure that this will happen.
    *
-   * @throws RuntimeException if timed out or interrupted while waiting
-   */
-  public static void awaitDone(FinalizationPredicate predicate) {
-    if (predicate.isDone()) {
-      return;
-    }
-    final long timeoutSeconds = timeoutSeconds();
-    final long deadline = System.nanoTime() + SECONDS.toNanos(timeoutSeconds);
-    do {
-      System.runFinalization();
-      if (predicate.isDone()) {
-        return;
-      }
-      CountDownLatch done = new CountDownLatch(1);
-      createUnreachableLatchFinalizer(done);
-      await(done);
-      if (predicate.isDone()) {
-        return;
-      }
-    } while (System.nanoTime() - deadline < 0);
-    throw formatRuntimeException(
-        "Predicate did not become true within %d second timeout", timeoutSeconds);
-  }
-
-  /**
-   * Waits until the given weak reference is cleared, invoking the garbage collector as necessary
-   * to try to ensure that this will happen.
-   *
    * <p>This is a convenience method, equivalent to:
-   * <pre>   {@code
-   *   awaitDone(new FinalizationPredicate() {
-   *     public boolean isDone() {
-   *       return ref.get() == null;
-   *     }
-   *   });}</pre>
+   *
+   * {@snippet :
+   * awaitDone(new FinalizationPredicate() {
+   *   public boolean isDone() {
+   *     return ref.get() == null;
+   *   }
+   * });
+   * }
    *
    * @throws RuntimeException if timed out or interrupted while waiting
    */
-  public static void awaitClear(final WeakReference<?> ref) {
-    awaitDone(new FinalizationPredicate() {
-      public boolean isDone() {
-        return ref.get() == null;
-      }
-    });
+  public static void awaitClear(WeakReference<?> ref) {
+    awaitDone(() -> ref.get() == null);
   }
 
   /**
-   * Tries to perform a "full" garbage collection cycle (including processing of weak references
-   * and invocation of finalize methods) and waits for it to complete.  Ensures that at least one
-   * weak reference has been cleared and one {@code finalize} method has been run before this
-   * method returns.  This method may be useful when testing the garbage collection mechanism
-   * itself, or inhibiting a spontaneous GC initiation in subsequent code.
+   * Tries to perform a "full" garbage collection cycle (including processing of weak references and
+   * invocation of finalize methods) and waits for it to complete. Ensures that at least one weak
+   * reference has been cleared and one {@code finalize} method has been run before this method
+   * returns. This method may be useful when testing the garbage collection mechanism itself, or
+   * inhibiting a spontaneous GC initiation in subsequent code.
    *
    * <p>In contrast, a plain call to {@link java.lang.System#gc()} does not ensure finalization
    * processing and may run concurrently, for example, if the JVM flag {@code
    * -XX:+ExplicitGCInvokesConcurrent} is used.
    *
    * <p>Whenever possible, it is preferable to test directly for some observable change resulting
-   * from GC, as with {@link #awaitClear}.  Because there are no guarantees for the order of GC
+   * from GC, as with {@link #awaitClear}. Because there are no guarantees for the order of GC
    * finalization processing, there may still be some unfinished work for the GC to do after this
    * method returns.
    *
@@ -285,20 +299,116 @@ public final class GcFinalization {
    * @since 12.0
    */
   public static void awaitFullGc() {
-    final CountDownLatch finalizerRan = new CountDownLatch(1);
-    WeakReference<Object> ref = new WeakReference<Object>(
-        new Object() {
-          @Override protected void finalize() { finalizerRan.countDown(); }
-        });
+    CountDownLatch finalizerRan = new CountDownLatch(1);
+    WeakReference<Object> ref = createWeakReferenceWithFinalizer(finalizerRan);
 
     await(finalizerRan);
     awaitClear(ref);
 
     // Hope to catch some stragglers queued up behind our finalizable object
-    System.runFinalization();
+    runFinalization();
   }
 
+  private static WeakReference<Object> createWeakReferenceWithFinalizer(
+      CountDownLatch finalizerRan) {
+    Object referent = new Object();
+    FinalizableReference.register(referent, finalizerRan);
+    return new WeakReference<>(referent);
+  }
+
+  private static final class FinalizableReference extends FinalizablePhantomReference<Object> {
+    static final FinalizableReferenceQueue referenceQueue = new FinalizableReferenceQueue();
+    static final Set<FinalizableReference> references = newConcurrentHashSet();
+
+    static void register(Object referent, CountDownLatch latch) {
+      try {
+        references.add(new FinalizableReference(referent, latch));
+      } finally {
+        GcFinalization.reachabilityFence(referent);
+      }
+    }
+
+    final CountDownLatch latch;
+
+    FinalizableReference(Object referent, CountDownLatch latch) {
+      super(referent, referenceQueue);
+      this.latch = latch;
+    }
+
+    @Override
+    public void finalizeReferent() {
+      references.remove(this);
+      latch.countDown();
+    }
+  }
+
+  @FormatMethod
   private static RuntimeException formatRuntimeException(String format, Object... args) {
     return new RuntimeException(String.format(Locale.ROOT, format, args));
+  }
+
+  private static final @Nullable Method runFinalizationMethod = getRunFinalizationMethod();
+
+  private static @Nullable Method getRunFinalizationMethod() {
+    try {
+      return System.class.getMethod("runFinalization");
+    } catch (NoSuchMethodException | SecurityException e) {
+      return null;
+    }
+  }
+
+  private static void runFinalization() {
+    if (runFinalizationMethod == null) {
+      return;
+    }
+    try {
+      runFinalizationMethod.invoke(null);
+    } catch (InvocationTargetException e) {
+      throwIfUnchecked(e.getCause());
+      throw new AssertionError(e.getCause());
+    } catch (IllegalAccessException e) {
+      throw new AssertionError(e);
+    }
+  }
+
+  // We call the method only after checking that it's present.
+  @IgnoreJRERequirement
+  @SuppressWarnings({
+    "Java8ApiChecker",
+    "NewApi",
+    // This method is a helper, which we call from a `finally` block, as recommended.
+    "ReachabilityFenceUsage",
+  })
+  static void reachabilityFence(@Nullable Object o) {
+    if (IS_REACHABILITY_FENCE_METHOD_USABLE) {
+      Reference.reachabilityFence(o);
+    }
+  }
+
+  private static final boolean IS_REACHABILITY_FENCE_METHOD_USABLE =
+      computeIsReachabilityFenceMethodUsable();
+
+  private static boolean computeIsReachabilityFenceMethodUsable() {
+    try {
+      Method method = Reference.class.getMethod("reachabilityFence", Object.class);
+      method.invoke(null, GcFinalization.class); // to make sure the method is accessible
+      return true;
+    } catch (NoSuchMethodException | IllegalAccessException probablyBeforeJava9OrAndroid28) {
+      /*
+       * It's theoretically possible for Reference.reachabilityFence to exist under older VMs in an
+       * inaccessible form.
+       */
+      return false;
+    } catch (InvocationTargetException e) {
+      /*
+       * It's theoretically possible for Reference.reachabilityFence to exist under older VMs but
+       * not work. (Under Android in particular, we really should check the API Level instead of
+       * probing for methods....) But it's hard to imagine how reachabilityFence in particular could
+       * exist but throw, so we propagate anything that's thrown, presumably an unchecked Exception
+       * or Error.
+       */
+      throwIfUnchecked(e.getCause());
+      throw new AssertionError(e.getCause());
+    }
   }
 }

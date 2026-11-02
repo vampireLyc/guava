@@ -17,8 +17,10 @@
 package com.google.common.collect.testing;
 
 import com.google.common.annotations.GwtCompatible;
-import java.util.Map;
+import java.util.Map.Entry;
 import java.util.SortedMap;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Creates sorted maps, containing sample elements, to be tested.
@@ -26,31 +28,33 @@ import java.util.SortedMap;
  * @author Louis Wasserman
  */
 @GwtCompatible
-public interface TestSortedMapGenerator<K, V> extends TestMapGenerator<K, V> {
+@NullMarked
+public interface TestSortedMapGenerator<K extends @Nullable Object, V extends @Nullable Object>
+    extends TestMapGenerator<K, V> {
   @Override
   SortedMap<K, V> create(Object... elements);
 
   /**
-   * Returns an entry with a key less than the keys of the {@link #samples()}
-   * and less than the key of {@link #belowSamplesGreater()}.
+   * Returns an entry with a key less than the keys of the {@link #samples()} and less than the key
+   * of {@link #belowSamplesGreater()}.
    */
-  Map.Entry<K, V> belowSamplesLesser();
+  Entry<K, V> belowSamplesLesser();
 
   /**
-   * Returns an entry with a key less than the keys of the {@link #samples()}
-   * but greater than the key of {@link #belowSamplesLesser()}.
+   * Returns an entry with a key less than the keys of the {@link #samples()} but greater than the
+   * key of {@link #belowSamplesLesser()}.
    */
-  Map.Entry<K, V> belowSamplesGreater();
+  Entry<K, V> belowSamplesGreater();
 
   /**
-   * Returns an entry with a key greater than the keys of the {@link #samples()}
-   * but less than the key of {@link #aboveSamplesGreater()}.
+   * Returns an entry with a key greater than the keys of the {@link #samples()} but less than the
+   * key of {@link #aboveSamplesGreater()}.
    */
-  Map.Entry<K, V> aboveSamplesLesser();
+  Entry<K, V> aboveSamplesLesser();
 
   /**
-   * Returns an entry with a key greater than the keys of the {@link #samples()}
-   * and greater than the key of {@link #aboveSamplesLesser()}.
+   * Returns an entry with a key greater than the keys of the {@link #samples()} and greater than
+   * the key of {@link #aboveSamplesLesser()}.
    */
-  Map.Entry<K, V> aboveSamplesGreater();
+  Entry<K, V> aboveSamplesGreater();
 }

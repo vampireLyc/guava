@@ -18,7 +18,12 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
+import com.google.common.annotations.J2ktIncompatible;
+import com.google.errorprone.annotations.Immutable;
+import java.io.InvalidObjectException;
+import java.io.ObjectInputStream;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
@@ -29,9 +34,12 @@ import java.util.Arrays;
  * @author Kevin Bourrillion
  * @author Dimitris Andreou
  */
-final class MessageDigestHashFunction extends AbstractStreamingHashFunction
-    implements Serializable {
+@Immutable
+final class MessageDigestHashFunction extends AbstractHashFunction implements Serializable {
+
+  @SuppressWarnings("Immutable") // cloned before each use
   private final MessageDigest prototype;
+
   private final int bytes;
   private final boolean supportsClone;
   private final String toString;
@@ -55,7 +63,7 @@ final class MessageDigestHashFunction extends AbstractStreamingHashFunction
 
   private static boolean supportsClone(MessageDigest digest) {
     try {
-      digest.clone();
+      Object unused = Platform.clone(digest);
       return true;
     } catch (CloneNotSupportedException e) {
       return false;
@@ -84,7 +92,7 @@ final class MessageDigestHashFunction extends AbstractStreamingHashFunction
   public Hasher newHasher() {
     if (supportsClone) {
       try {
-        return new MessageDigestHasher((MessageDigest) prototype.clone(), bytes);
+        return new MessageDigestHasher((MessageDigest) Platform.clone(prototype), bytes);
       } catch (CloneNotSupportedException e) {
         // falls through
       }
@@ -114,9 +122,12 @@ final class MessageDigestHashFunction extends AbstractStreamingHashFunction
     return new SerializedForm(prototype.getAlgorithm(), bytes, toString);
   }
 
-  /**
-   * Hasher that updates a message digest.
-   */
+  @J2ktIncompatible
+  private void readObject(ObjectInputStream stream) throws InvalidObjectException {
+    throw new InvalidObjectException("Use SerializedForm");
+  }
+
+  /** Hasher that updates a message digest. */
   private static final class MessageDigestHasher extends AbstractByteHasher {
     private final MessageDigest digest;
     private final int bytes;
@@ -134,15 +145,16 @@ final class MessageDigestHashFunction extends AbstractStreamingHashFunction
     }
 
     @Override
-    protected void update(byte[] b) {
-      checkNotDone();
-      digest.update(b);
-    }
-
-    @Override
     protected void update(byte[] b, int off, int len) {
       checkNotDone();
       digest.update(b, off, len);
+    }
+
+    @Override
+    @J2ktIncompatible
+    protected void update(ByteBuffer bytes) {
+      checkNotDone();
+      digest.update(bytes);
     }
 
     private void checkNotDone() {

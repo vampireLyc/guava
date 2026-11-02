@@ -16,10 +16,14 @@
 
 package com.google.common.collect;
 
+import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
+
 import com.google.common.annotations.GwtCompatible;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullMarked;
 
 /**
  * Tests for {@link UnmodifiableIterator}.
@@ -27,31 +31,33 @@ import junit.framework.TestCase;
  * @author Jared Levy
  */
 @GwtCompatible
+@NullMarked
 public class UnmodifiableIteratorTest extends TestCase {
 
+  @SuppressWarnings("DoNotCall")
   public void testRemove() {
-    final String[] array = {"a", "b", "c"};
+    String[] array = {"a", "b", "c"};
 
-    Iterator<String> iterator = new UnmodifiableIterator<String>() {
-      int i;
-      @Override
-      public boolean hasNext() {
-        return i < array.length;
-      }
-      @Override
-      public String next() {
-        if (!hasNext()) {
-          throw new NoSuchElementException();
-        }
-        return array[i++];
-      }
-    };
+    Iterator<String> iterator =
+        new UnmodifiableIterator<String>() {
+          int i;
+
+          @Override
+          public boolean hasNext() {
+            return i < array.length;
+          }
+
+          @Override
+          public String next() {
+            if (!hasNext()) {
+              throw new NoSuchElementException();
+            }
+            return array[i++];
+          }
+        };
 
     assertTrue(iterator.hasNext());
-    assertEquals("a", iterator.next());
-    try {
-      iterator.remove();
-      fail();
-    } catch (UnsupportedOperationException expected) {}
+    assertThat(iterator.next()).isEqualTo("a");
+    assertThrows(UnsupportedOperationException.class, () -> iterator.remove());
   }
 }

@@ -16,13 +16,14 @@
 
 package com.google.common.collect.testing.testers;
 
+import static com.google.common.collect.testing.Helpers.copyToList;
 import static com.google.common.collect.testing.features.CollectionFeature.FAILS_FAST_ON_CONCURRENT_MODIFICATION;
 import static com.google.common.collect.testing.features.CollectionSize.ONE;
 import static com.google.common.collect.testing.features.CollectionSize.ZERO;
 import static com.google.common.collect.testing.features.ListFeature.SUPPORTS_REMOVE_WITH_INDEX;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
-import com.google.common.collect.testing.Helpers;
 import com.google.common.collect.testing.features.CollectionFeature;
 import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.collect.testing.features.ListFeature;
@@ -31,9 +32,8 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * A generic JUnit test which tests {@code remove(int)} operations on a list.
- * Can't be invoked directly; please see
- * {@link com.google.common.collect.testing.ListTestSuiteBuilder}.
+ * A generic JUnit test which tests {@code remove(int)} operations on a list. Can't be invoked
+ * directly; please see {@link com.google.common.collect.testing.ListTestSuiteBuilder}.
  *
  * @author Chris Povirk
  */
@@ -42,31 +42,19 @@ public class ListRemoveAtIndexTester<E> extends AbstractListTester<E> {
   @ListFeature.Require(absent = SUPPORTS_REMOVE_WITH_INDEX)
   @CollectionSize.Require(absent = ZERO)
   public void testRemoveAtIndex_unsupported() {
-    try {
-      getList().remove(0);
-      fail("remove(i) should throw");
-    } catch (UnsupportedOperationException expected) {
-    }
+    assertThrows(UnsupportedOperationException.class, () -> getList().remove(0));
     expectUnchanged();
   }
 
   @ListFeature.Require(SUPPORTS_REMOVE_WITH_INDEX)
   public void testRemoveAtIndex_negative() {
-    try {
-      getList().remove(-1);
-      fail("remove(-1) should throw");
-    } catch (IndexOutOfBoundsException expected) {
-    }
+    assertThrows(IndexOutOfBoundsException.class, () -> getList().remove(-1));
     expectUnchanged();
   }
 
   @ListFeature.Require(SUPPORTS_REMOVE_WITH_INDEX)
   public void testRemoveAtIndex_tooLarge() {
-    try {
-      getList().remove(getNumElements());
-      fail("remove(size) should throw");
-    } catch (IndexOutOfBoundsException expected) {
-    }
+    assertThrows(IndexOutOfBoundsException.class, () -> getList().remove(getNumElements()));
     expectUnchanged();
   }
 
@@ -86,14 +74,9 @@ public class ListRemoveAtIndexTester<E> extends AbstractListTester<E> {
   @ListFeature.Require(SUPPORTS_REMOVE_WITH_INDEX)
   @CollectionSize.Require(absent = ZERO)
   public void testRemoveAtIndexConcurrentWithIteration() {
-    try {
-      Iterator<E> iterator = collection.iterator();
-      getList().remove(getNumElements() / 2);
-      iterator.next();
-      fail("Expected ConcurrentModificationException");
-    } catch (ConcurrentModificationException expected) {
-      // success
-    }
+    Iterator<E> iterator = collection.iterator();
+    getList().remove(getNumElements() / 2);
+    assertThrows(ConcurrentModificationException.class, iterator::next);
   }
 
   @ListFeature.Require(SUPPORTS_REMOVE_WITH_INDEX)
@@ -107,7 +90,7 @@ public class ListRemoveAtIndexTester<E> extends AbstractListTester<E> {
         Platform.format("remove(%d) should return the element at index %d", index, index),
         getList().get(index),
         getList().remove(index));
-    List<E> expected = Helpers.copyToList(createSamplesArray());
+    List<E> expected = copyToList(createSamplesArray());
     expected.remove(index);
     expectContents(expected);
   }

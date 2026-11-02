@@ -17,12 +17,12 @@
  * for
  * XML.
  *
- * <p>This package is a part of the open-source <a href="http://github.com/google/guava">Guava</a>
+ * <p>This package is a part of the open-source <a href="https://github.com/google/guava">Guava</a>
  * library.
  */
 @CheckReturnValue
-@ParametersAreNonnullByDefault
+@NullMarked
 package com.google.common.xml;
 
-import javax.annotation.CheckReturnValue;
-import javax.annotation.ParametersAreNonnullByDefault;
+import com.google.errorprone.annotations.CheckReturnValue;
+import org.jspecify.annotations.NullMarked;

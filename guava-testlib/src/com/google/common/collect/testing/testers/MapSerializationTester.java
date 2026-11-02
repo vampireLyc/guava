@@ -17,11 +17,13 @@
 package com.google.common.collect.testing.testers;
 
 import static com.google.common.collect.testing.features.CollectionFeature.SERIALIZABLE;
+import static com.google.common.testing.SerializableTester.reserialize;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.testing.AbstractMapTester;
 import com.google.common.collect.testing.features.CollectionFeature;
-import com.google.common.testing.SerializableTester;
+import com.google.common.testing.EqualsTester;
+import java.util.Map;
 
 /**
  * Basic serialization test for maps.
@@ -32,6 +34,7 @@ import com.google.common.testing.SerializableTester;
 public class MapSerializationTester<K, V> extends AbstractMapTester<K, V> {
   @CollectionFeature.Require(SERIALIZABLE)
   public void testReserializeMap() {
-    SerializableTester.reserializeAndAssert(getMap());
+    Map<K, V> deserialized = reserialize(getMap());
+    new EqualsTester().addEqualityGroup(getMap(), deserialized).testEquals();
   }
 }

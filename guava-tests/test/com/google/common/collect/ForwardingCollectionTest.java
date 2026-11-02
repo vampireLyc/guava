@@ -19,6 +19,7 @@ package com.google.common.collect;
 import static java.util.Arrays.asList;
 
 import com.google.common.base.Function;
+import com.google.common.collect.ForwardingCollection.SimpleForwardingCollection;
 import com.google.common.collect.testing.CollectionTestSuiteBuilder;
 import com.google.common.collect.testing.MinimalCollection;
 import com.google.common.collect.testing.TestStringCollectionGenerator;
@@ -26,9 +27,11 @@ import com.google.common.collect.testing.features.CollectionFeature;
 import com.google.common.collect.testing.features.CollectionSize;
 import com.google.common.testing.ForwardingWrapperTester;
 import java.util.Collection;
+import java.util.LinkedList;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Tests for {@link ForwardingCollection}.
@@ -37,86 +40,95 @@ import junit.framework.TestSuite;
  * @author Hayward Chan
  * @author Louis Wasserman
  */
+@NullUnmarked
 public class ForwardingCollectionTest extends TestCase {
-  static final class StandardImplForwardingCollection<T>
-      extends ForwardingCollection<T> {
-    private final Collection<T> backingCollection;
-
+  static final class StandardImplForwardingCollection<T> extends SimpleForwardingCollection<T> {
     StandardImplForwardingCollection(Collection<T> backingCollection) {
-      this.backingCollection = backingCollection;
+      super(backingCollection);
     }
 
-    @Override protected Collection<T> delegate() {
-      return backingCollection;
-    }
-
-    @Override public boolean addAll(Collection<? extends T> collection) {
+    @Override
+    public boolean addAll(Collection<? extends T> collection) {
       return standardAddAll(collection);
     }
 
-    @Override public void clear() {
+    @Override
+    public void clear() {
       standardClear();
     }
 
-    @Override public boolean contains(Object object) {
+    @Override
+    public boolean contains(Object object) {
       return standardContains(object);
     }
 
-    @Override public boolean containsAll(Collection<?> collection) {
+    @Override
+    public boolean containsAll(Collection<?> collection) {
       return standardContainsAll(collection);
     }
 
-    @Override public boolean remove(Object object) {
+    @Override
+    public boolean remove(Object object) {
       return standardRemove(object);
     }
 
-    @Override public boolean removeAll(Collection<?> collection) {
+    @Override
+    public boolean removeAll(Collection<?> collection) {
       return standardRemoveAll(collection);
     }
 
-    @Override public boolean retainAll(Collection<?> collection) {
+    @Override
+    public boolean retainAll(Collection<?> collection) {
       return standardRetainAll(collection);
     }
 
-    @Override public Object[] toArray() {
+    @Override
+    public Object[] toArray() {
       return standardToArray();
     }
 
-    @Override public <T> T[] toArray(T[] array) {
+    @Override
+    public <T> T[] toArray(T[] array) {
       return standardToArray(array);
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
       return standardToString();
     }
   }
 
+  @AndroidIncompatible // test-suite builders
   public static Test suite() {
     TestSuite suite = new TestSuite();
 
     suite.addTestSuite(ForwardingCollectionTest.class);
     suite.addTest(
-        CollectionTestSuiteBuilder.using(new TestStringCollectionGenerator() {
-          @Override protected Collection<String> create(String[] elements) {
-            return new StandardImplForwardingCollection<String>(
-                Lists.newLinkedList(asList(elements)));
-          }
-        }).named(
-            "ForwardingCollection[LinkedList] with standard implementations")
-            .withFeatures(CollectionSize.ANY,
+        CollectionTestSuiteBuilder.using(
+                new TestStringCollectionGenerator() {
+                  @Override
+                  protected Collection<String> create(String[] elements) {
+                    return new StandardImplForwardingCollection<>(
+                        new LinkedList<>(asList(elements)));
+                  }
+                })
+            .named("ForwardingCollection[LinkedList] with standard implementations")
+            .withFeatures(
+                CollectionSize.ANY,
                 CollectionFeature.ALLOWS_NULL_VALUES,
-                CollectionFeature.GENERAL_PURPOSE).createTestSuite());
+                CollectionFeature.GENERAL_PURPOSE)
+            .createTestSuite());
     suite.addTest(
-        CollectionTestSuiteBuilder.using(new TestStringCollectionGenerator() {
-          @Override protected Collection<String> create(String[] elements) {
-            return new StandardImplForwardingCollection<String>(
-                MinimalCollection.of(elements));
-          }
-        }).named(
-            "ForwardingCollection[MinimalCollection] with standard"
-            + " implementations")
-            .withFeatures(CollectionSize.ANY,
-                CollectionFeature.ALLOWS_NULL_VALUES).createTestSuite());
+        CollectionTestSuiteBuilder.using(
+                new TestStringCollectionGenerator() {
+                  @Override
+                  protected Collection<String> create(String[] elements) {
+                    return new StandardImplForwardingCollection<>(MinimalCollection.of(elements));
+                  }
+                })
+            .named("ForwardingCollection[MinimalCollection] with standard implementations")
+            .withFeatures(CollectionSize.ANY, CollectionFeature.ALLOWS_NULL_VALUES)
+            .createTestSuite());
 
     return suite;
   }
@@ -124,16 +136,20 @@ public class ForwardingCollectionTest extends TestCase {
   @SuppressWarnings({"rawtypes", "unchecked"})
   public void testForwarding() {
     new ForwardingWrapperTester()
-        .testForwarding(Collection.class, new Function<Collection, Collection>() {
-          @Override public Collection apply(Collection delegate) {
-            return wrap(delegate);
-          }
-        });
+        .testForwarding(
+            Collection.class,
+            new Function<Collection, Collection>() {
+              @Override
+              public Collection apply(Collection delegate) {
+                return wrap(delegate);
+              }
+            });
   }
 
-  private static <T> Collection<T> wrap(final Collection<T> delegate) {
+  private static <T> Collection<T> wrap(Collection<T> delegate) {
     return new ForwardingCollection<T>() {
-      @Override protected Collection<T> delegate() {
+      @Override
+      protected Collection<T> delegate() {
         return delegate;
       }
     };

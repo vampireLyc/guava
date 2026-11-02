@@ -16,18 +16,22 @@
 
 package com.google.common.util.concurrent;
 
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.testing.NullPointerTester;
 import com.google.common.testing.TearDownStack;
 import java.util.Random;
-import java.util.concurrent.TimeUnit;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Tests for {@link Monitor}, either interruptible or uninterruptible.
  *
  * @author Justin T. Sampson
  */
-
+@NullUnmarked
+@GwtIncompatible
+@J2ktIncompatible
 public abstract class MonitorTestCase extends TestCase {
 
   public class TestGuard extends Monitor.Guard {
@@ -38,7 +42,8 @@ public abstract class MonitorTestCase extends TestCase {
       this.satisfied = satisfied;
     }
 
-    @Override public boolean isSatisfied() {
+    @Override
+    public boolean isSatisfied() {
       return this.satisfied;
     }
 
@@ -49,22 +54,26 @@ public abstract class MonitorTestCase extends TestCase {
 
   private final boolean interruptible;
   private Monitor monitor;
-  private final TearDownStack tearDownStack = new TearDownStack(true);
+  private final TearDownStack tearDownStack = new TearDownStack();
   private TestThread<Monitor> thread1;
   private TestThread<Monitor> thread2;
 
-  protected MonitorTestCase(boolean interruptible) {
+  MonitorTestCase(boolean interruptible) {
     this.interruptible = interruptible;
   }
 
-  @Override protected final void setUp() throws Exception {
+  @Override
+  protected final void setUp() {
     boolean fair = new Random().nextBoolean();
     monitor = new Monitor(fair);
-    tearDownStack.addTearDown(thread1 = new TestThread<Monitor>(monitor, "TestThread #1"));
-    tearDownStack.addTearDown(thread2 = new TestThread<Monitor>(monitor, "TestThread #2"));
+    thread1 = new TestThread<>(monitor, "TestThread #1");
+    tearDownStack.addTearDown(thread1);
+    thread2 = new TestThread<>(monitor, "TestThread #2");
+    tearDownStack.addTearDown(thread2);
   }
 
-  @Override protected final void tearDown() {
+  @Override
+  protected final void tearDown() {
     tearDownStack.runTearDown();
   }
 
@@ -72,7 +81,7 @@ public abstract class MonitorTestCase extends TestCase {
     return interruptible ? "enterInterruptibly" : "enter";
   }
 
-  private String tryEnter() {
+  private static String tryEnter() {
     return "tryEnter";
   }
 
@@ -80,7 +89,7 @@ public abstract class MonitorTestCase extends TestCase {
     return interruptible ? "enterIfInterruptibly" : "enterIf";
   }
 
-  private String tryEnterIf() {
+  private static String tryEnterIf() {
     return "tryEnterIf";
   }
 
@@ -92,7 +101,7 @@ public abstract class MonitorTestCase extends TestCase {
     return interruptible ? "waitFor" : "waitForUninterruptibly";
   }
 
-  private String leave() {
+  private static String leave() {
     return "leave";
   }
 
@@ -220,9 +229,8 @@ public abstract class MonitorTestCase extends TestCase {
   }
 
   public void testNulls() {
-    monitor.enter();  // Inhibit IllegalMonitorStateException
+    monitor.enter(); // Inhibit IllegalMonitorStateException
     new NullPointerTester()
-        .setDefault(TimeUnit.class, TimeUnit.SECONDS)
         .setDefault(Monitor.Guard.class, new TestGuard(true))
         .testAllPublicInstanceMethods(monitor);
   }

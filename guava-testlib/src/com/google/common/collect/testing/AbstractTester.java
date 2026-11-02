@@ -17,26 +17,30 @@
 package com.google.common.collect.testing;
 
 import com.google.common.annotations.GwtCompatible;
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 /**
- * This abstract base class for testers allows the framework to inject needed
- * information after JUnit constructs the instances.
+ * This abstract base class for testers allows the framework to inject needed information after
+ * JUnit constructs the instances.
  *
  * <p>This class is emulated in GWT.
  *
- * @param <G> the type of the test generator required by this tester. An
- * instance of G should somehow provide an instance of the class under test,
- * plus any other information required to parameterize the test.
- *
+ * @param <G> the type of the test generator required by this tester. An instance of G should
+ *     somehow provide an instance of the class under test, plus any other information required to
+ *     parameterize the test.
  * @author George van den Driessche
  */
 @GwtCompatible
+@NullMarked
 public class AbstractTester<G> extends TestCase {
   private G subjectGenerator;
-  private String suiteName;
-  private Runnable setUp;
-  private Runnable tearDown;
+  private @Nullable String suiteName;
+  private @Nullable Runnable setUp;
+  private @Nullable Runnable tearDown;
 
   // public so that it can be referenced in generated GWT tests.
   @Override
@@ -55,7 +59,8 @@ public class AbstractTester<G> extends TestCase {
   }
 
   // public so that it can be referenced in generated GWT tests.
-  public final void init(G subjectGenerator, String suiteName, Runnable setUp, Runnable tearDown) {
+  public final void init(
+      G subjectGenerator, String suiteName, @Nullable Runnable setUp, @Nullable Runnable tearDown) {
     this.subjectGenerator = subjectGenerator;
     this.suiteName = suiteName;
     this.setUp = setUp;
@@ -72,12 +77,29 @@ public class AbstractTester<G> extends TestCase {
   }
 
   /** Returns the name of the test method invoked by this test instance. */
+  @J2ktIncompatible
+  @GwtIncompatible // not used under GWT, and super.getName() is not available under J2CL
   public final String getTestMethodName() {
     return super.getName();
   }
 
+  @J2ktIncompatible
+  @GwtIncompatible // not used under GWT, and super.getName() is not available under J2CL
   @Override
   public String getName() {
-    return Platform.format("%s[%s]", super.getName(), suiteName);
+    return super.getName() + '[' + suiteName + ']';
+  }
+
+  /**
+   * Asserts that the given object is non-null, with a better failure message than {@link
+   * TestCase#assertNull(String, Object)}.
+   *
+   * <p>The {@link TestCase} version (which is from JUnit 3) produces a failure message that does
+   * not include the value of the object.
+   *
+   * @since 33.4.0
+   */
+  public static void assertNull(String message, @Nullable Object object) {
+    assertEquals(message, null, object);
   }
 }

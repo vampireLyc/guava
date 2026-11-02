@@ -21,6 +21,7 @@ import static com.google.common.collect.testing.features.MapFeature.ALLOWS_NULL_
 import static com.google.common.collect.testing.features.MapFeature.ALLOWS_NULL_VALUES;
 import static com.google.common.collect.testing.features.MapFeature.ALLOWS_NULL_VALUE_QUERIES;
 import static com.google.common.collect.testing.features.MapFeature.SUPPORTS_PUT;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.testing.AbstractMapTester;
@@ -29,10 +30,9 @@ import com.google.common.collect.testing.features.MapFeature;
 import java.util.Map;
 
 /**
- * A generic JUnit test which tests {@link Map#replace(Object, Object)}. Can't be
- * invoked directly; please see
- * {@link com.google.common.collect.testing.ConcurrentMapTestSuiteBuilder}.
- * 
+ * A generic JUnit test which tests {@link Map#replace(Object, Object)}. Can't be invoked directly;
+ * please see {@link com.google.common.collect.testing.ConcurrentMapTestSuiteBuilder}.
+ *
  * @author Louis Wasserman
  */
 @GwtCompatible
@@ -61,17 +61,14 @@ public class MapReplaceTester<K, V> extends AbstractMapTester<K, V> {
     assertNull(getMap().replace(k3(), v3()));
     expectUnchanged();
   }
-  
+
   @MapFeature.Require(value = SUPPORTS_PUT, absent = ALLOWS_NULL_VALUES)
   @CollectionSize.Require(absent = ZERO)
   public void testReplace_presentNullValueUnsupported() {
-    try {
-      getMap().replace(k0(), null);
-      fail("Expected NullPointerException");
-    } catch (NullPointerException expected) {}
+    assertThrows(NullPointerException.class, () -> getMap().replace(k0(), null));
     expectUnchanged();
   }
-  
+
   @MapFeature.Require(value = SUPPORTS_PUT, absent = ALLOWS_NULL_VALUE_QUERIES)
   public void testReplace_absentNullValueUnsupported() {
     try {
@@ -81,7 +78,7 @@ public class MapReplaceTester<K, V> extends AbstractMapTester<K, V> {
     }
     expectUnchanged();
   }
-  
+
   @MapFeature.Require(value = SUPPORTS_PUT, absent = ALLOWS_NULL_KEY_QUERIES)
   public void testReplace_absentNullKeyUnsupported() {
     try {
@@ -91,18 +88,16 @@ public class MapReplaceTester<K, V> extends AbstractMapTester<K, V> {
     }
     expectUnchanged();
   }
-  
+
   @MapFeature.Require(absent = SUPPORTS_PUT)
   @CollectionSize.Require(absent = ZERO)
   public void testReplace_unsupportedPresent() {
-    try {
-      getMap().replace(k0(), v3());
-      fail("Expected UnsupportedOperationException");
-    } catch (UnsupportedOperationException expected) {
-    } catch (ClassCastException tolerated) {
-      // for ClassToInstanceMap
+    RuntimeException expected =
+        assertThrows(RuntimeException.class, () -> getMap().replace(k0(), v3()));
+    if (!(expected instanceof UnsupportedOperationException
+        || expected instanceof ClassCastException)) {
+      throw expected;
     }
-    
     expectUnchanged();
   }
 }

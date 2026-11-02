@@ -16,20 +16,25 @@
 
 package com.google.common.collect;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
 import com.google.common.testing.EqualsTester;
+import org.jspecify.annotations.NullMarked;
 
 /**
- * Tests {@link EmptyImmutableTable}
+ * Tests an empty {@link ImmutableTable}.
  *
  * @author Gregory Kick
  */
-@GwtCompatible(emulated = true)
+@GwtCompatible
+@NullMarked
 public class EmptyImmutableTableTest extends AbstractImmutableTableTest {
   private static final ImmutableTable<Character, Integer, String> INSTANCE = ImmutableTable.of();
 
-  @Override Iterable<ImmutableTable<Character, Integer, String>> getTestInstances() {
+  @Override
+  Iterable<ImmutableTable<Character, Integer, String>> getTestInstances() {
     return ImmutableSet.of(INSTANCE);
   }
 
@@ -56,7 +61,7 @@ public class EmptyImmutableTableTest extends AbstractImmutableTableTest {
   }
 
   public void testToString() {
-    assertEquals("{}", INSTANCE.toString());
+    assertThat(INSTANCE.toString()).isEqualTo("{}");
   }
 
   public void testSize() {
@@ -64,7 +69,7 @@ public class EmptyImmutableTableTest extends AbstractImmutableTableTest {
   }
 
   public void testGet() {
-    assertNull(INSTANCE.get('a', 1));
+    assertThat(INSTANCE.get('a', 1)).isNull();
   }
 
   public void testIsEmpty() {

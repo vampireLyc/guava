@@ -11,29 +11,32 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
+
 package com.google.common.util.concurrent;
 
 import com.google.common.annotations.GwtIncompatible;
-import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import com.google.common.annotations.J2ktIncompatible;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import org.jspecify.annotations.Nullable;
 
 /**
- * An abstract {@code ScheduledExecutorService} that allows subclasses to
- * {@linkplain #wrapTask(Callable) wrap} tasks before they are submitted to the underlying executor.
+ * An abstract {@code ScheduledExecutorService} that allows subclasses to {@linkplain
+ * #wrapTask(Callable) wrap} tasks before they are submitted to the underlying executor.
  *
  * <p>Note that task wrapping may occur even if the task is never executed.
  *
  * @author Luke Sandberg
  */
-@CanIgnoreReturnValue // TODO(cpovirk): Consider being more strict.
+@J2ktIncompatible
 @GwtIncompatible
 abstract class WrappingScheduledExecutorService extends WrappingExecutorService
     implements ScheduledExecutorService {
   final ScheduledExecutorService delegate;
 
+  /** Constructor for use by subclasses. */
   protected WrappingScheduledExecutorService(ScheduledExecutorService delegate) {
     super(delegate);
     this.delegate = delegate;
@@ -45,7 +48,8 @@ abstract class WrappingScheduledExecutorService extends WrappingExecutorService
   }
 
   @Override
-  public final <V> ScheduledFuture<V> schedule(Callable<V> task, long delay, TimeUnit unit) {
+  public final <V extends @Nullable Object> ScheduledFuture<V> schedule(
+      Callable<V> task, long delay, TimeUnit unit) {
     return delegate.schedule(wrapTask(task), delay, unit);
   }
 

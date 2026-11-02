@@ -16,24 +16,29 @@ package com.google.common.util.concurrent;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.util.concurrent.Uninterruptibles.getUninterruptibly;
+import static java.util.concurrent.Executors.newCachedThreadPool;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Utilities necessary for working with libraries that supply plain {@link Future} instances. Note
  * that, whenever possible, it is strongly preferred to modify those libraries to return {@code
  * ListenableFuture} directly.
  *
+ * <p>For interoperability between {@link ListenableFuture} and <b>{@link CompletableFuture}</b>,
+ * consider <a href="https://github.com/lukas-krecan/future-converter">Future Converter</a>.
+ *
  * @author Sven Mawson
  * @since 10.0 (replacing {@code Futures.makeListenable}, which existed in 1.0)
  */
-@Beta
+@J2ktIncompatible
 @GwtIncompatible
 public final class JdkFutureAdapters {
   /**
@@ -45,15 +50,16 @@ public final class JdkFutureAdapters {
    * future is {@linkplain Future#isDone() done}.
    *
    * <p>Prefer to create {@code ListenableFuture} instances with {@link SettableFuture}, {@link
-   * MoreExecutors#listeningDecorator( java.util.concurrent.ExecutorService)}, {@link
+   * MoreExecutors#listeningDecorator(java.util.concurrent.ExecutorService)}, {@link
    * ListenableFutureTask}, {@link AbstractFuture}, and other utilities over creating plain {@code
    * Future} instances to be upgraded to {@code ListenableFuture} after the fact.
    */
-  public static <V> ListenableFuture<V> listenInPoolThread(Future<V> future) {
+  public static <V extends @Nullable Object> ListenableFuture<V> listenInPoolThread(
+      Future<V> future) {
     if (future instanceof ListenableFuture) {
       return (ListenableFuture<V>) future;
     }
-    return new ListenableFutureAdapter<V>(future);
+    return new ListenableFutureAdapter<>(future);
   }
 
   /**
@@ -70,18 +76,19 @@ public final class JdkFutureAdapters {
    * deadlocks.
    *
    * <p>Prefer to create {@code ListenableFuture} instances with {@link SettableFuture}, {@link
-   * MoreExecutors#listeningDecorator( java.util.concurrent.ExecutorService)}, {@link
+   * MoreExecutors#listeningDecorator(java.util.concurrent.ExecutorService)}, {@link
    * ListenableFutureTask}, {@link AbstractFuture}, and other utilities over creating plain {@code
    * Future} instances to be upgraded to {@code ListenableFuture} after the fact.
    *
    * @since 12.0
    */
-  public static <V> ListenableFuture<V> listenInPoolThread(Future<V> future, Executor executor) {
+  public static <V extends @Nullable Object> ListenableFuture<V> listenInPoolThread(
+      Future<V> future, Executor executor) {
     checkNotNull(executor);
     if (future instanceof ListenableFuture) {
       return (ListenableFuture<V>) future;
     }
-    return new ListenableFutureAdapter<V>(future, executor);
+    return new ListenableFutureAdapter<>(future, executor);
   }
 
   /**
@@ -93,16 +100,15 @@ public final class JdkFutureAdapters {
    * <p>If the delegate future is interrupted or throws an unexpected unchecked exception, the
    * listeners will not be invoked.
    */
-  private static class ListenableFutureAdapter<V> extends ForwardingFuture<V>
-      implements ListenableFuture<V> {
+  private static final class ListenableFutureAdapter<V extends @Nullable Object>
+      extends ForwardingFuture<V> implements ListenableFuture<V> {
 
     private static final ThreadFactory threadFactory =
         new ThreadFactoryBuilder()
             .setDaemon(true)
             .setNameFormat("ListenableFutureAdapter-thread-%d")
             .build();
-    private static final Executor defaultAdapterExecutor =
-        Executors.newCachedThreadPool(threadFactory);
+    private static final Executor defaultAdapterExecutor = newCachedThreadPool(threadFactory);
 
     private final Executor adapterExecutor;
 
@@ -146,22 +152,21 @@ public final class JdkFutureAdapters {
 
         // TODO(lukes): handle RejectedExecutionException
         adapterExecutor.execute(
-            new Runnable() {
-              @Override
-              public void run() {
-                try {
-                  /*
-                   * Threads from our private pool are never interrupted. Threads from a
-                   * user-supplied executor might be, but... what can we do? This is another reason
-                   * to return a proper ListenableFuture instead of using listenInPoolThread.
-                   */
-                  getUninterruptibly(delegate);
-                } catch (Throwable e) {
-                  // ExecutionException / CancellationException / RuntimeException / Error
-                  // The task is presumably done, run the listeners.
-                }
-                executionList.execute();
+            () -> {
+              try {
+                /*
+                 * Threads from our private pool are never interrupted. Threads from a
+                 * user-supplied executor might be, but... what can we do? This is another reason
+                 * to return a proper ListenableFuture instead of using listenInPoolThread.
+                 */
+                getUninterruptibly(delegate);
+              } catch (Throwable t) {
+                // (including CancellationException and sneaky checked exception)
+                // The task is presumably done, run the listeners.
+                // TODO(cpovirk): Do *something* in case of Error (and maybe
+                // non-CancellationException, non-ExecutionException exceptions)?
               }
+              executionList.execute();
             });
       }
     }

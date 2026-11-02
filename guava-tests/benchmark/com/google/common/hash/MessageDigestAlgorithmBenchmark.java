@@ -22,6 +22,7 @@ import com.google.caliper.Param;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Random;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Benchmarks for comparing {@link MessageDigest}s and {@link com.google.common.hash.HashFunction}s
@@ -30,32 +31,45 @@ import java.util.Random;
  * <p>Parameters for the benchmark are:
  *
  * <ul>
- * <li>size: The length of the byte array to hash.
- * <li>algorithm: the algorithm to hash with (e.g. MD5, SHA1, etc.).
- * <li>hashMethod: how to hash the data (using the Hashing API or the MessageDigest API).
+ *   <li>size: The length of the byte array to hash.
+ *   <li>algorithm: the algorithm to hash with (e.g. MD5, SHA1, etc.).
+ *   <li>hashMethod: how to hash the data (using the Hashing API or the MessageDigest API).
  * </ul>
  *
  * @author Kurt Alfred Kluever
  */
+@NullUnmarked
 public class MessageDigestAlgorithmBenchmark {
-  @Param({"10", "1000", "100000", "1000000"}) int size;
+  @Param({"10", "1000", "100000", "1000000"})
+  int size;
+
   @Param Algorithm algorithm;
   @Param HashMethod hashMethod;
 
   private enum HashMethod {
     MESSAGE_DIGEST_API() {
-      @Override public byte[] hash(Algorithm algorithm, byte[] input) {
+      @Override
+      public byte[] hash(Algorithm algorithm, byte[] input) {
         MessageDigest md = algorithm.getMessageDigest();
         md.update(input);
         return md.digest();
       }
     },
-    HASH_FUNCTION_API() {
-      @Override public byte[] hash(Algorithm algorithm, byte[] input) {
+    HASH_FUNCTION_DIRECT() {
+      @Override
+      public byte[] hash(Algorithm algorithm, byte[] input) {
         return algorithm.getHashFunction().hashBytes(input).asBytes();
       }
+    },
+    HASH_FUNCTION_VIA_HASHER() {
+      @Override
+      public byte[] hash(Algorithm algorithm, byte[] input) {
+        return algorithm.getHashFunction().newHasher().putBytes(input).hash().asBytes();
+      }
     };
-    public abstract byte[] hash(Algorithm algorithm, byte[] input);
+    ;
+
+    abstract byte[] hash(Algorithm algorithm, byte[] input);
   }
 
   private enum Algorithm {
@@ -67,18 +81,21 @@ public class MessageDigestAlgorithmBenchmark {
 
     private final String algorithmName;
     private final HashFunction hashFn;
+
     Algorithm(String algorithmName, HashFunction hashFn) {
       this.algorithmName = algorithmName;
       this.hashFn = hashFn;
     }
-    public MessageDigest getMessageDigest() {
+
+    MessageDigest getMessageDigest() {
       try {
         return MessageDigest.getInstance(algorithmName);
       } catch (NoSuchAlgorithmException e) {
         throw new AssertionError(e);
       }
     }
-    public HashFunction getHashFunction() {
+
+    HashFunction getHashFunction() {
       return hashFn;
     }
   }
@@ -88,12 +105,14 @@ public class MessageDigestAlgorithmBenchmark {
 
   private byte[] testBytes;
 
-  @BeforeExperiment void setUp() {
+  @BeforeExperiment
+  void setUp() {
     testBytes = new byte[size];
     new Random(RANDOM_SEED).nextBytes(testBytes);
   }
 
-  @Benchmark byte hashing(int reps) {
+  @Benchmark
+  byte hashing(int reps) {
     byte result = 0x01;
     HashMethod hashMethod = this.hashMethod;
     Algorithm algorithm = this.algorithm;

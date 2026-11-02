@@ -16,21 +16,23 @@
 
 package com.google.common.eventbus;
 
-import com.google.common.collect.Lists;
+import java.util.ArrayList;
 import java.util.List;
-import javax.annotation.Nullable;
 import junit.framework.Assert;
+import org.jspecify.annotations.NullUnmarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A simple EventSubscriber mock that records Strings.
  *
- * For testing fun, also includes a landmine method that EventBus tests are
- * required <em>not</em> to call ({@link #methodWithoutAnnotation(String)}).
+ * <p>For testing fun, also includes a landmine method that EventBus tests are required <em>not</em>
+ * to call ({@link #methodWithoutAnnotation(String)}).
  *
  * @author Cliff Biffle
  */
+@NullUnmarked
 public class StringCatcher {
-  private List<String> events = Lists.newArrayList();
+  private final List<String> events = new ArrayList<>();
 
   @Subscribe
   public void hereHaveAString(@Nullable String string) {

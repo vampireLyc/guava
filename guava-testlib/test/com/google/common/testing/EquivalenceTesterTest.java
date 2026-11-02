@@ -18,6 +18,7 @@ package com.google.common.testing;
 
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.base.Equivalence;
@@ -25,7 +26,9 @@ import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableTable;
 import junit.framework.AssertionFailedError;
-import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
+import org.junit.Before;
+import org.junit.Test;
 
 /**
  * Tests for {@link EquivalenceTester}.
@@ -33,29 +36,30 @@ import junit.framework.TestCase;
  * @author Gregory Kick
  */
 @GwtCompatible
-public class EquivalenceTesterTest extends TestCase {
+@NullUnmarked
+public class EquivalenceTesterTest {
   private EquivalenceTester<Object> tester;
   private MockEquivalence equivalenceMock;
 
-  @Override public void setUp() throws Exception {
-    super.setUp();
+  @Before
+  public void setUp() {
     this.equivalenceMock = new MockEquivalence();
     this.tester = EquivalenceTester.of(equivalenceMock);
   }
 
   /** Test null reference yields error */
-  public void testOf_NullPointerException() {
-    try {
-      EquivalenceTester.of(null);
-      fail("Should fail on null reference");
-    } catch (NullPointerException expected) {}
+  @Test
+  public void of_nullPointerException() {
+    assertThrows(NullPointerException.class, () -> EquivalenceTester.of(null));
   }
 
-  public void testTest_NoData() {
+  @Test
+  public void test_noData() {
     tester.test();
   }
 
-  public void testTest() {
+  @Test
+  public void test() {
     Object group1Item1 = new TestObject(1, 1);
     Object group1Item2 = new TestObject(1, 2);
     Object group2Item1 = new TestObject(2, 1);
@@ -81,12 +85,14 @@ public class EquivalenceTesterTest extends TestCase {
 
     equivalenceMock.replay();
 
-    tester.addEquivalenceGroup(group1Item1, group1Item2)
+    tester
+        .addEquivalenceGroup(group1Item1, group1Item2)
         .addEquivalenceGroup(group2Item1, group2Item2)
         .test();
   }
 
-  public void testTest_symmetric() {
+  @Test
+  public void test_symmetric() {
     Object group1Item1 = new TestObject(1, 1);
     Object group1Item2 = new TestObject(1, 2);
 
@@ -98,18 +104,19 @@ public class EquivalenceTesterTest extends TestCase {
 
     equivalenceMock.replay();
 
-    try {
-      tester.addEquivalenceGroup(group1Item1, group1Item2).test();
-    } catch (AssertionFailedError expected) {
-      assertThat(expected.getMessage()).contains(
-          "TestObject{group=1, item=2} [group 1, item 2] must be equivalent to "
-          + "TestObject{group=1, item=1} [group 1, item 1]");
-      return;
-    }
-    fail();
+    AssertionFailedError expected =
+        assertThrows(
+            AssertionFailedError.class,
+            () -> tester.addEquivalenceGroup(group1Item1, group1Item2).test());
+    assertThat(expected)
+        .hasMessageThat()
+        .contains(
+            "TestObject{group=1, item=2} [group 1, item 2] must be equivalent to "
+                + "TestObject{group=1, item=1} [group 1, item 1]");
   }
 
-  public void testTest_trasitive() {
+  @Test
+  public void test_transitive() {
     Object group1Item1 = new TestObject(1, 1);
     Object group1Item2 = new TestObject(1, 2);
     Object group1Item3 = new TestObject(1, 3);
@@ -127,18 +134,19 @@ public class EquivalenceTesterTest extends TestCase {
 
     equivalenceMock.replay();
 
-    try {
-      tester.addEquivalenceGroup(group1Item1, group1Item2, group1Item3).test();
-    } catch (AssertionFailedError expected) {
-      assertThat(expected.getMessage()).contains(
-          "TestObject{group=1, item=2} [group 1, item 2] must be equivalent to "
-          + "TestObject{group=1, item=3} [group 1, item 3]");
-      return;
-    }
-    fail();
+    AssertionFailedError expected =
+        assertThrows(
+            AssertionFailedError.class,
+            () -> tester.addEquivalenceGroup(group1Item1, group1Item2, group1Item3).test());
+    assertThat(expected)
+        .hasMessageThat()
+        .contains(
+            "TestObject{group=1, item=2} [group 1, item 2] must be equivalent to "
+                + "TestObject{group=1, item=3} [group 1, item 3]");
   }
 
-  public void testTest_inequivalence() {
+  @Test
+  public void test_inequivalence() {
     Object group1Item1 = new TestObject(1, 1);
     Object group2Item1 = new TestObject(2, 1);
 
@@ -150,18 +158,19 @@ public class EquivalenceTesterTest extends TestCase {
 
     equivalenceMock.replay();
 
-    try {
-      tester.addEquivalenceGroup(group1Item1).addEquivalenceGroup(group2Item1).test();
-    } catch (AssertionFailedError expected) {
-      assertThat(expected.getMessage()).contains(
-          "TestObject{group=1, item=1} [group 1, item 1] must not be equivalent to "
-          + "TestObject{group=2, item=1} [group 2, item 1]");
-      return;
-    }
-    fail();
+    AssertionFailedError expected =
+        assertThrows(
+            AssertionFailedError.class,
+            () -> tester.addEquivalenceGroup(group1Item1).addEquivalenceGroup(group2Item1).test());
+    assertThat(expected)
+        .hasMessageThat()
+        .contains(
+            "TestObject{group=1, item=1} [group 1, item 1] must not be equivalent to "
+                + "TestObject{group=2, item=1} [group 2, item 1]");
   }
 
-  public void testTest_hash() {
+  @Test
+  public void test_hash() {
     Object group1Item1 = new TestObject(1, 1);
     Object group1Item2 = new TestObject(1, 2);
 
@@ -173,18 +182,14 @@ public class EquivalenceTesterTest extends TestCase {
 
     equivalenceMock.replay();
 
-    try {
-      tester.addEquivalenceGroup(group1Item1, group1Item2).test();
-    } catch (AssertionFailedError expected) {
-      String expectedMessage =
-          "the hash (1) of TestObject{group=1, item=1} [group 1, item 1] must be "
-          + "equal to the hash (2) of TestObject{group=1, item=2} [group 1, item 2]";
-      if (!expected.getMessage().contains(expectedMessage)) {
-        fail("<" + expected.getMessage() + "> expected to contain <" + expectedMessage + ">");
-      }
-      return;
-    }
-    fail();
+    AssertionFailedError expected =
+        assertThrows(
+            AssertionFailedError.class,
+            () -> tester.addEquivalenceGroup(group1Item1, group1Item2).test());
+    String expectedMessage =
+        "the hash (1) of TestObject{group=1, item=1} [group 1, item 1] must be "
+            + "equal to the hash (2) of TestObject{group=1, item=2} [group 1, item 2]";
+    assertThat(expected).hasMessageThat().contains(expectedMessage);
   }
 
   /** An object with a friendly {@link #toString()}. */
@@ -192,12 +197,13 @@ public class EquivalenceTesterTest extends TestCase {
     final int group;
     final int item;
 
-    TestObject(int group , int item) {
+    TestObject(int group, int item) {
       this.group = group;
       this.item = item;
     }
 
-    @Override public String toString() {
+    @Override
+    public String toString() {
       return MoreObjects.toStringHelper("TestObject")
           .add("group", group)
           .add("item", item)
@@ -208,8 +214,7 @@ public class EquivalenceTesterTest extends TestCase {
   private static final class MockEquivalence extends Equivalence<Object> {
     final ImmutableTable.Builder<Object, Object, Boolean> equivalentExpectationsBuilder =
         ImmutableTable.builder();
-    final ImmutableMap.Builder<Object, Integer> hashExpectationsBuilder =
-        ImmutableMap.builder();
+    final ImmutableMap.Builder<Object, Integer> hashExpectationsBuilder = ImmutableMap.builder();
     ImmutableTable<Object, Object, Boolean> equivalentExpectations;
     ImmutableMap<Object, Integer> hashExpectations;
 
@@ -230,15 +235,17 @@ public class EquivalenceTesterTest extends TestCase {
 
     void replay() {
       checkRecording();
-      equivalentExpectations = equivalentExpectationsBuilder.build();
-      hashExpectations = hashExpectationsBuilder.build();
+      equivalentExpectations = equivalentExpectationsBuilder.buildOrThrow();
+      hashExpectations = hashExpectationsBuilder.buildOrThrow();
     }
 
-    @Override protected boolean doEquivalent(Object a, Object b) {
+    @Override
+    protected boolean doEquivalent(Object a, Object b) {
       return equivalentExpectations.get(a, b);
     }
 
-    @Override protected int doHash(Object object) {
+    @Override
+    protected int doHash(Object object) {
       return hashExpectations.get(object);
     }
 

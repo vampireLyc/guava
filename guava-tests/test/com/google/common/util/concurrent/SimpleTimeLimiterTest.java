@@ -16,175 +16,226 @@
 
 package com.google.common.util.concurrent;
 
+import static com.google.common.truth.Truth.assertThat;
+import static java.util.concurrent.Executors.newFixedThreadPool;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.junit.Assert.assertThrows;
+
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
+import com.google.common.base.Stopwatch;
+import com.google.common.collect.Range;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Unit test for {@link SimpleTimeLimiter}.
  *
  * @author kevinb
+ * @author Jens Nyman
  */
+@NullUnmarked
+@GwtIncompatible
+@J2ktIncompatible
 public class SimpleTimeLimiterTest extends TestCase {
 
-  private static final int DELAY_MS = 50;
-  private static final int ENOUGH_MS = 500;
-  private static final int NOT_ENOUGH_MS = 5;
+  private static final long DELAY_MS = 50;
+  private static final long ENOUGH_MS = 10000;
+  private static final long NOT_ENOUGH_MS = 5;
+
+  private static final String GOOD_CALLABLE_RESULT = "good callable result";
+  private static final Callable<String> GOOD_CALLABLE =
+      () -> {
+        MILLISECONDS.sleep(DELAY_MS);
+        return GOOD_CALLABLE_RESULT;
+      };
+  private static final Callable<String> BAD_CALLABLE =
+      () -> {
+        MILLISECONDS.sleep(DELAY_MS);
+        throw new SampleException();
+      };
+  private static final Runnable GOOD_RUNNABLE =
+      () -> {
+        try {
+          MILLISECONDS.sleep(DELAY_MS);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
+      };
+  private static final Runnable BAD_RUNNABLE =
+      () -> {
+        try {
+          MILLISECONDS.sleep(DELAY_MS);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
+        throw new SampleRuntimeException();
+      };
 
   private TimeLimiter service;
 
-  private static final ExecutorService executor
-      = Executors.newFixedThreadPool(1);
+  private static final ExecutorService executor = newFixedThreadPool(1);
 
-  private static String someGoodStaticMethod() throws InterruptedException {
-    TimeUnit.MILLISECONDS.sleep(DELAY_MS);
-    return "yes";
-  }
-
-  private static String someBadStaticMethod() throws InterruptedException,
-      SampleException {
-    TimeUnit.MILLISECONDS.sleep(DELAY_MS);
-    throw new SampleException();
-  }
-
-  @Override protected void setUp() throws Exception {
+  @Override
+  protected void setUp() throws Exception {
     super.setUp();
-    service = new SimpleTimeLimiter(executor);
+    service = SimpleTimeLimiter.create(executor);
   }
 
-  public void testGoodCallableWithEnoughTime() throws Exception {
-    long start = System.nanoTime();
-    String result = service.callWithTimeout(
-        new Callable<String>() {
-          @Override
-          public String call() throws InterruptedException {
-            return someGoodStaticMethod();
-          }
-        }, ENOUGH_MS, TimeUnit.MILLISECONDS, true);
-    assertEquals("yes", result);
-    assertTheCallTookBetween(start, DELAY_MS, ENOUGH_MS);
-  }
-
-  public void testGoodCallableWithNotEnoughTime() throws Exception {
-    long start = System.nanoTime();
-    try {
-      service.callWithTimeout(
-          new Callable<String>() {
-            @Override
-            public String call() throws InterruptedException {
-              return someGoodStaticMethod();
-            }
-          }, NOT_ENOUGH_MS, TimeUnit.MILLISECONDS, true);
-      fail("no exception thrown");
-    } catch (UncheckedTimeoutException expected) {
-    }
-    assertTheCallTookBetween(start, NOT_ENOUGH_MS, DELAY_MS * 2);
-  }
-
-  public void testBadCallableWithEnoughTime() throws Exception {
-    long start = System.nanoTime();
-    try {
-      service.callWithTimeout(
-          new Callable<String>() {
-            @Override
-            public String call() throws SampleException, InterruptedException {
-              return someBadStaticMethod();
-            }
-          }, ENOUGH_MS, TimeUnit.MILLISECONDS, true);
-      fail("no exception thrown");
-    } catch (SampleException expected) {
-    }
-    assertTheCallTookBetween(start, DELAY_MS, ENOUGH_MS);
-  }
-
-  public void testBadCallableWithNotEnoughTime() throws Exception {
-    long start = System.nanoTime();
-    try {
-      service.callWithTimeout(
-          new Callable<String>() {
-            @Override
-            public String call() throws SampleException, InterruptedException {
-              return someBadStaticMethod();
-            }
-          }, NOT_ENOUGH_MS, TimeUnit.MILLISECONDS, true);
-      fail("no exception thrown");
-    } catch (UncheckedTimeoutException expected) {
-    }
-    assertTheCallTookBetween(start, NOT_ENOUGH_MS, DELAY_MS * 2);
-  }
-
-  public void testGoodMethodWithEnoughTime() throws Exception {
+  public void testNewProxy_goodMethodWithEnoughTime() {
     SampleImpl target = new SampleImpl(DELAY_MS);
-    Sample proxy = service.newProxy(
-        target, Sample.class, ENOUGH_MS, TimeUnit.MILLISECONDS);
-    long start = System.nanoTime();
-    assertEquals("x", proxy.sleepThenReturnInput("x"));
-    assertTheCallTookBetween(start, DELAY_MS, ENOUGH_MS);
-    assertTrue(target.finished);
+    Sample proxy = service.newProxy(target, Sample.class, ENOUGH_MS, MILLISECONDS);
+    Stopwatch stopwatch = Stopwatch.createStarted();
+
+    String result = proxy.sleepThenReturnInput("x");
+
+    assertThat(result).isEqualTo("x");
+    assertThat(stopwatch.elapsed(MILLISECONDS)).isIn(Range.closed(DELAY_MS, ENOUGH_MS));
+    assertThat(target.finished).isTrue();
   }
 
-  public void testGoodMethodWithNotEnoughTime() throws Exception {
+  public void testNewProxy_goodMethodWithNotEnoughTime() throws Exception {
     SampleImpl target = new SampleImpl(9999);
-    Sample proxy = service.newProxy(
-        target, Sample.class, NOT_ENOUGH_MS, TimeUnit.MILLISECONDS);
-    long start = System.nanoTime();
-    try {
-      proxy.sleepThenReturnInput("x");
-      fail("no exception thrown");
-    } catch (UncheckedTimeoutException expected) {
-    }
-    assertTheCallTookBetween(start, NOT_ENOUGH_MS, DELAY_MS * 2);
+    Sample proxy = service.newProxy(target, Sample.class, NOT_ENOUGH_MS, MILLISECONDS);
+    Stopwatch stopwatch = Stopwatch.createStarted();
 
+    assertThrows(UncheckedTimeoutException.class, () -> proxy.sleepThenReturnInput("x"));
+
+    assertThat(stopwatch.elapsed(MILLISECONDS)).isIn(Range.closed(NOT_ENOUGH_MS, DELAY_MS * 2));
     // Is it still computing away anyway?
-    assertFalse(target.finished);
-    TimeUnit.MILLISECONDS.sleep(ENOUGH_MS);
-    assertFalse(target.finished);
+    assertThat(target.finished).isFalse();
+    MILLISECONDS.sleep(ENOUGH_MS);
+    assertThat(target.finished).isFalse();
   }
 
-  public void testBadMethodWithEnoughTime() throws Exception {
+  public void testNewProxy_badMethodWithEnoughTime() {
     SampleImpl target = new SampleImpl(DELAY_MS);
-    Sample proxy = service.newProxy(
-        target, Sample.class, ENOUGH_MS, TimeUnit.MILLISECONDS);
-    long start = System.nanoTime();
-    try {
-      proxy.sleepThenThrowException();
-      fail("no exception thrown");
-    } catch (SampleException expected) {
-    }
-    assertTheCallTookBetween(start, DELAY_MS, ENOUGH_MS);
+    Sample proxy = service.newProxy(target, Sample.class, ENOUGH_MS, MILLISECONDS);
+    Stopwatch stopwatch = Stopwatch.createStarted();
+
+    assertThrows(SampleException.class, proxy::sleepThenThrowException);
+
+    assertThat(stopwatch.elapsed(MILLISECONDS)).isIn(Range.closed(DELAY_MS, ENOUGH_MS));
   }
 
-  public void testBadMethodWithNotEnoughTime() throws Exception {
+  public void testNewProxy_badMethodWithNotEnoughTime() {
     SampleImpl target = new SampleImpl(9999);
-    Sample proxy = service.newProxy(
-        target, Sample.class, NOT_ENOUGH_MS, TimeUnit.MILLISECONDS);
-    long start = System.nanoTime();
-    try {
-      proxy.sleepThenThrowException();
-      fail("no exception thrown");
-    } catch (UncheckedTimeoutException expected) {
-    }
-    assertTheCallTookBetween(start, NOT_ENOUGH_MS, DELAY_MS * 2);
+    Sample proxy = service.newProxy(target, Sample.class, NOT_ENOUGH_MS, MILLISECONDS);
+    Stopwatch stopwatch = Stopwatch.createStarted();
+
+    assertThrows(UncheckedTimeoutException.class, proxy::sleepThenThrowException);
+
+    assertThat(stopwatch.elapsed(MILLISECONDS)).isIn(Range.closed(NOT_ENOUGH_MS, DELAY_MS * 2));
   }
 
-  private static void assertTheCallTookBetween(
-      long startNanos, int atLeastMillis, int atMostMillis) {
-    long nanos = System.nanoTime() - startNanos;
-    assertTrue(nanos >= atLeastMillis * 1000000);
-    assertTrue(nanos <= atMostMillis * 1000000);
+  public void testCallWithTimeout_goodCallableWithEnoughTime() throws Exception {
+    Stopwatch stopwatch = Stopwatch.createStarted();
+
+    String result = service.callWithTimeout(GOOD_CALLABLE, ENOUGH_MS, MILLISECONDS);
+
+    assertThat(result).isEqualTo(GOOD_CALLABLE_RESULT);
+    assertThat(stopwatch.elapsed(MILLISECONDS)).isIn(Range.closed(DELAY_MS, ENOUGH_MS));
   }
 
-  public interface Sample {
+  public void testCallWithTimeout_goodCallableWithNotEnoughTime() {
+    assertThrows(
+        TimeoutException.class,
+        () -> service.callWithTimeout(GOOD_CALLABLE, NOT_ENOUGH_MS, MILLISECONDS));
+  }
+
+  public void testCallWithTimeout_badCallableWithEnoughTime() {
+    ExecutionException expected =
+        assertThrows(
+            ExecutionException.class,
+            () -> service.callWithTimeout(BAD_CALLABLE, ENOUGH_MS, MILLISECONDS));
+    assertThat(expected).hasCauseThat().isInstanceOf(SampleException.class);
+  }
+
+  public void testCallUninterruptiblyWithTimeout_goodCallableWithEnoughTime() throws Exception {
+    Stopwatch stopwatch = Stopwatch.createStarted();
+
+    String result = service.callUninterruptiblyWithTimeout(GOOD_CALLABLE, ENOUGH_MS, MILLISECONDS);
+
+    assertThat(result).isEqualTo(GOOD_CALLABLE_RESULT);
+    assertThat(stopwatch.elapsed(MILLISECONDS)).isIn(Range.closed(DELAY_MS, ENOUGH_MS));
+  }
+
+  public void testCallUninterruptiblyWithTimeout_goodCallableWithNotEnoughTime() {
+    assertThrows(
+        TimeoutException.class,
+        () -> service.callUninterruptiblyWithTimeout(GOOD_CALLABLE, NOT_ENOUGH_MS, MILLISECONDS));
+  }
+
+  public void testCallUninterruptiblyWithTimeout_badCallableWithEnoughTime() {
+    ExecutionException expected =
+        assertThrows(
+            ExecutionException.class,
+            () -> service.callUninterruptiblyWithTimeout(BAD_CALLABLE, ENOUGH_MS, MILLISECONDS));
+    assertThat(expected).hasCauseThat().isInstanceOf(SampleException.class);
+  }
+
+  public void testRunWithTimeout_goodRunnableWithEnoughTime() throws Exception {
+    Stopwatch stopwatch = Stopwatch.createStarted();
+
+    service.runWithTimeout(GOOD_RUNNABLE, ENOUGH_MS, MILLISECONDS);
+
+    assertThat(stopwatch.elapsed(MILLISECONDS)).isIn(Range.closed(DELAY_MS, ENOUGH_MS));
+  }
+
+  public void testRunWithTimeout_goodRunnableWithNotEnoughTime() {
+    assertThrows(
+        TimeoutException.class,
+        () -> service.runWithTimeout(GOOD_RUNNABLE, NOT_ENOUGH_MS, MILLISECONDS));
+  }
+
+  public void testRunWithTimeout_badRunnableWithEnoughTime() {
+    UncheckedExecutionException expected =
+        assertThrows(
+            UncheckedExecutionException.class,
+            () -> service.runWithTimeout(BAD_RUNNABLE, ENOUGH_MS, MILLISECONDS));
+    assertThat(expected).hasCauseThat().isInstanceOf(SampleRuntimeException.class);
+  }
+
+  public void testRunUninterruptiblyWithTimeout_goodRunnableWithEnoughTime() throws Exception {
+    Stopwatch stopwatch = Stopwatch.createStarted();
+
+    service.runUninterruptiblyWithTimeout(GOOD_RUNNABLE, ENOUGH_MS, MILLISECONDS);
+
+    assertThat(stopwatch.elapsed(MILLISECONDS)).isIn(Range.closed(DELAY_MS, ENOUGH_MS));
+  }
+
+  public void testRunUninterruptiblyWithTimeout_goodRunnableWithNotEnoughTime() {
+    assertThrows(
+        TimeoutException.class,
+        () -> service.runUninterruptiblyWithTimeout(GOOD_RUNNABLE, NOT_ENOUGH_MS, MILLISECONDS));
+  }
+
+  public void testRunUninterruptiblyWithTimeout_badRunnableWithEnoughTime() {
+    UncheckedExecutionException expected =
+        assertThrows(
+            UncheckedExecutionException.class,
+            () -> service.runUninterruptiblyWithTimeout(BAD_RUNNABLE, ENOUGH_MS, MILLISECONDS));
+    assertThat(expected).hasCauseThat().isInstanceOf(SampleRuntimeException.class);
+  }
+
+  private interface Sample {
     String sleepThenReturnInput(String input);
+
     void sleepThenThrowException() throws SampleException;
   }
 
   @SuppressWarnings("serial")
-  public static class SampleException extends Exception {}
+  private static class SampleException extends Exception {}
 
-  public static class SampleImpl implements Sample {
+  @SuppressWarnings("serial")
+  private static class SampleRuntimeException extends RuntimeException {}
+
+  private static class SampleImpl implements Sample {
     final long delayMillis;
     boolean finished;
 
@@ -192,20 +243,22 @@ public class SimpleTimeLimiterTest extends TestCase {
       this.delayMillis = delayMillis;
     }
 
+    @CanIgnoreReturnValue
     @Override
     public String sleepThenReturnInput(String input) {
       try {
-        TimeUnit.MILLISECONDS.sleep(delayMillis);
+        MILLISECONDS.sleep(delayMillis);
         finished = true;
         return input;
       } catch (InterruptedException e) {
-        return null;
+        throw new AssertionError();
       }
     }
+
     @Override
     public void sleepThenThrowException() throws SampleException {
       try {
-        TimeUnit.MILLISECONDS.sleep(delayMillis);
+        MILLISECONDS.sleep(delayMillis);
       } catch (InterruptedException e) {
       }
       throw new SampleException();

@@ -16,44 +16,54 @@
 
 package com.google.common.io;
 
+import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
+
 import java.io.Closeable;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.Writer;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Unit test for {@link AppendableWriter}.
  *
  * @author Alan Green
  */
+@NullUnmarked
 public class AppendableWriterTest extends IoTestCase {
 
   /** Helper class for testing behavior with Flushable and Closeable targets. */
   private static class SpyAppendable implements Appendable, Flushable, Closeable {
     boolean flushed;
     boolean closed;
-    StringBuilder result = new StringBuilder();
+    final StringBuilder result = new StringBuilder();
 
-    @Override public Appendable append(CharSequence csq) {
+    @Override
+    public Appendable append(CharSequence csq) {
       result.append(csq);
       return this;
     }
 
-    @Override public Appendable append(char c) {
+    @Override
+    public Appendable append(char c) {
       result.append(c);
       return this;
     }
 
-    @Override public Appendable append(CharSequence csq, int start, int end) {
+    @Override
+    public Appendable append(CharSequence csq, int start, int end) {
       result.append(csq, start, end);
       return this;
     }
 
-    @Override public void flush() {
+    @Override
+    public void flush() {
       flushed = true;
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
       closed = true;
     }
   }
@@ -69,7 +79,7 @@ public class AppendableWriterTest extends IoTestCase {
     writer.write("Whirled".toCharArray(), 3, 2);
     writer.write("Mad! Mad, I say", 2, 2);
 
-    assertEquals("Hello, World!", builder.toString());
+    assertThat(builder.toString()).isEqualTo("Hello, World!");
   }
 
   public void testAppendMethods() throws IOException {
@@ -81,7 +91,7 @@ public class AppendableWriterTest extends IoTestCase {
     writer.append("The World Wide Web", 4, 9);
     writer.append("!");
 
-    assertEquals("Hello, World!", builder.toString());
+    assertThat(builder.toString()).isEqualTo("Hello, World!");
   }
 
   public void testCloseFlush() throws IOException {
@@ -108,19 +118,9 @@ public class AppendableWriterTest extends IoTestCase {
     writer.write("Hi");
     writer.close();
 
-    try {
-      writer.write(" Greg");
-      fail("Should have thrown IOException due to writer already closed");
-    } catch (IOException es) {
-      // expected
-    }
+    assertThrows(IOException.class, () -> writer.write(" Greg"));
 
-    try {
-      writer.flush();
-      fail("Should have thrown IOException due to writer already closed");
-    } catch (IOException es) {
-      // expected
-    }
+    assertThrows(IOException.class, writer::flush);
 
     // close()ing already closed writer is allowed
     writer.close();

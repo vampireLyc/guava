@@ -16,22 +16,27 @@
 
 package com.google.common.testing;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Unit test for {@link TestLogHandler}.
  *
  * @author kevinb
  */
+@NullUnmarked
 public class TestLogHandlerTest extends TestCase {
 
   private TestLogHandler handler;
-  private TearDownStack stack = new TearDownStack();
+  private final TearDownStack stack = new TearDownStack();
 
-  @Override protected void setUp() throws Exception {
+  @Override
+  protected void setUp() throws Exception {
     super.setUp();
 
     handler = new TestLogHandler();
@@ -41,25 +46,23 @@ public class TestLogHandlerTest extends TestCase {
 
     ExampleClassUnderTest.logger.setUseParentHandlers(false); // optional
 
-    stack.addTearDown(new TearDown() {
-      @Override
-      public void tearDown() throws Exception {
-        ExampleClassUnderTest.logger.setUseParentHandlers(true);
-        ExampleClassUnderTest.logger.removeHandler(handler);
-      }
-    });
+    stack.addTearDown(
+        () -> {
+          ExampleClassUnderTest.logger.setUseParentHandlers(true);
+          ExampleClassUnderTest.logger.removeHandler(handler);
+        });
   }
 
-  public void test() throws Exception {
+  public void test() {
     assertTrue(handler.getStoredLogRecords().isEmpty());
     ExampleClassUnderTest.foo();
     LogRecord record = handler.getStoredLogRecords().get(0);
     assertEquals(Level.INFO, record.getLevel());
-    assertEquals("message", record.getMessage());
-    assertSame(EXCEPTION, record.getThrown());
+    assertThat(record.getMessage()).isEqualTo("message");
+    assertThat(record.getThrown()).isEqualTo(EXCEPTION);
   }
 
-  public void testConcurrentModification() throws Exception {
+  public void testConcurrentModification() {
     // Tests for the absence of a bug where logging while iterating over the
     // stored log records causes a ConcurrentModificationException
     assertTrue(handler.getStoredLogRecords().isEmpty());
@@ -70,7 +73,8 @@ public class TestLogHandlerTest extends TestCase {
     }
   }
 
-  @Override public final void runBare() throws Throwable {
+  @Override
+  public final void runBare() throws Throwable {
     try {
       setUp();
       runTest();
@@ -79,18 +83,20 @@ public class TestLogHandlerTest extends TestCase {
     }
   }
 
-  @Override protected void tearDown() {
+  @Override
+  protected void tearDown() {
     stack.runTearDown();
   }
 
   static final Exception EXCEPTION = new Exception();
 
-  static class ExampleClassUnderTest {
-    static final Logger logger
-        = Logger.getLogger(ExampleClassUnderTest.class.getName());
+  static final class ExampleClassUnderTest {
+    static final Logger logger = Logger.getLogger(ExampleClassUnderTest.class.getName());
 
     static void foo() {
-      logger.log(Level.INFO,  "message", EXCEPTION);
+      logger.log(Level.INFO, "message", EXCEPTION);
     }
+
+    private ExampleClassUnderTest() {}
   }
 }

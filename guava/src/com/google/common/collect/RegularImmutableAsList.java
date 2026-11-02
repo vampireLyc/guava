@@ -18,15 +18,17 @@ package com.google.common.collect;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import java.util.function.Consumer;
+import org.jspecify.annotations.Nullable;
 
 /**
- * An {@link ImmutableAsList} implementation specialized for when the delegate collection is
- * already backed by an {@code ImmutableList} or array.
+ * An {@link ImmutableAsList} implementation specialized for when the delegate collection is already
+ * backed by an {@code ImmutableList} or array.
  *
  * @author Louis Wasserman
  */
-@GwtCompatible(emulated = true)
+@GwtCompatible
 @SuppressWarnings("serial") // uses writeReplace, not default serialization
 class RegularImmutableAsList<E> extends ImmutableAsList<E> {
   private final ImmutableCollection<E> delegate;
@@ -38,11 +40,7 @@ class RegularImmutableAsList<E> extends ImmutableAsList<E> {
   }
 
   RegularImmutableAsList(ImmutableCollection<E> delegate, Object[] array) {
-    this(delegate, ImmutableList.<E>asImmutableList(array));
-  }
-
-  RegularImmutableAsList(ImmutableCollection<E> delegate, Object[] array, int size) {
-    this(delegate, ImmutableList.<E>asImmutableList(array, size));
+    this(delegate, asImmutableList(array));
   }
 
   @Override
@@ -50,13 +48,13 @@ class RegularImmutableAsList<E> extends ImmutableAsList<E> {
     return delegate;
   }
 
-  ImmutableList<? extends E> delegateList() {
+  final ImmutableList<? extends E> delegateList() {
     return delegateList;
   }
 
   @SuppressWarnings("unchecked") // safe covariant cast!
   @Override
-  public UnmodifiableListIterator<E> listIterator(int index) {
+  public final UnmodifiableListIterator<E> listIterator(int index) {
     return (UnmodifiableListIterator<E>) delegateList.listIterator(index);
   }
 
@@ -68,12 +66,36 @@ class RegularImmutableAsList<E> extends ImmutableAsList<E> {
 
   @GwtIncompatible // not present in emulated superclass
   @Override
-  int copyIntoArray(Object[] dst, int offset) {
+  int copyIntoArray(@Nullable Object[] dst, int offset) {
     return delegateList.copyIntoArray(dst, offset);
   }
 
   @Override
-  public E get(int index) {
+  Object @Nullable [] internalArray() {
+    return delegateList.internalArray();
+  }
+
+  @Override
+  int internalArrayStart() {
+    return delegateList.internalArrayStart();
+  }
+
+  @Override
+  int internalArrayEnd() {
+    return delegateList.internalArrayEnd();
+  }
+
+  @Override
+  public final E get(int index) {
     return delegateList.get(index);
+  }
+
+  // redeclare to help optimizers with b/310253115
+  @SuppressWarnings("RedundantOverride")
+  @Override
+  @J2ktIncompatible
+  @GwtIncompatible
+    Object writeReplace() {
+    return super.writeReplace();
   }
 }

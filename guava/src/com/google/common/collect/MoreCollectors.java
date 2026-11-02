@@ -17,15 +17,18 @@
 package com.google.common.collect;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.NullnessCasts.uncheckedCastNullableTToT;
+import static java.util.Collections.emptyList;
 
-import com.google.common.annotations.Beta;
 import com.google.common.annotations.GwtCompatible;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Collector;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Collectors not present in {@code java.util.stream.Collectors} that are not otherwise associated
@@ -34,7 +37,6 @@ import javax.annotation.Nullable;
  * @author Louis Wasserman
  * @since 21.0
  */
-@Beta
 @GwtCompatible
 public final class MoreCollectors {
 
@@ -44,28 +46,30 @@ public final class MoreCollectors {
    */
   private static final Collector<Object, ?, Optional<Object>> TO_OPTIONAL =
       Collector.of(
-          ToOptionalState::new,
+          () -> new ToOptionalState<>(null),
           ToOptionalState::add,
           ToOptionalState::combine,
           ToOptionalState::getOptional,
           Collector.Characteristics.UNORDERED);
 
   /**
-   * A collector that converts a stream of zero or one elements to an {@code Optional}. The returned
-   * collector throws an {@code IllegalArgumentException} if the stream consists of two or more
-   * elements, and a {@code NullPointerException} if the stream consists of exactly one element,
-   * which is null.
+   * A collector that converts a stream of zero or one elements to an {@code Optional}.
+   *
+   * @throws IllegalArgumentException if the stream consists of two or more elements.
+   * @throws NullPointerException if any element in the stream is {@code null}.
+   * @return {@code Optional.of(onlyElement)} if the stream has exactly one element (must not be
+   *     {@code null}) and returns {@code Optional.empty()} if it has none.
    */
   @SuppressWarnings("unchecked")
   public static <T> Collector<T, ?, Optional<T>> toOptional() {
     return (Collector) TO_OPTIONAL;
   }
-  
+
   private static final Object NULL_PLACEHOLDER = new Object();
 
-  private static final Collector<Object, ?, Object> ONLY_ELEMENT =
-      Collector.of(
-          ToOptionalState::new,
+  private static final Collector<@Nullable Object, ?, @Nullable Object> ONLY_ELEMENT =
+      Collector.<@Nullable Object, ToOptionalState<Object>, @Nullable Object>of(
+          () -> new ToOptionalState<>(null),
           (state, o) -> state.add((o == null) ? NULL_PLACEHOLDER : o),
           ToOptionalState::combine,
           state -> {
@@ -80,7 +84,7 @@ public final class MoreCollectors {
    * more elements, and a {@code NoSuchElementException} if the stream is empty.
    */
   @SuppressWarnings("unchecked")
-  public static <T> Collector<T, ?, T> onlyElement() {
+  public static <T extends @Nullable Object> Collector<T, ?, T> onlyElement() {
     return (Collector) ONLY_ELEMENT;
   }
 
@@ -88,18 +92,25 @@ public final class MoreCollectors {
    * This atrocity is here to let us report several of the elements in the stream if there were more
    * than one, not just two.
    */
-  private static final class ToOptionalState {
+  @SuppressWarnings("EmptyList") // ImmutableList doesn't support nullable element types
+  @IgnoreJRERequirement // see enclosing class (whose annotation Animal Sniffer ignores here...)
+  private static final class ToOptionalState<T extends @Nullable Object> {
     static final int MAX_EXTRAS = 4;
 
-    @Nullable Object element;
-    @Nullable List<Object> extras;
+    @Nullable T element;
+    List<T> extras;
+    final @Nullable Supplier<? extends RuntimeException> exceptionSupplier;
 
-    ToOptionalState() {
-      element = null;
-      extras = null;
+    ToOptionalState(@Nullable Supplier<? extends RuntimeException> exceptionSupplier) {
+      this.element = null;
+      this.extras = emptyList();
+      this.exceptionSupplier = exceptionSupplier;
     }
 
-    IllegalArgumentException multiples(boolean overflow) {
+    RuntimeException multiples(boolean overflow) {
+      if (exceptionSupplier != null) {
+        throw exceptionSupplier.get();
+      }
       StringBuilder sb =
           new StringBuilder().append("expected one element but was: <").append(element);
       for (Object o : extras) {
@@ -112,11 +123,12 @@ public final class MoreCollectors {
       throw new IllegalArgumentException(sb.toString());
     }
 
-    void add(Object o) {
+    void add(T o) {
       checkNotNull(o);
       if (element == null) {
         this.element = o;
-      } else if (extras == null) {
+      } else if (extras.isEmpty()) {
+        // Replace immutable empty list with mutable list.
         extras = new ArrayList<>(MAX_EXTRAS);
         extras.add(o);
       } else if (extras.size() < MAX_EXTRAS) {
@@ -126,19 +138,18 @@ public final class MoreCollectors {
       }
     }
 
-    ToOptionalState combine(ToOptionalState other) {
+    ToOptionalState<T> combine(ToOptionalState<T> other) {
       if (element == null) {
         return other;
       } else if (other.element == null) {
         return this;
       } else {
-        if (extras == null) {
+        if (extras.isEmpty()) {
+          // Replace immutable empty list with mutable list.
           extras = new ArrayList<>();
         }
         extras.add(other.element);
-        if (other.extras != null) {
-          this.extras.addAll(other.extras);
-        }
+        extras.addAll(other.extras);
         if (extras.size() > MAX_EXTRAS) {
           extras.subList(MAX_EXTRAS, extras.size()).clear();
           throw multiples(true);
@@ -147,19 +158,23 @@ public final class MoreCollectors {
       }
     }
 
-    Optional<Object> getOptional() {
-      if (extras == null) {
+    Optional<@NonNull T> getOptional() {
+      if (extras.isEmpty()) {
         return Optional.ofNullable(element);
       } else {
         throw multiples(false);
       }
     }
 
-    Object getElement() {
+    T getElement() {
       if (element == null) {
-        throw new NoSuchElementException();
-      } else if (extras == null) {
-        return element;
+        if (exceptionSupplier != null) {
+          throw exceptionSupplier.get();
+        } else {
+          throw new NoSuchElementException();
+        }
+      } else if (extras.isEmpty()) {
+        return uncheckedCastNullableTToT(element);
       } else {
         throw multiples(false);
       }

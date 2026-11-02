@@ -15,13 +15,12 @@
 package com.google.common.base;
 
 import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import java.io.Serializable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * A regex pattern implementation which is backed by the {@link Pattern}.
- */
+/** A regex pattern implementation which is backed by the {@link Pattern}. */
 @GwtIncompatible
 final class JdkPattern extends CommonPattern implements Serializable {
   private final Pattern pattern;
@@ -31,36 +30,23 @@ final class JdkPattern extends CommonPattern implements Serializable {
   }
 
   @Override
-  CommonMatcher matcher(CharSequence t) {
+  public CommonMatcher matcher(CharSequence t) {
     return new JdkMatcher(pattern.matcher(t));
   }
 
   @Override
-  String pattern() {
+  public String pattern() {
     return pattern.pattern();
   }
 
   @Override
-  int flags() {
+  public int flags() {
     return pattern.flags();
   }
 
   @Override
   public String toString() {
     return pattern.toString();
-  }
-
-  @Override
-  public int hashCode() {
-    return pattern.hashCode();
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (!(o instanceof JdkPattern)) {
-      return false;
-    }
-    return pattern.equals(((JdkPattern) o).pattern);
   }
 
   private static final class JdkMatcher extends CommonMatcher {
@@ -71,35 +57,35 @@ final class JdkPattern extends CommonPattern implements Serializable {
     }
 
     @Override
-    boolean matches() {
+    public boolean matches() {
       return matcher.matches();
     }
 
     @Override
-    boolean find() {
+    public boolean find() {
       return matcher.find();
     }
 
     @Override
-    boolean find(int index) {
+    public boolean find(int index) {
       return matcher.find(index);
     }
 
     @Override
-    String replaceAll(String replacement) {
+    public String replaceAll(String replacement) {
       return matcher.replaceAll(replacement);
     }
 
     @Override
-    int end() {
+    public int end() {
       return matcher.end();
     }
 
     @Override
-    int start() {
+    public int start() {
       return matcher.start();
     }
   }
 
-  private static final long serialVersionUID = 0;
+  @J2ktIncompatible private static final long serialVersionUID = 0;
 }

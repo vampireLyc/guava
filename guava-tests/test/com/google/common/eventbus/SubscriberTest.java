@@ -17,11 +17,14 @@
 package com.google.common.eventbus;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.testing.EqualsTester;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Tests for {@link Subscriber}.
@@ -29,16 +32,17 @@ import junit.framework.TestCase;
  * @author Cliff Biffle
  * @author Colin Decker
  */
+@NullUnmarked
 public class SubscriberTest extends TestCase {
 
   private static final Object FIXTURE_ARGUMENT = new Object();
 
   private EventBus bus;
   private boolean methodCalled;
-  private Object methodArgument;
+  private @Nullable Object methodArgument;
 
   @Override
-  protected void setUp() throws Exception {
+  protected void setUp() {
     bus = new EventBus();
     methodCalled = false;
     methodArgument = null;
@@ -60,31 +64,27 @@ public class SubscriberTest extends TestCase {
     subscriber.invokeSubscriberMethod(FIXTURE_ARGUMENT);
 
     assertTrue("Subscriber must call provided method", methodCalled);
-    assertTrue("Subscriber argument must be exactly the provided object.",
+    assertTrue(
+        "Subscriber argument must be exactly the provided object.",
         methodArgument == FIXTURE_ARGUMENT);
   }
 
-  public void testInvokeSubscriberMethod_exceptionWrapping() throws Throwable {
+  public void testInvokeSubscriberMethod_exceptionWrapping() {
     Method method = getTestSubscriberMethod("exceptionThrowingMethod");
     Subscriber subscriber = Subscriber.create(bus, this, method);
 
-    try {
-      subscriber.invokeSubscriberMethod(FIXTURE_ARGUMENT);
-      fail("Subscribers whose methods throw must throw InvocationTargetException");
-    } catch (InvocationTargetException expected) {
-      assertThat(expected.getCause()).isInstanceOf(IntentionalException.class);
-    }
+    InvocationTargetException expected =
+        assertThrows(
+            InvocationTargetException.class,
+            () -> subscriber.invokeSubscriberMethod(FIXTURE_ARGUMENT));
+    assertThat(expected).hasCauseThat().isInstanceOf(IntentionalException.class);
   }
 
-  public void testInvokeSubscriberMethod_errorPassthrough() throws Throwable {
+  public void testInvokeSubscriberMethod_errorPassthrough() {
     Method method = getTestSubscriberMethod("errorThrowingMethod");
     Subscriber subscriber = Subscriber.create(bus, this, method);
 
-    try {
-      subscriber.invokeSubscriberMethod(FIXTURE_ARGUMENT);
-      fail("Subscribers whose methods throw Errors must rethrow them");
-    } catch (JudgmentError expected) {
-    }
+    assertThrows(JudgmentError.class, () -> subscriber.invokeSubscriberMethod(FIXTURE_ARGUMENT));
   }
 
   public void testEquals() throws Exception {
@@ -107,7 +107,7 @@ public class SubscriberTest extends TestCase {
   }
 
   /**
-   * Records the provided object in {@link #methodArgument} and sets {@link #methodCalled}.  This
+   * Records the provided object in {@link #methodArgument} and sets {@link #methodCalled}. This
    * method is called reflectively by Subscriber during tests, and must remain public.
    *
    * @param arg argument to record.
@@ -124,10 +124,8 @@ public class SubscriberTest extends TestCase {
     throw new IntentionalException();
   }
 
-  /**
-   * Local exception subclass to check variety of exception thrown.
-   */
-  class IntentionalException extends Exception {
+  /** Local exception subclass to check variety of exception thrown. */
+  static final class IntentionalException extends Exception {
 
     private static final long serialVersionUID = -2500191180248181379L;
   }
@@ -137,14 +135,12 @@ public class SubscriberTest extends TestCase {
     throw new JudgmentError();
   }
 
-  @Subscribe @AllowConcurrentEvents
-  public void threadSafeMethod(Object arg) {
-  }
+  @Subscribe
+  @AllowConcurrentEvents
+  public void threadSafeMethod(Object arg) {}
 
-  /**
-   * Local Error subclass to check variety of error thrown.
-   */
-  class JudgmentError extends Error {
+  /** Local Error subclass to check variety of error thrown. */
+  static final class JudgmentError extends Error {
 
     private static final long serialVersionUID = 634248373797713373L;
   }

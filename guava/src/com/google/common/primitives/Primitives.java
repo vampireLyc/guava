@@ -15,10 +15,10 @@
 package com.google.common.primitives;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Collections.unmodifiableMap;
 
-import com.google.common.annotations.GwtIncompatible;
-import java.util.Collections;
-import java.util.HashMap;
+import com.google.common.annotations.GwtCompatible;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -29,21 +29,25 @@ import java.util.Set;
  * @author Kevin Bourrillion
  * @since 1.0
  */
-@GwtIncompatible
+@GwtCompatible
 public final class Primitives {
   private Primitives() {}
 
   /** A map from primitive types to their corresponding wrapper types. */
+  // It's a constant, and we can't use ImmutableMap here without creating a circular dependency.
+  @SuppressWarnings("ConstantCaseForConstants")
   private static final Map<Class<?>, Class<?>> PRIMITIVE_TO_WRAPPER_TYPE;
 
   /** A map from wrapper types to their corresponding primitive types. */
+  // It's a constant, and we can't use ImmutableMap here without creating a circular dependency.
+  @SuppressWarnings("ConstantCaseForConstants")
   private static final Map<Class<?>, Class<?>> WRAPPER_TO_PRIMITIVE_TYPE;
 
   // Sad that we can't use a BiMap. :(
 
   static {
-    Map<Class<?>, Class<?>> primToWrap = new HashMap<Class<?>, Class<?>>(16);
-    Map<Class<?>, Class<?>> wrapToPrim = new HashMap<Class<?>, Class<?>>(16);
+    Map<Class<?>, Class<?>> primToWrap = new LinkedHashMap<>(16);
+    Map<Class<?>, Class<?>> wrapToPrim = new LinkedHashMap<>(16);
 
     add(primToWrap, wrapToPrim, boolean.class, Boolean.class);
     add(primToWrap, wrapToPrim, byte.class, Byte.class);
@@ -55,8 +59,8 @@ public final class Primitives {
     add(primToWrap, wrapToPrim, short.class, Short.class);
     add(primToWrap, wrapToPrim, void.class, Void.class);
 
-    PRIMITIVE_TO_WRAPPER_TYPE = Collections.unmodifiableMap(primToWrap);
-    WRAPPER_TO_PRIMITIVE_TYPE = Collections.unmodifiableMap(wrapToPrim);
+    PRIMITIVE_TO_WRAPPER_TYPE = unmodifiableMap(primToWrap);
+    WRAPPER_TO_PRIMITIVE_TYPE = unmodifiableMap(wrapToPrim);
   }
 
   private static void add(
@@ -69,9 +73,9 @@ public final class Primitives {
   }
 
   /**
-   * Returns an immutable set of all nine primitive types (including {@code
-   * void}). Note that a simpler way to test whether a {@code Class} instance is a member of this
-   * set is to call {@link Class#isPrimitive}.
+   * Returns an immutable set of all nine primitive types (including {@code void}). Note that a
+   * simpler way to test whether a {@code Class} instance is a member of this set is to call {@link
+   * Class#isPrimitive}.
    *
    * @since 3.0
    */
@@ -89,8 +93,8 @@ public final class Primitives {
   }
 
   /**
-   * Returns {@code true} if {@code type} is one of the nine primitive-wrapper types, such as
-   * {@link Integer}.
+   * Returns {@code true} if {@code type} is one of the nine primitive-wrapper types, such as {@link
+   * Integer}.
    *
    * @see Class#isPrimitive
    */

@@ -16,8 +16,9 @@
 
 package com.google.common.collect.testing.features;
 
+import static com.google.common.collect.testing.Helpers.copyToSet;
+
 import com.google.common.annotations.GwtCompatible;
-import com.google.common.collect.testing.Helpers;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -29,32 +30,28 @@ import java.util.Set;
  *
  * @author George van den Driessche
  */
-// Enum values use constructors with generic varargs.
-@SuppressWarnings("unchecked")
+@SuppressWarnings("rawtypes") // maybe avoidable if we rework the whole package?
 @GwtCompatible
 public enum MapFeature implements Feature<Map> {
   /**
-   * The map does not throw {@code NullPointerException} on calls such as
-   * {@code containsKey(null)}, {@code get(null)},
-   * {@code keySet().contains(null)} or {@code remove(null)}.
+   * The map does not throw {@code NullPointerException} on calls such as {@code containsKey(null)},
+   * {@code get(null)}, {@code keySet().contains(null)} or {@code remove(null)}.
    */
   ALLOWS_NULL_KEY_QUERIES,
   ALLOWS_NULL_KEYS(ALLOWS_NULL_KEY_QUERIES),
   /**
-   * The map does not throw {@code NullPointerException} on calls such as
-   * {@code containsValue(null)}, {@code values().contains(null)} or
-   * {@code values().remove(null)}.
+   * The map does not throw {@code NullPointerException} on calls such as {@code
+   * containsValue(null)}, {@code values().contains(null)} or {@code values().remove(null)}.
    */
   ALLOWS_NULL_VALUE_QUERIES,
   ALLOWS_NULL_VALUES(ALLOWS_NULL_VALUE_QUERIES),
   /**
-   * The map does not throw {@code NullPointerException} on calls such as
-   * {@code entrySet().contains(null)} or {@code entrySet().remove(null)}
+   * The map does not throw {@code NullPointerException} on calls such as {@code
+   * entrySet().contains(null)} or {@code entrySet().remove(null)}
    */
   ALLOWS_NULL_ENTRY_QUERIES,
   /**
-   * The map does not throw {@code NullPointerException} on any {@code null}
-   * queries.
+   * The map does not throw {@code NullPointerException} on any {@code null} queries.
    *
    * @see #ALLOWS_NULL_KEY_QUERIES
    * @see #ALLOWS_NULL_VALUE_QUERIES
@@ -68,9 +65,9 @@ public enum MapFeature implements Feature<Map> {
   SUPPORTS_REMOVE,
   FAILS_FAST_ON_CONCURRENT_MODIFICATION,
   /**
-   * Indicates that the constructor or factory method of a map, usually an
-   * immutable map, throws an {@link IllegalArgumentException} when presented
-   * with duplicate keys instead of discarding all but one.
+   * Indicates that the constructor or factory method of a map, usually an immutable map, throws an
+   * {@link IllegalArgumentException} when presented with duplicate keys instead of discarding all
+   * but one.
    */
   REJECTS_DUPLICATES_AT_CREATION,
 
@@ -79,7 +76,7 @@ public enum MapFeature implements Feature<Map> {
   private final Set<Feature<? super Map>> implied;
 
   MapFeature(Feature<? super Map>... implied) {
-    this.implied = Helpers.copyToSet(implied);
+    this.implied = copyToSet(implied);
   }
 
   @Override
@@ -91,8 +88,8 @@ public enum MapFeature implements Feature<Map> {
   @Inherited
   @TesterAnnotation
   public @interface Require {
-    public abstract MapFeature[] value() default {};
+    MapFeature[] value() default {};
 
-    public abstract MapFeature[] absent() default {};
+    MapFeature[] absent() default {};
   }
 }

@@ -17,12 +17,14 @@
 package com.google.common.base;
 
 import com.google.caliper.Benchmark;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Some microbenchmarks for the {@link com.google.common.base.Objects} class.
  *
  * @author Ben L. Titzer
  */
+@NullUnmarked
 public class ObjectsBenchmark {
 
   private static final Integer I0 = -45;
@@ -36,7 +38,8 @@ public class ObjectsBenchmark {
   private static final Double D0 = 9.234d;
   private static final Double D1 = -1.2e55;
 
-  @Benchmark int hashString_2(int reps) {
+  @Benchmark
+  int hashString_2(int reps) {
     int dummy = 0;
     for (int i = 0; i < reps; i++) {
       dummy += Objects.hashCode(S0, S1);
@@ -44,7 +47,8 @@ public class ObjectsBenchmark {
     return dummy;
   }
 
-  @Benchmark int hashString_3(int reps) {
+  @Benchmark
+  int hashString_3(int reps) {
     int dummy = 0;
     for (int i = 0; i < reps; i++) {
       dummy += Objects.hashCode(S0, S1, S2);
@@ -52,7 +56,8 @@ public class ObjectsBenchmark {
     return dummy;
   }
 
-  @Benchmark int hashString_4(int reps) {
+  @Benchmark
+  int hashString_4(int reps) {
     int dummy = 0;
     for (int i = 0; i < reps; i++) {
       dummy += Objects.hashCode(S0, S1, S2, S3);
@@ -60,7 +65,8 @@ public class ObjectsBenchmark {
     return dummy;
   }
 
-  @Benchmark int hashString_5(int reps) {
+  @Benchmark
+  int hashString_5(int reps) {
     int dummy = 0;
     for (int i = 0; i < reps; i++) {
       dummy += Objects.hashCode(S0, S1, S2, S3, S4);
@@ -68,7 +74,8 @@ public class ObjectsBenchmark {
     return dummy;
   }
 
-  @Benchmark int hashMixed_5(int reps) {
+  @Benchmark
+  int hashMixed_5(int reps) {
     int dummy = 0;
     for (int i = 0; i < reps; i++) {
       dummy += Objects.hashCode(I2, S1, D1, S2, I0);

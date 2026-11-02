@@ -29,24 +29,29 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
- * A benchmark comparing the {@link MoreExecutors#newDirectExecutorService()} to
- * {@link MoreExecutors#directExecutor}.
+ * A benchmark comparing the {@link MoreExecutors#newDirectExecutorService()} to {@link
+ * MoreExecutors#directExecutor}.
  */
 @VmOptions({"-Xms12g", "-Xmx12g", "-d64"})
+@NullUnmarked
 public class MoreExecutorsDirectExecutorBenchmark {
   enum Impl {
     EXECUTOR_SERVICE {
-      @Override Executor executor() {
+      @Override
+      Executor executor() {
         return newDirectExecutorService();
       }
     },
     EXECUTOR {
-      @Override Executor executor() {
+      @Override
+      Executor executor() {
         return directExecutor();
       }
     };
+
     abstract Executor executor();
   }
 
@@ -55,59 +60,68 @@ public class MoreExecutorsDirectExecutorBenchmark {
 
   static final class CountingRunnable implements Runnable {
     AtomicInteger integer = new AtomicInteger();
-    @Override public void run() {
+
+    @Override
+    public void run() {
       integer.incrementAndGet();
     }
   }
 
   CountingRunnable countingRunnable = new CountingRunnable();
 
-  Set<Thread> threads = new HashSet<Thread>();
+  Set<Thread> threads = new HashSet<>();
 
-  @BeforeExperiment void before() {
+  @BeforeExperiment
+  void before() {
     executor = impl.executor();
     for (int i = 0; i < 4; i++) {
-      Thread thread = new Thread() {
-        @Override public void run() {
-          CountingRunnable localRunnable = new CountingRunnable();
-          while (!isInterrupted()) {
-            executor.execute(localRunnable);
-          }
-          countingRunnable.integer.addAndGet(localRunnable.integer.get());
-        }
-      };
+      Thread thread =
+          new Thread() {
+            @Override
+            public void run() {
+              CountingRunnable localRunnable = new CountingRunnable();
+              while (!isInterrupted()) {
+                executor.execute(localRunnable);
+              }
+              countingRunnable.integer.addAndGet(localRunnable.integer.get());
+            }
+          };
       threads.add(thread);
     }
   }
 
-  @AfterExperiment void after() {
+  @AfterExperiment
+  void after() {
     for (Thread thread : threads) {
-      thread.interrupt();  // try to get them to exit
+      thread.interrupt(); // try to get them to exit
     }
     threads.clear();
   }
 
-  @Footprint Object measureSize() {
+  @Footprint
+  Object measureSize() {
     return executor;
   }
 
-  @Benchmark int timeUncontendedExecute(int reps) {
-    final Executor executor = this.executor;
-    final CountingRunnable countingRunnable = this.countingRunnable;
+  @Benchmark
+  int timeUncontendedExecute(int reps) {
+    Executor executor = this.executor;
+    CountingRunnable countingRunnable = this.countingRunnable;
     for (int i = 0; i < reps; i++) {
       executor.execute(countingRunnable);
     }
     return countingRunnable.integer.get();
   }
 
-  @Benchmark int timeContendedExecute(int reps) {
-    final Executor executor = this.executor;
+  @Benchmark
+  int timeContendedExecute(int reps) {
+    Executor executor = this.executor;
     for (Thread thread : threads) {
       if (!thread.isAlive()) {
         thread.start();
       }
     }
-    final CountingRunnable countingRunnable = this.countingRunnable;
+    CountingRunnable countingRunnable = this.countingRunnable;
     for (int i = 0; i < reps; i++) {
       executor.execute(countingRunnable);
     }

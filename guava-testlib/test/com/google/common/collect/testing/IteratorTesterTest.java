@@ -18,15 +18,15 @@ package com.google.common.collect.testing;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.testing.IteratorFeature.MODIFIABLE;
-import static java.util.Collections.emptyList;
+import static org.junit.Assert.assertThrows;
 
 import com.google.common.annotations.GwtCompatible;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import junit.framework.AssertionFailedError;
 import junit.framework.TestCase;
 
 /**
@@ -40,10 +40,11 @@ public class IteratorTesterTest extends TestCase {
 
   public void testCanCatchDifferentLengthOfIteration() {
     IteratorTester<Integer> tester =
-        new IteratorTester<Integer>(4, MODIFIABLE, newArrayList(1, 2, 3),
-            IteratorTester.KnownOrder.KNOWN_ORDER) {
-          @Override protected Iterator<Integer> newTargetIterator() {
-            return Lists.newArrayList(1, 2, 3, 4).iterator();
+        new IteratorTester<Integer>(
+            4, MODIFIABLE, newArrayList(1, 2, 3), IteratorTester.KnownOrder.KNOWN_ORDER) {
+          @Override
+          protected Iterator<Integer> newTargetIterator() {
+            return newArrayList(1, 2, 3, 4).iterator();
           }
         };
     assertFailure(tester);
@@ -51,10 +52,11 @@ public class IteratorTesterTest extends TestCase {
 
   public void testCanCatchDifferentContents() {
     IteratorTester<Integer> tester =
-        new IteratorTester<Integer>(3, MODIFIABLE, newArrayList(1, 2, 3),
-            IteratorTester.KnownOrder.KNOWN_ORDER) {
-          @Override protected Iterator<Integer> newTargetIterator() {
-            return Lists.newArrayList(1, 3, 2).iterator();
+        new IteratorTester<Integer>(
+            3, MODIFIABLE, newArrayList(1, 2, 3), IteratorTester.KnownOrder.KNOWN_ORDER) {
+          @Override
+          protected Iterator<Integer> newTargetIterator() {
+            return newArrayList(1, 3, 2).iterator();
           }
         };
     assertFailure(tester);
@@ -62,9 +64,10 @@ public class IteratorTesterTest extends TestCase {
 
   public void testCanCatchDifferentRemoveBehaviour() {
     IteratorTester<Integer> tester =
-        new IteratorTester<Integer>(3, MODIFIABLE, newArrayList(1, 2),
-            IteratorTester.KnownOrder.KNOWN_ORDER) {
-          @Override protected Iterator<Integer> newTargetIterator() {
+        new IteratorTester<Integer>(
+            3, MODIFIABLE, newArrayList(1, 2), IteratorTester.KnownOrder.KNOWN_ORDER) {
+          @Override
+          protected Iterator<Integer> newTargetIterator() {
             return ImmutableList.of(1, 2).iterator();
           }
         };
@@ -72,9 +75,10 @@ public class IteratorTesterTest extends TestCase {
   }
 
   public void testUnknownOrder() {
-    new IteratorTester<Integer>(3, MODIFIABLE, newArrayList(1, 2),
-        IteratorTester.KnownOrder.UNKNOWN_ORDER) {
-      @Override protected Iterator<Integer> newTargetIterator() {
+    new IteratorTester<Integer>(
+        3, MODIFIABLE, newArrayList(1, 2), IteratorTester.KnownOrder.UNKNOWN_ORDER) {
+      @Override
+      protected Iterator<Integer> newTargetIterator() {
         return newArrayList(2, 1).iterator();
       }
     }.test();
@@ -82,9 +86,10 @@ public class IteratorTesterTest extends TestCase {
 
   public void testUnknownOrderUnrecognizedElement() {
     IteratorTester<Integer> tester =
-        new IteratorTester<Integer>(3, MODIFIABLE, newArrayList(1, 2, 50),
-            IteratorTester.KnownOrder.UNKNOWN_ORDER) {
-          @Override protected Iterator<Integer> newTargetIterator() {
+        new IteratorTester<Integer>(
+            3, MODIFIABLE, newArrayList(1, 2, 50), IteratorTester.KnownOrder.UNKNOWN_ORDER) {
+          @Override
+          protected Iterator<Integer> newTargetIterator() {
             return newArrayList(2, 1, 3).iterator();
           }
         };
@@ -92,23 +97,20 @@ public class IteratorTesterTest extends TestCase {
   }
 
   /**
-   * This Iterator wraps another iterator and gives it a bug found
-   * in JDK6.
+   * This Iterator wraps another iterator and gives it a bug found in JDK6.
    *
-   * <p>This bug is this: if you create an iterator from a TreeSet
-   * and call next() on that iterator when hasNext() is false, so
-   * that next() throws a NoSuchElementException, then subsequent
-   * calls to remove() will incorrectly throw an IllegalStateException,
-   * instead of removing the last element returned.
+   * <p>This bug is this: if you create an iterator from a TreeSet and call next() on that iterator
+   * when hasNext() is false, so that next() throws a NoSuchElementException, then subsequent calls
+   * to remove() will incorrectly throw an IllegalStateException, instead of removing the last
+   * element returned.
    *
-   * <p>See
-   * <a href="http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6529795">
-   * Sun bug 6529795</a>
+   * <p>See <a href="https://bugs.openjdk.org/browse/JDK-6529795">JDK-6529795</a>
    */
-  static class IteratorWithSunJavaBug6529795<T> implements Iterator<T> {
+  static class IteratorWithJdkBug6529795<T> implements Iterator<T> {
     Iterator<T> iterator;
     boolean nextThrewException;
-    IteratorWithSunJavaBug6529795(Iterator<T> iterator) {
+
+    IteratorWithJdkBug6529795(Iterator<T> iterator) {
       this.iterator = iterator;
     }
 
@@ -136,35 +138,38 @@ public class IteratorTesterTest extends TestCase {
     }
   }
 
-  public void testCanCatchSunJavaBug6529795InTargetIterator() {
-    try {
-      /* Choose 4 steps to get sequence [next, next, next, remove] */
-      new IteratorTester<Integer>(4, MODIFIABLE, newArrayList(1, 2),
-          IteratorTester.KnownOrder.KNOWN_ORDER) {
-        @Override protected Iterator<Integer> newTargetIterator() {
-          Iterator<Integer> iterator = Lists.newArrayList(1, 2).iterator();
-          return new IteratorWithSunJavaBug6529795<Integer>(iterator);
-        }
-      }.test();
-    } catch (AssertionFailedError e) {
-      return;
-    }
-    fail("Should have caught jdk6 bug in target iterator");
+  public void testCanCatchJdkBug6529795InTargetIterator() {
+    IteratorTester<Integer> tester =
+        new IteratorTester<Integer>(
+            // We choose 4 steps to get the sequence [next, next, next, remove].
+            4, MODIFIABLE, newArrayList(1, 2), IteratorTester.KnownOrder.KNOWN_ORDER) {
+          @Override
+          protected Iterator<Integer> newTargetIterator() {
+            Iterator<Integer> iterator = newArrayList(1, 2).iterator();
+            return new IteratorWithJdkBug6529795<>(iterator);
+          }
+        };
+    assertFailure(tester);
   }
 
   private static final int STEPS = 3;
+
   static class TesterThatCountsCalls extends IteratorTester<Integer> {
     TesterThatCountsCalls() {
-      super(STEPS, MODIFIABLE, newArrayList(1),
-          IteratorTester.KnownOrder.KNOWN_ORDER);
+      super(STEPS, MODIFIABLE, newArrayList(1), KnownOrder.KNOWN_ORDER);
     }
+
     int numCallsToNewTargetIterator;
     int numCallsToVerify;
-    @Override protected Iterator<Integer> newTargetIterator() {
+
+    @Override
+    protected Iterator<Integer> newTargetIterator() {
       numCallsToNewTargetIterator++;
-      return Lists.newArrayList(1).iterator();
+      return newArrayList(1).iterator();
     }
-    @Override protected void verify(List<Integer> elements) {
+
+    @Override
+    protected void verify(List<Integer> elements) {
       numCallsToVerify++;
       super.verify(elements);
     }
@@ -175,52 +180,53 @@ public class IteratorTesterTest extends TestCase {
 
     tester.test();
 
-    assertEquals("Should have verified once per stimulus executed",
+    assertEquals(
+        "Should have verified once per stimulus executed",
         tester.numCallsToVerify,
         tester.numCallsToNewTargetIterator * STEPS);
   }
 
   public void testVerifyCanThrowAssertionThatFailsTest() {
-    final String message = "Important info about why verify failed";
+    String message = "Important info about why verify failed";
     IteratorTester<Integer> tester =
-        new IteratorTester<Integer>(1, MODIFIABLE, newArrayList(1, 2, 3),
-            IteratorTester.KnownOrder.KNOWN_ORDER) {
-          @Override protected Iterator<Integer> newTargetIterator() {
-            return Lists.newArrayList(1, 2, 3).iterator();
+        new IteratorTester<Integer>(
+            1, MODIFIABLE, newArrayList(1, 2, 3), IteratorTester.KnownOrder.KNOWN_ORDER) {
+          @Override
+          protected Iterator<Integer> newTargetIterator() {
+            return newArrayList(1, 2, 3).iterator();
           }
 
-          @Override protected void verify(List<Integer> elements) {
-            throw new AssertionFailedError(message);
+          @Override
+          protected void verify(List<Integer> elements) {
+            throw new AssertionError(message);
           }
         };
-    AssertionFailedError actual = null;
-    try {
-      tester.test();
-    } catch (AssertionFailedError e) {
-      actual = e;
-    }
-    assertNotNull("verify() should be able to cause test failure", actual);
-    assertTrue("AssertionFailedError should have info about why test failed",
+    AssertionError actual = assertFailure(tester);
+    assertTrue(
+        "AssertionError should have info about why test failed",
         actual.getCause().getMessage().contains(message));
   }
 
   public void testMissingException() {
-    List<Integer> emptyList = newArrayList();
+    List<Integer> emptyList = new ArrayList<>();
 
     IteratorTester<Integer> tester =
-        new IteratorTester<Integer>(1, MODIFIABLE, emptyList,
-            IteratorTester.KnownOrder.KNOWN_ORDER) {
-          @Override protected Iterator<Integer> newTargetIterator() {
+        new IteratorTester<Integer>(
+            1, MODIFIABLE, emptyList, IteratorTester.KnownOrder.KNOWN_ORDER) {
+          @Override
+          protected Iterator<Integer> newTargetIterator() {
             return new Iterator<Integer>() {
               @Override
               public void remove() {
                 // We should throw here, but we won't!
               }
+
               @Override
               public Integer next() {
                 // We should throw here, but we won't!
-                return null;
+                return 0;
               }
+
               @Override
               public boolean hasNext() {
                 return false;
@@ -233,30 +239,38 @@ public class IteratorTesterTest extends TestCase {
 
   public void testUnexpectedException() {
     IteratorTester<Integer> tester =
-        new IteratorTester<Integer>(1, MODIFIABLE, newArrayList(1),
-            IteratorTester.KnownOrder.KNOWN_ORDER) {
-          @Override protected Iterator<Integer> newTargetIterator() {
-            return new ThrowingIterator<Integer>(new IllegalStateException());
+        new IteratorTester<Integer>(
+            1, MODIFIABLE, newArrayList(1), IteratorTester.KnownOrder.KNOWN_ORDER) {
+          @Override
+          protected Iterator<Integer> newTargetIterator() {
+            return new ThrowingIterator<>(new IllegalStateException());
           }
         };
     assertFailure(tester);
   }
 
   public void testSimilarException() {
-    List<Integer> emptyList = emptyList();
+    List<Integer> expectedElements = ImmutableList.of();
     IteratorTester<Integer> tester =
-        new IteratorTester<Integer>(1, MODIFIABLE, emptyList,
-            IteratorTester.KnownOrder.KNOWN_ORDER) {
-          @Override protected Iterator<Integer> newTargetIterator() {
+        new IteratorTester<Integer>(
+            1, MODIFIABLE, expectedElements, IteratorTester.KnownOrder.KNOWN_ORDER) {
+          @Override
+          protected Iterator<Integer> newTargetIterator() {
             return new Iterator<Integer>() {
               @Override
               public void remove() {
-                throw new IllegalStateException() { /* subclass */};
+                throw new IllegalStateException() {
+                  /* subclass */
+                };
               }
+
               @Override
               public Integer next() {
-                throw new NoSuchElementException() { /* subclass */};
+                throw new NoSuchElementException() {
+                  /* subclass */
+                };
               }
+
               @Override
               public boolean hasNext() {
                 return false;
@@ -268,22 +282,25 @@ public class IteratorTesterTest extends TestCase {
   }
 
   public void testMismatchedException() {
-    List<Integer> emptyList = emptyList();
+    List<Integer> expectedElements = ImmutableList.of();
     IteratorTester<Integer> tester =
-        new IteratorTester<Integer>(1, MODIFIABLE, emptyList,
-            IteratorTester.KnownOrder.KNOWN_ORDER) {
-          @Override protected Iterator<Integer> newTargetIterator() {
+        new IteratorTester<Integer>(
+            1, MODIFIABLE, expectedElements, IteratorTester.KnownOrder.KNOWN_ORDER) {
+          @Override
+          protected Iterator<Integer> newTargetIterator() {
             return new Iterator<Integer>() {
               @Override
               public void remove() {
                 // Wrong exception type.
                 throw new IllegalArgumentException();
               }
+
               @Override
               public Integer next() {
                 // Wrong exception type.
                 throw new UnsupportedOperationException();
               }
+
               @Override
               public boolean hasNext() {
                 return false;
@@ -294,13 +311,9 @@ public class IteratorTesterTest extends TestCase {
     assertFailure(tester);
   }
 
-  private static void assertFailure(IteratorTester<?> tester) {
-    try {
-      tester.test();
-    } catch (AssertionFailedError expected) {
-      return;
-    }
-    fail();
+  @CanIgnoreReturnValue
+  private static AssertionError assertFailure(IteratorTester<?> tester) {
+    return assertThrows(AssertionError.class, tester::test);
   }
 
   private static final class ThrowingIterator<E> implements Iterator<E> {

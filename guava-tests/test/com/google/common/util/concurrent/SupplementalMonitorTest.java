@@ -16,14 +16,19 @@
 
 package com.google.common.util.concurrent;
 
+import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.util.concurrent.GeneratedMonitorTest.startThread;
 import static com.google.common.util.concurrent.Uninterruptibles.joinUninterruptibly;
+import static org.junit.Assert.assertThrows;
 
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.annotations.J2ktIncompatible;
 import com.google.common.util.concurrent.GeneratedMonitorTest.FlagGuard;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import junit.framework.TestCase;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Supplemental tests for {@link Monitor}.
@@ -33,50 +38,32 @@ import junit.framework.TestCase;
  *
  * @author Justin T. Sampson
  */
-
+@NullUnmarked
+@GwtIncompatible
+@J2ktIncompatible
 public class SupplementalMonitorTest extends TestCase {
 
   public void testLeaveWithoutEnterThrowsIMSE() {
     Monitor monitor = new Monitor();
-    try {
-      monitor.leave();
-      fail("expected IllegalMonitorStateException");
-    } catch (IllegalMonitorStateException e) {
-      // expected
-    }
+    assertThrows(IllegalMonitorStateException.class, monitor::leave);
   }
 
   public void testGetWaitQueueLengthWithWrongMonitorThrowsIMSE() {
     Monitor monitor1 = new Monitor();
     Monitor monitor2 = new Monitor();
     FlagGuard guard = new FlagGuard(monitor2);
-    try {
-      monitor1.getWaitQueueLength(guard);
-      fail("expected IllegalMonitorStateException");
-    } catch (IllegalMonitorStateException e) {
-      // expected
-    }
+    assertThrows(IllegalMonitorStateException.class, () -> monitor1.getWaitQueueLength(guard));
   }
 
   public void testHasWaitersWithWrongMonitorThrowsIMSE() {
     Monitor monitor1 = new Monitor();
     Monitor monitor2 = new Monitor();
     FlagGuard guard = new FlagGuard(monitor2);
-    try {
-      monitor1.hasWaiters(guard);
-      fail("expected IllegalMonitorStateException");
-    } catch (IllegalMonitorStateException e) {
-      // expected
-    }
+    assertThrows(IllegalMonitorStateException.class, () -> monitor1.hasWaiters(guard));
   }
 
   public void testNullMonitorInGuardConstructorThrowsNPE() {
-    try {
-      new FlagGuard(null);
-      fail("expected NullPointerException");
-    } catch (NullPointerException e) {
-      // expected
-    }
+    assertThrows(NullPointerException.class, () -> new FlagGuard(null));
   }
 
   public void testIsFair() {
@@ -108,36 +95,39 @@ public class SupplementalMonitorTest extends TestCase {
     verifyOccupiedMethodsInAnotherThread(monitor, false, false, 0);
   }
 
-  private static void verifyOccupiedMethodsInCurrentThread(Monitor monitor,
-      boolean expectedIsOccupied, boolean expectedIsOccupiedByCurrentThread,
+  private static void verifyOccupiedMethodsInCurrentThread(
+      Monitor monitor,
+      boolean expectedIsOccupied,
+      boolean expectedIsOccupiedByCurrentThread,
       int expectedOccupiedDepth) {
     assertEquals(expectedIsOccupied, monitor.isOccupied());
     assertEquals(expectedIsOccupiedByCurrentThread, monitor.isOccupiedByCurrentThread());
     assertEquals(expectedOccupiedDepth, monitor.getOccupiedDepth());
   }
 
-  private static void verifyOccupiedMethodsInAnotherThread(final Monitor monitor,
-      boolean expectedIsOccupied, boolean expectedIsOccupiedByCurrentThread,
+  private static void verifyOccupiedMethodsInAnotherThread(
+      Monitor monitor,
+      boolean expectedIsOccupied,
+      boolean expectedIsOccupiedByCurrentThread,
       int expectedOccupiedDepth) {
-    final AtomicBoolean actualIsOccupied = new AtomicBoolean();
-    final AtomicBoolean actualIsOccupiedByCurrentThread = new AtomicBoolean();
-    final AtomicInteger actualOccupiedDepth = new AtomicInteger();
-    final AtomicReference<Throwable> thrown = new AtomicReference<Throwable>();
-    joinUninterruptibly(startThread(new Runnable() {
-      @Override public void run() {
-        try {
-          actualIsOccupied.set(monitor.isOccupied());
-          actualIsOccupiedByCurrentThread.set(monitor.isOccupiedByCurrentThread());
-          actualOccupiedDepth.set(monitor.getOccupiedDepth());
-        } catch (Throwable t) {
-          thrown.set(t);
-        }
-      }
-    }));
-    assertNull(thrown.get());
+    AtomicBoolean actualIsOccupied = new AtomicBoolean();
+    AtomicBoolean actualIsOccupiedByCurrentThread = new AtomicBoolean();
+    AtomicInteger actualOccupiedDepth = new AtomicInteger();
+    AtomicReference<Throwable> thrown = new AtomicReference<>();
+    joinUninterruptibly(
+        startThread(
+            () -> {
+              try {
+                actualIsOccupied.set(monitor.isOccupied());
+                actualIsOccupiedByCurrentThread.set(monitor.isOccupiedByCurrentThread());
+                actualOccupiedDepth.set(monitor.getOccupiedDepth());
+              } catch (Throwable t) {
+                thrown.set(t);
+              }
+            }));
+    assertThat(thrown.get()).isNull();
     assertEquals(expectedIsOccupied, actualIsOccupied.get());
     assertEquals(expectedIsOccupiedByCurrentThread, actualIsOccupiedByCurrentThread.get());
     assertEquals(expectedOccupiedDepth, actualOccupiedDepth.get());
   }
-
 }
